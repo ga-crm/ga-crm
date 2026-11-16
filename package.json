@@ -13,8 +13,6 @@
     "seed:reset": "npm --prefix backend run seed:reset",
     "build": "npm --prefix backend run build && npm --prefix frontend run build",
     "test": "npm --prefix backend test && npm --prefix backend run test:int && npm --prefix frontend test",
-    "docs:rules": "node scripts/build-rule-index.mjs",
-    "docs:rules:check": "node scripts/build-rule-index.mjs --check",
     "dev:api": "npm --prefix backend run start:dev",
     "dev:web": "npm --prefix frontend run dev"
   }

@@ -1,0 +1,129 @@
+# Staging deploy to an Ubuntu VPS: build and check on GitHub, then ship one archive over SSH and
+# switch to it on the server (deploy/remote-deploy.sh). One-time server setup: deploy/README.md.
+#
+# Secrets (Settings > Environments > staging):
+#   VPS_HOST         server name or IP
+#   VPS_PORT         SSH port (optional, default 22)
+#   VPS_USER         the deploy user created during setup (gacrm)
+#   VPS_SSH_KEY      private key of that user, OpenSSH format
+#   VPS_KNOWN_HOSTS  output of `ssh-keyscan -p <port> <host>`, so the runner only talks to this server
+name: Deploy staging
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+# One deploy at a time; a newer push waits instead of cutting a running deploy in half
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '26'
+
+jobs:
+  build:
+    name: Check and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install
+        run: |
+          npm --prefix backend ci --no-audit --no-fund
+          npm --prefix frontend ci --no-audit --no-fund
+
+      # Unit tests read the root .env like the API does; throwaway values, never used elsewhere
+      - name: Test environment
+        run: node scripts/setup-env.mjs
+
+      - name: Backend checks
+        working-directory: backend
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test
+
+      - name: Frontend checks
+        working-directory: frontend
+        run: |
+          npx tsc -b
+          npm run lint
+          npm test
+
+      - name: Build
+        run: |
+          npm --prefix backend run build
+          (cd frontend && npx vite build)
+
+      # One archive: the built API with its lockfile (packages are installed on the server), the
+      # built web app, and what the server needs around them
+      - name: Package
+        run: |
+          mkdir -p release/backend release/frontend release/stack/scripts
+          cp -R backend/dist backend/package.json backend/package-lock.json release/backend/
+          cp -R frontend/dist release/frontend/
+          cp -R docker-compose.yml infra .env.example release/stack/
+          cp scripts/setup-env.mjs release/stack/scripts/
+          cp -R deploy release/deploy
+          echo "${GITHUB_SHA}" > release/REVISION
+          tar -czf release.tgz -C release .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: release.tgz
+          retention-days: 7
+
+  deploy:
+    name: Deploy to VPS
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: staging
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+
+      - name: SSH key
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Upload and switch
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          PORT: ${{ secrets.VPS_PORT || '22' }}
+          USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh_opts=(-i ~/.ssh/id_deploy -p "$PORT" -o StrictHostKeyChecking=yes -o BatchMode=yes)
+          ssh "${ssh_opts[@]}" "$USER@$HOST" "mkdir -p /opt/ga-crm/incoming"
+          scp -i ~/.ssh/id_deploy -P "$PORT" -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            release.tgz "$USER@$HOST:/opt/ga-crm/incoming/${GITHUB_SHA}.tgz"
+          # The script travels inside the archive; it is unpacked and run there
+          ssh "${ssh_opts[@]}" "$USER@$HOST" \
+            "set -e; d=\$(mktemp -d); tar -xzf /opt/ga-crm/incoming/${GITHUB_SHA}.tgz -C \"\$d\" ./deploy/remote-deploy.sh; bash \"\$d/deploy/remote-deploy.sh\" ${GITHUB_SHA}; rm -rf \"\$d\""
+
+      - name: Remove key
+        if: always()
+        run: rm -f ~/.ssh/id_deploy

@@ -1,7 +1,0 @@
-# 11. Chiến dịch, hội thảo và form công khai (CMP)
-
-- **CMP-1** Chiến dịch: tên (duy nhất trong tenant, như GA đặt: HC2, Package3...), loại (`ADS`, `SEMINAR`, `TELESALES`, `REFERRAL`, `SOCIAL_ZALO`, `EVENT`, `OTHER`), kênh, ngày bắt đầu / kết thúc, ngân sách (VND), người phụ trách, trạng thái (`PLANNED`, `ACTIVE`, `ENDED`), ghi chú. Nhập file lead tự tạo chiến dịch chưa có theo tên (loại OTHER) [PoC].
-- **CMP-2** Hội thảo = chiến dịch loại SEMINAR có ngày giờ và địa điểm; thành viên là lead với trạng thái `INVITED`, `REGISTERED`, `ATTENDED`, `NO_SHOW`. Đánh dấu ATTENDED ghi một liên hệ `SEMINAR` trên lead (tính vào báo cáo hoạt động).
-- **CMP-3** Trang chiến dịch: danh sách lead (lọc được), đếm theo Nhu cầu / Trạng thái / giai đoạn, khách hàng đã liên kết, APE phát hành từ hồ sơ liên kết, chi phí mỗi lead và mỗi ca phát hành khi có ngân sách.
-- **CMP-4** **Form lead công khai** (mỗi chiến dịch): link chia sẻ và mã QR; trường: tên, số điện thoại, email / tỉnh / nhu cầu tùy chọn, ô đồng ý liên hệ (bắt buộc để gửi, kèm nội dung đồng ý và thông báo quyền riêng tư của GA); chống bot bằng Turnstile và rate limit (theo IP, theo số điện thoại); tạo lead (origin PUBLIC_FORM, nguồn = kênh chiến dịch, nguồn đồng ý PUBLIC_FORM + thời điểm + hash IP) hoặc, nếu số đã có, thêm NOTE "Đăng ký lại qua form {chiến dịch}" và báo người được giao. Không bao giờ tiết lộ số đã tồn tại. Tự phân công tùy chọn (LEAD-27).
-- **CMP-5** Chỉ `campaigns.manage` tạo và sửa chiến dịch; ai thấy lead đều lọc được theo chiến dịch. Chiến dịch có lead không xóa được, chỉ kết thúc (DATA-8).
