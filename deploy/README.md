@@ -9,7 +9,7 @@ Các bước dưới đây chỉ làm **một lần** khi dựng VPS. Viết cho
 | Thứ | Ghi chú |
 |---|---|
 | VPS Ubuntu | Tối thiểu 2 vCPU, 4 GB RAM, 40 GB ổ. Việc build chạy trên GitHub nên VPS không cần mạnh |
-| Tên miền con | Ví dụ `staging.ten-mien.vn`, bản ghi A trỏ về IP của VPS. **Bắt buộc có HTTPS**: ở production cookie đăng nhập có cờ Secure nên chạy bằng IP hoặc HTTP thì không đăng nhập được |
+| Tên miền | Staging dùng `221-132-21-32.sslip.io`: tên miễn phí, luôn trỏ về IP `221.132.21.32`, không cần tạo bản ghi DNS. Khi có tên miền riêng, tạo bản ghi A trỏ về IP này rồi thay tên ở nginx, certbot và `APP_URL`. **Bắt buộc có HTTPS**: ở production cookie đăng nhập có cờ Secure nên chạy bằng IP hoặc HTTP thì không đăng nhập được |
 | Email | Để Let's Encrypt báo khi chứng chỉ sắp hết hạn |
 | Email Platform Admin | Tài khoản quản trị nền tảng đầu tiên trên staging |
 | Quyền repo GitHub | Thêm environment `staging` và secret |
@@ -80,7 +80,7 @@ Rồi sửa `.env` (các dòng còn lại để nguyên giá trị đã sinh):
 | Biến | Giá trị trên staging |
 |---|---|
 | `NODE_ENV` | `production` |
-| `APP_URL` | `https://staging.ten-mien.vn` (đúng tên miền, không có `/` ở cuối) |
+| `APP_URL` | `https://221-132-21-32.sslip.io` (không có `/` ở cuối) |
 | `TRUST_PROXY_HOPS` | `1` (nginx đứng trước API) |
 | `PLATFORM_ADMIN_EMAIL` | email Platform Admin; mật khẩu là `PLATFORM_ADMIN_PASSWORD` vừa sinh trong file |
 | `MFA_ENFORCE` | `true` (API từ chối `false` ở production) |
@@ -106,14 +106,14 @@ sudo cp /opt/ga-crm/releases/*/deploy/ga-crm-api.service /etc/systemd/system/ &&
 sudo cp /opt/ga-crm/releases/*/deploy/nginx-ga-crm.conf /etc/nginx/sites-available/ga-crm
 ```
 
-Sửa `server_name staging.example.com;` thành tên miền thật, rồi:
+File đã có sẵn `server_name 221-132-21-32.sslip.io;`. Bật site và lấy chứng chỉ:
 
 ```bash
 sudo ln -sfn /etc/nginx/sites-available/ga-crm /etc/nginx/sites-enabled/ga-crm && sudo rm -f /etc/nginx/sites-enabled/default && sudo nginx -t && sudo systemctl reload nginx
 ```
 
 ```bash
-sudo certbot --nginx -d staging.ten-mien.vn --redirect -m email@cua-ban.vn --agree-tos -n
+sudo certbot --nginx -d 221-132-21-32.sslip.io --redirect -m email@cua-ban.vn --agree-tos -n
 ```
 
 ## 7. Secret trên GitHub
@@ -122,14 +122,14 @@ Repo > Settings > Environments > New environment `staging` > Add secret:
 
 | Secret | Giá trị |
 |---|---|
-| `VPS_HOST` | IP hoặc tên máy của VPS |
+| `VPS_HOST` | `221.132.21.32` |
 | `VPS_PORT` | Cổng SSH (bỏ qua nếu là 22) |
 | `VPS_USER` | `gacrm` |
 | `VPS_SSH_KEY` | Nội dung file `ga-crm-deploy` (khóa bí mật ở bước 3) |
 | `VPS_KNOWN_HOSTS` | Kết quả của lệnh dưới, chạy trên máy bạn |
 
 ```bash
-ssh-keyscan -p 22 IP_CUA_VPS
+ssh-keyscan -p 22 221.132.21.32
 ```
 
 Có thể bật "Required reviewers" cho environment này để mỗi lần deploy cần người duyệt.
