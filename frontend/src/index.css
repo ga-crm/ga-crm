@@ -1,0 +1,794 @@
+@import '@fontsource-variable/inter';
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/*
+  Design tokens from requirement/desigin/desigin.md. This is the single source of colour, type and
+  radius values. Blue is the only colour that acts; alert red is reserved for errors and destructive
+  actions. Success, warning and notable only label a status in a badge; they are never for controls. Inter Variable stands in for the proprietary typeface because it has a weight axis below 400.
+*/
+@theme static {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --color-primary: #0057d2;
+  --color-primary-deep: #0040b0;
+  --color-on-primary: #ffffff;
+  --color-hero: #0040b0;
+  --color-on-hero: #ffffff;
+  --color-panel-from: #022879;
+  --color-panel-to: #0040b0;
+
+  --color-canvas: #ffffff;
+  --color-chrome: #f5f6f7;
+  --color-band: #eaecee;
+  --color-band-blue: #ebf8ff;
+
+  --color-ink: #000000;
+  --color-ink-lead: #3c3c3c;
+  --color-ink-body: #223548;
+  --color-ink-list: #354a5f;
+  --color-ink-meta: #475e75;
+  --color-ink-nav: #545454;
+  --color-hairline: #475e75;
+  --color-alert: #c62828;
+  --color-alert-band: #fdecea;
+  --color-success: #1b6e3c;
+  --color-success-band: #e6f4ea;
+  --color-warning: #8a5300;
+  --color-warning-band: #fdf1dc;
+  --color-notable: #5b3fb5;
+  --color-notable-band: #f0edfb;
+  /* Data colours for charts only (validated palette: CVD-safe pair, >= 3:1 on the canvas); never for controls */
+  --color-chart-1: #2a78d6;
+  --color-chart-2: #eb6834;
+  /* Lead stages (Kanban): a hue per stage for the column accent; tints are mixed from it, never used for controls */
+  --color-stage-new: #64788e;
+  --color-stage-contacted: #2a78d6;
+  --color-stage-appointment: #6250d6;
+  --color-stage-met: #14946a;
+  --color-stage-proposal: #a87500;
+  --color-stage-submitted: #d9581f;
+  --color-stage-issued: #1f8a3c;
+  --color-stage-lost: #d93f3e;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --text-hero-title: 36px;
+  --text-hero-title--line-height: 39.6px;
+  --text-hero-title--font-weight: 500;
+  --text-page-title: 24px;
+  --text-page-title--line-height: 30px;
+  --text-page-title--font-weight: 500;
+  --text-section-title: 32px;
+  --text-section-title--line-height: 35.2px;
+  --text-section-title--font-weight: 500;
+  --text-subhead: 20px;
+  --text-subhead--line-height: 22px;
+  --text-subhead--font-weight: 500;
+  --text-body: 18px;
+  --text-body--line-height: 27px;
+  --text-button: 16px;
+  --text-button--line-height: 17.6px;
+  --text-button--font-weight: 500;
+  --text-link: 16px;
+  --text-link--line-height: 24px;
+  --text-nav: 15px;
+  --text-nav--line-height: 21px;
+  --text-list: 15px;
+  --text-list--line-height: 21px;
+  --text-list--font-weight: 350;
+  --text-caption: 14px;
+  --text-caption--line-height: 21px;
+}
+
+/*
+  shadcn/ui names (src/components/shadcn) mapped onto the tokens above. Inline, so each utility reads the
+  token itself and follows the active theme and accent. No new colours: shadcn's look comes from these.
+*/
+@theme inline {
+  --color-background: var(--color-canvas);
+  --color-foreground: var(--color-ink-body);
+  --color-card: var(--color-canvas);
+  --color-card-foreground: var(--color-ink-body);
+  --color-popover: var(--color-canvas);
+  --color-popover-foreground: var(--color-ink-body);
+  --color-primary-foreground: var(--color-on-primary);
+  --color-secondary: var(--color-chrome);
+  --color-secondary-foreground: var(--color-ink);
+  --color-muted: var(--color-chrome);
+  --color-muted-foreground: var(--color-ink-meta);
+  --color-accent: var(--color-chrome);
+  --color-accent-foreground: var(--color-ink);
+  --color-destructive: var(--color-alert);
+  --color-border: var(--color-band);
+  --color-input: var(--color-hairline);
+  --color-ring: var(--color-primary);
+  /* shadcn/ui Sidebar: the chrome band, the app's row hover and active colours */
+  --color-sidebar: var(--color-chrome);
+  --color-sidebar-foreground: var(--color-ink-nav);
+  --color-sidebar-primary: var(--color-primary);
+  --color-sidebar-primary-foreground: var(--color-on-primary);
+  --color-sidebar-accent: var(--color-band);
+  --color-sidebar-accent-foreground: var(--color-ink);
+  --color-sidebar-border: var(--color-band);
+  --color-sidebar-ring: var(--color-primary);
+  --radius: var(--radius-md);
+}
+
+/*
+  Themes override colours only, so shape and layout stay the same in all of them. Each one lists every
+  colour because the samples on the settings page nest one theme inside whichever theme is active.
+*/
+[data-theme='light'] {
+  color-scheme: light;
+  --color-primary: #0057d2;
+  --color-primary-deep: #0040b0;
+  --color-on-primary: #ffffff;
+  --color-hero: #0040b0;
+  --color-on-hero: #ffffff;
+  --color-canvas: #ffffff;
+  --color-chrome: #f5f6f7;
+  --color-band: #eaecee;
+  --color-band-blue: #ebf8ff;
+  --color-ink: #000000;
+  --color-ink-lead: #3c3c3c;
+  --color-ink-body: #223548;
+  --color-ink-list: #354a5f;
+  --color-ink-meta: #475e75;
+  --color-ink-nav: #545454;
+  --color-hairline: #475e75;
+  --color-alert: #c62828;
+  --color-alert-band: #fdecea;
+  --color-success: #1b6e3c;
+  --color-success-band: #e6f4ea;
+  --color-warning: #8a5300;
+  --color-warning-band: #fdf1dc;
+  --color-notable: #5b3fb5;
+  --color-notable-band: #f0edfb;
+  --color-chart-1: #2a78d6;
+  --color-chart-2: #eb6834;
+  --color-stage-new: #64788e;
+  --color-stage-contacted: #2a78d6;
+  --color-stage-appointment: #6250d6;
+  --color-stage-met: #14946a;
+  --color-stage-proposal: #a87500;
+  --color-stage-submitted: #d9581f;
+  --color-stage-issued: #1f8a3c;
+  --color-stage-lost: #d93f3e;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --color-primary: #6ea8ff;
+  --color-primary-deep: #9cc3ff;
+  --color-on-primary: #14181d;
+  --color-hero: #1d3f73;
+  --color-on-hero: #ffffff;
+  --color-canvas: #14181d;
+  --color-chrome: #1c2229;
+  --color-band: #2a323c;
+  --color-band-blue: #1b2b3f;
+  --color-ink: #f5f7fa;
+  --color-ink-lead: #d6dce3;
+  --color-ink-body: #d3dbe3;
+  --color-ink-list: #bcc7d2;
+  --color-ink-meta: #a0aebb;
+  --color-ink-nav: #b4bdc6;
+  --color-hairline: #7a8a9a;
+  --color-alert: #ff8a80;
+  --color-alert-band: #3a2020;
+  --color-success: #7fd6a0;
+  --color-success-band: #1c3327;
+  --color-warning: #f2c069;
+  --color-warning-band: #3a2e18;
+  --color-notable: #c3b1ff;
+  --color-notable-band: #2c2747;
+  --color-chart-1: #3987e5;
+  --color-chart-2: #d95926;
+  --color-stage-new: #8a9bb0;
+  --color-stage-contacted: #3987e5;
+  --color-stage-appointment: #9085e9;
+  --color-stage-met: #199e70;
+  --color-stage-proposal: #c98500;
+  --color-stage-submitted: #d95926;
+  --color-stage-issued: #2fa84f;
+  --color-stage-lost: #e66767;
+}
+
+[data-theme='midnight'] {
+  color-scheme: dark;
+  --color-primary: #7fb2ff;
+  --color-primary-deep: #a6c9ff;
+  --color-on-primary: #0b1a33;
+  --color-hero: #1a3f7d;
+  --color-on-hero: #ffffff;
+  --color-canvas: #0b1a33;
+  --color-chrome: #122544;
+  --color-band: #1c3359;
+  --color-band-blue: #16305a;
+  --color-ink: #f2f6fc;
+  --color-ink-lead: #d5dff0;
+  --color-ink-body: #cfdcef;
+  --color-ink-list: #b9cae2;
+  --color-ink-meta: #9db1ce;
+  --color-ink-nav: #adbed7;
+  --color-hairline: #6f8ab3;
+  --color-alert: #ff9b94;
+  --color-alert-band: #3b1e2c;
+  --color-success: #86dca8;
+  --color-success-band: #16373a;
+  --color-warning: #f5c877;
+  --color-warning-band: #3a3222;
+  --color-notable: #c9baff;
+  --color-notable-band: #2a2a5c;
+  --color-chart-1: #3987e5;
+  --color-chart-2: #d95926;
+  --color-stage-new: #8a9bb0;
+  --color-stage-contacted: #3987e5;
+  --color-stage-appointment: #9085e9;
+  --color-stage-met: #199e70;
+  --color-stage-proposal: #c98500;
+  --color-stage-submitted: #d95926;
+  --color-stage-issued: #2fa84f;
+  --color-stage-lost: #e66767;
+}
+
+[data-theme='soft'] {
+  color-scheme: light;
+  --color-primary: #0050c0;
+  --color-primary-deep: #003e9c;
+  --color-on-primary: #ffffff;
+  --color-hero: #003e9c;
+  --color-on-hero: #ffffff;
+  --color-canvas: #faf6ee;
+  --color-chrome: #f1ebdf;
+  --color-band: #e6dfd0;
+  --color-band-blue: #e8eef0;
+  --color-ink: #1f1a14;
+  --color-ink-lead: #3f3930;
+  --color-ink-body: #3a332a;
+  --color-ink-list: #4a4338;
+  --color-ink-meta: #5c5447;
+  --color-ink-nav: #574f43;
+  --color-hairline: #6f675a;
+  --color-alert: #b3261e;
+  --color-alert-band: #f9e4dc;
+  --color-success: #1f6b3a;
+  --color-success-band: #e3ecd9;
+  --color-warning: #7d4c00;
+  --color-warning-band: #f6e7c8;
+  --color-notable: #553a9f;
+  --color-notable-band: #e9e3ee;
+  --color-chart-1: #2a78d6;
+  --color-chart-2: #d95926;
+  --color-stage-new: #64788e;
+  --color-stage-contacted: #2a78d6;
+  --color-stage-appointment: #6250d6;
+  --color-stage-met: #14946a;
+  --color-stage-proposal: #a87500;
+  --color-stage-submitted: #d9581f;
+  --color-stage-issued: #1f8a3c;
+  --color-stage-lost: #d93f3e;
+}
+
+[data-theme='contrast'] {
+  color-scheme: light;
+  --color-primary: #003fa3;
+  --color-primary-deep: #002c75;
+  --color-on-primary: #ffffff;
+  --color-hero: #002c75;
+  --color-on-hero: #ffffff;
+  --color-canvas: #ffffff;
+  --color-chrome: #ffffff;
+  --color-band: #d9d9d9;
+  --color-band-blue: #e6efff;
+  --color-ink: #000000;
+  --color-ink-lead: #000000;
+  --color-ink-body: #000000;
+  --color-ink-list: #000000;
+  --color-ink-meta: #000000;
+  --color-ink-nav: #000000;
+  --color-hairline: #000000;
+  --color-alert: #a30000;
+  --color-alert-band: #ffe5e5;
+  --color-success: #0b5a2b;
+  --color-success-band: #e2f4e8;
+  --color-warning: #6b3f00;
+  --color-warning-band: #fff0d6;
+  --color-notable: #43279c;
+  --color-notable-band: #eee9ff;
+  --color-chart-1: #2a78d6;
+  --color-chart-2: #eb6834;
+  --color-stage-new: #64788e;
+  --color-stage-contacted: #2a78d6;
+  --color-stage-appointment: #6250d6;
+  --color-stage-met: #14946a;
+  --color-stage-proposal: #a87500;
+  --color-stage-submitted: #d9581f;
+  --color-stage-issued: #1f8a3c;
+  --color-stage-lost: #d93f3e;
+}
+
+@layer base {
+  /* A bare `border` on a shadcn part is a quiet divider, as Tailwind 3 drew it */
+  [data-slot] {
+    border-color: var(--color-band);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot][data-state] {
+    animation: none !important;
+  }
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink-body);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Radix moves focus into a panel it opens; the panel needs no ring, the controls inside keep theirs */
+[data-slot='popover-content']:focus-visible,
+[data-slot='dialog-content']:focus-visible,
+[data-slot='alert-dialog-content']:focus-visible,
+[data-slot='sheet-content']:focus-visible,
+[data-slot='drawer-content']:focus-visible,
+[data-slot='dropdown-menu-content']:focus-visible,
+[cmdk-input]:focus-visible {
+  outline: none;
+}
+
+/* Thin scrollbars everywhere, in the colours of the active theme. */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-ink-meta) 45%, transparent);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-ink-meta) 75%, transparent);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--color-ink-meta) 45%, transparent) transparent;
+  }
+}
+
+/* The header row stays in place, so the vertical scrollbar starts below it (42 px, see .data-table). */
+@media (width >= 48rem) {
+  .table-scroll {
+    scrollbar-gutter: stable;
+  }
+
+  .table-scroll::-webkit-scrollbar-track:vertical {
+    margin-top: 42px;
+  }
+}
+
+/* NProgress: the bar at the top while a screen opens. Its colour follows the accent of the theme. */
+#nprogress {
+  pointer-events: none;
+}
+
+#nprogress .bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  width: 100%;
+  height: 3px;
+  background: var(--color-primary);
+}
+
+dialog::backdrop {
+  background: rgb(38 38 38 / 0.55);
+}
+
+@keyframes crm-loader-appear {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes crm-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes crm-loader-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+
+  30% {
+    opacity: 1;
+  }
+}
+
+/* Login panel scene (components/LoginScene.tsx): CRM blocks in motion */
+@keyframes crm-scene-float {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* A lead's card walks the pipeline: stage 1, stage 2, stage 3, then a new one comes in */
+@keyframes crm-scene-card {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+
+  6%,
+  18% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+
+  24% {
+    transform: translate(40px, -6px);
+  }
+
+  30%,
+  50% {
+    transform: translate(80px, 0);
+  }
+
+  56% {
+    transform: translate(120px, -6px);
+  }
+
+  62%,
+  88% {
+    opacity: 1;
+    transform: translate(160px, 0);
+  }
+
+  96%,
+  100% {
+    opacity: 0;
+    transform: translate(160px, 0);
+  }
+}
+
+/* Blocks fly in one after another when the page opens */
+@keyframes crm-scene-in {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.94);
+  }
+}
+
+/* A line draws itself, holds, then runs off the far end (the path has pathLength 1) */
+@keyframes crm-scene-draw {
+  0%,
+  8% {
+    stroke-dashoffset: 1.02;
+  }
+
+  45%,
+  90% {
+    stroke-dashoffset: 0;
+  }
+
+  100% {
+    stroke-dashoffset: -1.02;
+  }
+}
+
+/* The fill under the trend follows its line */
+@keyframes crm-scene-area {
+  0%,
+  22%,
+  100% {
+    opacity: 0;
+  }
+
+  50%,
+  88% {
+    opacity: 1;
+  }
+}
+
+@keyframes crm-scene-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes crm-scene-grow {
+  0%,
+  100% {
+    transform: scaleX(0.35);
+  }
+
+  40%,
+  75% {
+    transform: scaleX(1);
+  }
+}
+
+/* The goal ring fills to 78% (the circle has pathLength 100) */
+@keyframes crm-scene-ring {
+  0%,
+  6%,
+  100% {
+    stroke-dashoffset: 100;
+  }
+
+  45%,
+  90% {
+    stroke-dashoffset: 22;
+  }
+}
+
+@keyframes crm-scene-typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.45;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes crm-scene-pop {
+  0%,
+  18%,
+  100% {
+    transform: scale(1);
+  }
+
+  9% {
+    transform: scale(1.18);
+  }
+}
+
+@keyframes crm-scene-node {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+
+  30% {
+    opacity: 1;
+  }
+}
+
+@keyframes crm-scene-ping {
+  0% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+
+@layer components {
+  /* Stays invisible for a moment, so a fast response never flashes it. */
+  .crm-loader {
+    animation: crm-loader-appear 150ms ease-out 150ms backwards;
+  }
+
+  .crm-loader-ring {
+    transform-origin: 32px 32px;
+    animation: crm-loader-spin 1.2s linear infinite;
+  }
+
+  .crm-loader-node {
+    animation: crm-loader-pulse 1.2s ease-in-out infinite;
+  }
+
+  .crm-loader-node:nth-of-type(4) {
+    animation-delay: 400ms;
+  }
+
+  .crm-loader-node:nth-of-type(5) {
+    animation-delay: 800ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .crm-loader-ring,
+    .crm-loader-node {
+      animation: none;
+    }
+  }
+
+  .crm-scene-float {
+    animation: crm-scene-float 6s ease-in-out infinite;
+  }
+
+  .crm-scene-card {
+    animation: crm-scene-card 10s ease-in-out infinite;
+  }
+
+  /* The whole picture leans towards the pointer; LoginScene sets --scene-x / --scene-y (-1 to 1) */
+  .crm-scene-tilt {
+    transform: perspective(1400px) rotateX(calc(var(--scene-y, 0) * -4deg)) rotateY(calc(var(--scene-x, 0) * 5deg));
+  }
+
+  /* ...and each layer shifts by its own depth, nearer ones more */
+  .crm-scene-depth {
+    transform: translate(calc(var(--scene-x, 0) * var(--depth, 0) * 1px), calc(var(--scene-y, 0) * var(--depth, 0) * 1px));
+  }
+
+  .crm-scene-in {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: crm-scene-in 800ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  }
+
+  .crm-scene-draw {
+    stroke-dasharray: 1;
+    animation: crm-scene-draw 6s ease-in-out infinite;
+  }
+
+  .crm-scene-area {
+    animation: crm-scene-area 6s ease-in-out infinite;
+  }
+
+  /* Turns round the group's own origin, which LoginScene puts at the centre of the orbits */
+  .crm-scene-spin {
+    animation: crm-scene-spin 60s linear infinite;
+  }
+
+  .crm-scene-grow {
+    transform-box: fill-box;
+    transform-origin: left;
+    animation: crm-scene-grow 6s ease-in-out infinite;
+  }
+
+  .crm-scene-ring {
+    stroke-dasharray: 100;
+    stroke-dashoffset: 22;
+    animation: crm-scene-ring 7s ease-in-out infinite;
+  }
+
+  .crm-scene-typing {
+    animation: crm-scene-typing 1.4s ease-in-out infinite;
+  }
+
+  .crm-scene-pop {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: crm-scene-pop 4s ease-in-out infinite;
+  }
+
+  .crm-scene-node {
+    animation: crm-scene-node 3s ease-in-out infinite;
+  }
+
+  .crm-scene-ping {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: crm-scene-ping 2.4s ease-out infinite;
+  }
+
+  /* Reduce motion: the scene stands still, fully drawn */
+  @media (prefers-reduced-motion: reduce) {
+    .crm-scene-float,
+    .crm-scene-card,
+    .crm-scene-in,
+    .crm-scene-draw,
+    .crm-scene-area,
+    .crm-scene-spin,
+    .crm-scene-grow,
+    .crm-scene-ring,
+    .crm-scene-typing,
+    .crm-scene-pop,
+    .crm-scene-node,
+    .crm-scene-ping {
+      animation: none;
+    }
+
+    .crm-scene-draw {
+      stroke-dasharray: none;
+    }
+
+    .crm-scene-tilt,
+    .crm-scene-depth {
+      transform: none;
+    }
+
+    .crm-scene-ping {
+      opacity: 0;
+    }
+  }
+
+  /* Rows are separated by rules rather than by card edges. Separate borders keep rules on sticky cells. */
+  .data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    text-align: left;
+    font-size: var(--text-caption);
+    line-height: var(--text-caption--line-height);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .data-table thead th {
+    position: sticky;
+    /* Reaches 1 px past the scroll edge: at fractional zoom, rows otherwise show through a seam there */
+    top: -1px;
+    z-index: 2;
+    padding: 11px 16px 10px;
+    border-bottom: 1px solid var(--color-hairline);
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .data-table tbody td,
+  .data-table tbody th {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--color-band);
+    color: var(--color-ink-list);
+  }
+
+  .data-table tbody tr:hover td,
+  .data-table tbody tr:hover th {
+    background: var(--color-chrome);
+  }
+
+  /* Row names stay readable when a wide table scrolls sideways. */
+  .data-table .col-first {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--color-canvas);
+  }
+
+  .data-table thead .col-first {
+    z-index: 3;
+  }
+
+  .data-table tbody tr:hover .col-first {
+    background: var(--color-chrome);
+  }
+
+  /* Row actions stay reachable when a wide table scrolls sideways. */
+  .data-table .col-actions {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    background: var(--color-canvas);
+    white-space: nowrap;
+  }
+
+  .data-table thead .col-actions {
+    z-index: 3;
+  }
+
+  .data-table tbody tr:hover .col-actions {
+    background: var(--color-chrome);
+  }
+}

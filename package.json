@@ -1,0 +1,21 @@
+{
+  "name": "ga-crm",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "setup:env": "node scripts/setup-env.mjs",
+    "setup": "npm run setup:env && npm --prefix backend install && npm --prefix frontend install",
+    "db:up": "docker compose up -d --wait postgres valkey minio",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres",
+    "db:migrate": "npm --prefix backend run db:migrate",
+    "seed": "npm --prefix backend run seed",
+    "seed:reset": "npm --prefix backend run seed:reset",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "test": "npm --prefix backend test && npm --prefix backend run test:int && npm --prefix frontend test",
+    "docs:rules": "node scripts/build-rule-index.mjs",
+    "docs:rules:check": "node scripts/build-rule-index.mjs --check",
+    "dev:api": "npm --prefix backend run start:dev",
+    "dev:web": "npm --prefix frontend run dev"
+  }
+}

@@ -1,0 +1,162 @@
+import { Activity, BarChart3, MessageCircle, MessagesSquare, Bell, BellRing, Bot, Building2, CalendarDays, ListTodo, ContactRound, Megaphone, IdCard, ListChecks, Settings2, FileInput, FileUp, History, House, KeyRound, Network, Palette, ScrollText, Settings, ShieldCheck, Users } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { hasPermission, hasRole } from '../auth/access'
+import type { MessageKey } from '../i18n'
+import { pages } from './pages'
+import { queries } from './queries'
+import type { Me } from './types'
+
+export interface NavItem {
+  to: string
+  label: MessageKey
+  icon: LucideIcon
+  group?: MessageKey
+  visible: (me: Me) => boolean
+  /** The screen's code, downloaded on hover so opening it feels instant. */
+  chunk?: () => Promise<unknown>
+  /** Its data, using the default list the screen opens with. */
+  prefetch?: () => { queryKey: readonly unknown[] }
+  /** Pinned to the bottom of the sidebar (Settings). */
+  bottom?: boolean
+  /**
+   * Not a sidebar row: the screen is opened from a button on another screen. It still names the
+   * breadcrumb, and the sidebar highlights `parent` while it is open.
+   */
+  parent?: string
+}
+
+// Must equal the params each screen builds when its URL has no filters, or the prefetch goes unused
+const FIRST_PAGE_WITH_FILTERS = {
+  users: { page: 1, pageSize: 25, q: '', status: '', role: '', order: '' },
+  tenants: { page: 1, pageSize: 25, q: '', status: '' },
+  imports: { page: 1, pageSize: 25 },
+}
+
+/** AGT-6: every account inside a GA has a branch to look at, even if it is only their own row. */
+export const inTenant = (me: Me) => !!me.tenant
+export const canImport = (me: Me) => hasPermission(me, 'imports.upload')
+export const canReadImports = (me: Me) => canImport(me) || hasPermission(me, 'imports.view_all') || hasPermission(me, 'leads.import')
+/** LEAD-2 and LEAD-6: lead managers, and anyone with an agent code. */
+export const canUseLeads = (me: Me) => hasPermission(me, 'leads.manage') || !!me.user.agentCode
+/** RPT-3: agents see their line; GA_HEAD, reports.view_all and lead managers see the GA. */
+export const canSeeReports = (me: Me) => !!me.tenant && (!!me.user.agentCode || hasRole(me, 'GA_HEAD') || hasPermission(me, 'reports.view_all') || hasPermission(me, 'leads.manage'))
+export const canImportLeads = (me: Me) => hasPermission(me, 'leads.import')
+/** LEAD-21 for lead managers; open question 4: line managers within their line (`leads.assign_line`). */
+export const canAssignLeads = (me: Me) => hasPermission(me, 'leads.manage') || (hasPermission(me, 'leads.assign_line') && me.reach === 'DOWNLINE' && !!me.user.agentCode)
+/** CUS-5: GA_HEAD, managers and agents have a client book; Marketing and Admin do not. */
+export const canUseClients = (me: Me) => !!me.tenant && me.reach !== 'NONE'
+/** Section 16.8 + 4.3: GA_HEAD edits the lead catalogue, Admin reads it. */
+export const canSeeCatalog = (me: Me) => hasRole(me, 'GA_HEAD') || hasRole(me, 'ADMIN') || hasPermission(me, 'catalog.manage')
+
+/** PERM-4: hides entries the user cannot open. The API still checks every permission. */
+export const NAV_ITEMS: NavItem[] = [
+  { to: '/', label: 'nav.home', icon: House, visible: () => true, chunk: pages.home },
+  { to: '/leads', label: 'nav.leads', icon: ContactRound, group: 'nav.groupLeads', visible: canUseLeads, chunk: pages.leads },
+  { to: '/campaigns', label: 'nav.campaigns', icon: Megaphone, group: 'nav.groupLeads', visible: canUseLeads, chunk: pages.campaigns },
+  { to: '/leads/import', label: 'nav.leadImport', icon: FileInput, group: 'nav.groupLeads', visible: canImportLeads, chunk: pages.leadImport },
+  { to: '/tasks', label: 'nav.tasks', icon: ListTodo, group: 'nav.groupWork', visible: inTenant, chunk: pages.tasks },
+  { to: '/calendar', label: 'nav.calendar', icon: CalendarDays, group: 'nav.groupWork', visible: inTenant, chunk: pages.calendar },
+  { to: '/chat', label: 'nav.chat', icon: MessageCircle, group: 'nav.groupWork', visible: inTenant, chunk: pages.chat, prefetch: queries.chatConversations },
+  { to: '/notifications', label: 'nav.notifications', icon: Bell, group: 'nav.groupWork', visible: inTenant, chunk: pages.notifications },
+  { to: '/reports', label: 'nav.reports', icon: BarChart3, group: 'nav.groupReports', visible: canSeeReports, chunk: pages.reports },
+  { to: '/clients', label: 'nav.clients', icon: IdCard, group: 'nav.groupClients', visible: canUseClients, chunk: pages.clients },
+  { to: '/agents', label: 'nav.agents', icon: Network, group: 'nav.groupAgents', visible: inTenant, chunk: pages.agents, prefetch: () => queries.agentTree() },
+  // Opened from "Nhập dữ liệu" on the agent tree and the import history, so not a sidebar row
+  { to: '/imports/new', label: 'nav.importNew', icon: FileUp, group: 'nav.groupAgents', visible: canImport, chunk: pages.importNew, parent: '/agents' },
+  { to: '/imports', label: 'nav.imports', icon: History, group: 'nav.groupAgents', visible: canReadImports, chunk: pages.imports, prefetch: () => queries.imports(FIRST_PAGE_WITH_FILTERS.imports) },
+  { to: '/users', label: 'nav.users', icon: Users, group: 'nav.groupAdmin', visible: (me) => hasPermission(me, 'users.manage'), chunk: pages.users, prefetch: () => queries.users(FIRST_PAGE_WITH_FILTERS.users) },
+  { to: '/chat/review', label: 'nav.chatReview', icon: MessagesSquare, group: 'nav.groupAdmin', visible: (me) => hasRole(me, 'GA_HEAD'), chunk: pages.chatReview },
+  { to: '/users/activity', label: 'nav.userActivity', icon: Activity, group: 'nav.groupAdmin', visible: (me) => !!me.tenant && hasPermission(me, 'users.manage'), chunk: pages.userActivity, prefetch: queries.activeUsers },
+  { to: '/permissions', label: 'nav.permissions', icon: ShieldCheck, group: 'nav.groupAdmin', visible: (me) => hasRole(me, 'GA_HEAD'), chunk: pages.permissions, prefetch: () => queries.permissions() },
+  { to: '/ai', label: 'nav.ai', icon: Bot, group: 'nav.groupAdmin', visible: (me) => !!me.tenant && hasPermission(me, 'ai.manage'), chunk: pages.aiAdmin, prefetch: () => queries.aiSettings() },
+  { to: '/catalog', label: 'nav.catalog', icon: ListChecks, group: 'nav.groupAdmin', visible: canSeeCatalog, chunk: pages.catalog, prefetch: () => queries.leadOptions() },
+  { to: '/ga-settings', label: 'nav.settingsGa', icon: Settings2, group: 'nav.groupAdmin', visible: (me) => hasRole(me, 'GA_HEAD'), chunk: pages.gaSettings, prefetch: () => queries.gaSettings() },
+  { to: '/audit', label: 'nav.audit', icon: ScrollText, group: 'nav.groupAdmin', visible: (me) => hasPermission(me, 'audit.view'), chunk: pages.audit },
+  { to: '/platform/tenants', label: 'nav.tenants', icon: Building2, group: 'nav.groupPlatform', visible: (me) => hasRole(me, 'PLATFORM_ADMIN'), chunk: pages.tenants, prefetch: () => queries.tenants(FIRST_PAGE_WITH_FILTERS.tenants) },
+  { to: '/settings', label: 'nav.settings', icon: Settings, bottom: true, visible: () => true, chunk: pages.settings },
+]
+
+/** A card on the Settings page; each opens one of the person's own settings screens. */
+export interface SettingsItem {
+  to: string
+  label: MessageKey
+  description: MessageKey
+  icon: LucideIcon
+  visible: (me: Me) => boolean
+  chunk: () => Promise<unknown>
+}
+
+export const SETTINGS_ITEMS: SettingsItem[] = [
+  { to: '/settings/appearance', label: 'settings.appearance', description: 'settings.cardAppearance', icon: Palette, visible: () => true, chunk: pages.appearance },
+  { to: '/settings/password', label: 'settings.password', description: 'settings.cardPassword', icon: KeyRound, visible: () => true, chunk: pages.password },
+  { to: '/settings/security', label: 'settings.security', description: 'settings.cardSecurity', icon: ShieldCheck, visible: () => true, chunk: pages.security },
+  // NTF-1: notifications belong to a GA's users
+  { to: '/settings/notifications', label: 'settings.notifications', description: 'settings.cardNotifications', icon: BellRing, visible: inTenant, chunk: pages.notificationSettings },
+]
+
+/** The settings screen the path is on, for the breadcrumb under "Cài đặt". */
+const activeSettingsItem = (pathname: string) => SETTINGS_ITEMS.find((item) => pathname === item.to || pathname.startsWith(`${item.to}/`))
+
+/** The most specific entry wins, so /imports/new is not also "history", yet /imports/123 is. */
+export function activeNavItem(me: Me, pathname: string): NavItem | undefined {
+  return NAV_ITEMS.filter((item) => item.visible(me))
+    .filter(({ to }) => (to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(`${to}/`)))
+    .sort((a, b) => b.to.length - a.to.length)[0]
+}
+
+/**
+ * Section 4.2: where each permission leads. A permission whose feature belongs to a later release
+ * slice has no entry yet, and the home page says so rather than offering a dead link.
+ */
+export const PERMISSION_FEATURES: Partial<Record<string, string>> = {
+  'users.manage': '/users',
+  'agents.view_all': '/agents',
+  'agents.edit_tree': '/agents',
+  'imports.upload': '/imports/new',
+  'imports.agent_tree': '/imports/new',
+  'imports.view_all': '/imports',
+  'leads.manage': '/leads',
+  'leads.assign_line': '/leads',
+  'leads.import': '/leads/import',
+  'campaigns.manage': '/campaigns',
+  'reports.view_all': '/reports',
+  'ai.manage': '/ai',
+  'exports.data': '/reports',
+  'audit.view': '/audit',
+}
+
+/** Screens below a sidebar entry that are not entries themselves, and how the breadcrumb names them. */
+const CHILD_SCREENS: { under: string; match: RegExp; label: MessageKey }[] = [
+  { under: '/leads', match: /^\/leads\/deleted$/, label: 'leads.deletedTitle' },
+  { under: '/leads', match: /^\/leads\/[^/]+$/, label: 'breadcrumb.leadDetail' },
+  { under: '/campaigns', match: /^\/campaigns\/[^/]+$/, label: 'breadcrumb.campaignDetail' },
+  { under: '/clients', match: /^\/clients\/[^/]+$/, label: 'breadcrumb.clientDetail' },
+  { under: '/imports', match: /^\/imports\/[^/]+$/, label: 'breadcrumb.importDetail' },
+]
+
+export interface Crumb {
+  label: MessageKey
+  /** A screen to go back to; a sidebar group has none. The last crumb is the current page. */
+  to?: string
+}
+
+/**
+ * The breadcrumb of a path: the sidebar group, the screen it was opened from (`parent`), the
+ * sidebar entry, then the screen below it (a detail, a settings screen). Only screens link.
+ */
+export function breadcrumbTrail(me: Me, pathname: string): Crumb[] {
+  const current = activeNavItem(me, pathname)
+  // The home page has nowhere to come back from, so it shows no breadcrumb
+  if (!current || current.to === '/') return []
+  const trail: Crumb[] = []
+  if (current.group) trail.push({ label: current.group })
+  const parent = current.parent ? NAV_ITEMS.find((item) => item.to === current.parent && item.visible(me)) : undefined
+  if (parent) trail.push({ label: parent.label, to: parent.to })
+  const below =
+    current.to === '/settings'
+      ? activeSettingsItem(pathname)?.label
+      : CHILD_SCREENS.find((child) => child.under === current.to && child.match.test(pathname))?.label
+  if (below) trail.push({ label: current.label, to: current.to }, { label: below })
+  else trail.push({ label: current.label })
+  return trail
+}

@@ -1,0 +1,63 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "backend",
+        "run",
+        "start:dev"
+      ],
+      "port": 4200
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "api-check",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "PG_DB=ga_crm_check",
+        "S3_BUCKET=ga-crm-check",
+        "APP_URL=http://127.0.0.1:5174",
+        "API_PORT=4201",
+        "npm",
+        "--prefix",
+        "backend",
+        "run",
+        "start:dev"
+      ],
+      "port": 4201
+    },
+    {
+      "name": "web-api-check",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "API_TARGET=http://localhost:4201",
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "dev",
+        "--",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5174",
+        "--strictPort"
+      ],
+      "port": 5174,
+      "url": "http://127.0.0.1:5174"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <!-- Invite and reset links hold a token in the path; it must not leak to other sites -->
+    <meta name="referrer" content="no-referrer" />
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GA CRM</title>
+    <script>
+      // Applies the saved theme before first paint so a dark theme does not flash white
+      try {
+        var theme = JSON.parse(localStorage.getItem('crm-appearance')).theme
+        if (theme === 'system') theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        if (theme) document.documentElement.dataset.theme = theme
+      } catch (error) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

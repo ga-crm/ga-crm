@@ -1,0 +1,96 @@
+import { read, SSF, utils } from 'xlsx'
+import type { CellObject, WorkSheet } from 'xlsx'
+
+export type Cell = string | number | null
+
+export interface ParsedRow {
+  /** The row number the user sees in Excel. */
+  r: number
+  cells: Cell[]
+}
+
+export interface ParsedSheet {
+  name: string
+  headers: string[]
+  rows: ParsedRow[]
+}
+
+// The limits of POST /imports (section 17.10)
+const MAX_SHEETS = 30
+const MAX_COLUMNS = 200
+const MAX_HEADER_LENGTH = 200
+const MAX_CELL_LENGTH = 4001
+
+const pad = (part: number) => String(part).padStart(2, '0')
+
+/** Excel stores a date as a number and only the format says so. This reads it without any timezone. */
+function dateText(serial: number, date1904: boolean): string | null {
+  const parts = SSF.parse_date_code(serial, { date1904 })
+  if (!parts) return null
+  const day = `${pad(parts.d)}/${pad(parts.m)}/${parts.y}`
+  return parts.H || parts.M ? `${day} ${pad(parts.H)}:${pad(parts.M)}` : day
+}
+
+function cellValue(cell: CellObject | undefined, date1904: boolean): Cell {
+  if (!cell || cell.v === undefined || cell.v === null) return null
+  if (cell.t === 'n') {
+    const value = cell.v as number
+    return cell.z && SSF.is_date(cell.z as string) ? dateText(value, date1904) : value
+  }
+  if (cell.t === 's') {
+    const text = String(cell.v).trim()
+    return text ? text.slice(0, MAX_CELL_LENGTH) : null
+  }
+  if (cell.t === 'b') return cell.v ? 'TRUE' : 'FALSE'
+  return null
+}
+
+/** A sheet as it is in the file: every non-empty row, including whichever one holds the headers. */
+export interface RawSheet {
+  name: string
+  hidden: boolean
+  rows: ParsedRow[]
+}
+
+function readSheet(name: string, hidden: boolean, sheet: WorkSheet, date1904: boolean): RawSheet {
+  const ref = sheet['!ref']
+  if (!ref) return { name, hidden, rows: [] }
+  const range = utils.decode_range(ref)
+  const lastColumn = Math.min(range.e.c, range.s.c + MAX_COLUMNS - 1)
+  const rows: ParsedRow[] = []
+  for (let row = range.s.r; row <= range.e.r; row++) {
+    const cells: Cell[] = []
+    for (let column = range.s.c; column <= lastColumn; column++) {
+      cells.push(cellValue(sheet[utils.encode_cell({ r: row, c: column })] as CellObject | undefined, date1904))
+    }
+    if (cells.some((cell) => cell !== null)) rows.push({ r: row + 1, cells })
+  }
+  return { name, hidden, rows }
+}
+
+/**
+ * IMP-1: the file is read here, in the browser, and only template columns are sent on. A column the
+ * server marks as banned therefore never leaves this computer (test 29).
+ */
+export function readWorkbook(data: ArrayBuffer): RawSheet[] {
+  const workbook = read(data, { type: 'array', cellNF: true, cellDates: false, cellHTML: false })
+  const date1904 = !!workbook.Workbook?.WBProps?.date1904
+  const meta = workbook.Workbook?.Sheets ?? []
+  return workbook.SheetNames.slice(0, MAX_SHEETS).map((name, index) => readSheet(name, !!meta[index]?.Hidden, workbook.Sheets[name], date1904))
+}
+
+/** Templates keep their headers in the first row of the sheet. */
+export function parseWorkbook(data: ArrayBuffer): ParsedSheet[] {
+  return readWorkbook(data).map(({ name, rows }) => {
+    const [header, ...rest] = rows
+    return {
+      name,
+      headers: (header?.cells ?? []).map((cell) => (cell === null ? '' : String(cell).slice(0, MAX_HEADER_LENGTH))),
+      // A header row that is not the sheet's first still counts, because a blank row above it is skipped
+      rows: rest,
+    }
+  })
+}
+
+/** The cells of one row, in the order the server asked for. */
+export const pickCells = (row: ParsedRow, present: readonly number[]): Cell[] => present.map((index) => row.cells[index] ?? null)

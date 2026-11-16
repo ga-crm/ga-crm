@@ -1,0 +1,69 @@
+name: ga-crm
+
+services:
+  postgres:
+    image: postgres:18
+    container_name: ga-crm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PG_OWNER_USER:?Missing PG_* in .env - see .env.example}
+      POSTGRES_PASSWORD: ${PG_OWNER_PASSWORD:?Missing PG_* in .env - see .env.example}
+      POSTGRES_DB: ${PG_DB:-ga_crm}
+      # Read by infra/postgres/init/01-roles.sh on first boot
+      PG_APP_PASSWORD: ${PG_APP_PASSWORD:?Missing PG_* in .env - see .env.example}
+      PG_PLATFORM_PASSWORD: ${PG_PLATFORM_PASSWORD:?Missing PG_* in .env - see .env.example}
+    ports:
+      # 5433: this machine may already run another PostgreSQL on 5432. Local machine only.
+      - '127.0.0.1:${PG_PORT:-5433}:5432'
+    volumes:
+      # PostgreSQL 18 images keep data under /var/lib/postgresql/<major>/docker
+      - postgres_data:/var/lib/postgresql
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  # Redis cache (docs/thiet-ke-he-thong.md section 7): Socket.IO adapter pub/sub now; cache, presence
+  # and rate limits later. Valkey is the BSD-licensed Redis fork. Nothing here must survive a restart.
+  valkey:
+    image: valkey/valkey:8.1
+    container_name: ga-crm-valkey
+    restart: unless-stopped
+    command: ['valkey-server', '--save', '', '--appendonly', 'no', '--maxmemory', '256mb', '--maxmemory-policy', 'allkeys-lru']
+    ports:
+      # 6380: leaves 6379 to any Redis already on this machine. Local machine only.
+      - '127.0.0.1:${REDIS_PORT:-6380}:6379'
+    healthcheck:
+      test: ['CMD', 'valkey-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Object storage for chat files (docs/thiet-ke-he-thong.md: S3). Development only: production uses
+  # a real S3 bucket through the same S3_* settings. MinIO stopped publishing images in 2025, so
+  # this is Bitnami's last pinned build; it gets no updates and must never face the internet.
+  minio:
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
+    container_name: ga-crm-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:?Missing S3_* in .env - see .env.example}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:?Missing S3_* in .env - see .env.example}
+      MINIO_DEFAULT_BUCKETS: ${S3_BUCKET:-ga-crm}
+    ports:
+      # 9100: leaves 9000 to other tools. Local machine only.
+      - '127.0.0.1:${S3_PORT:-9100}:9000'
+    volumes:
+      - minio_data:/bitnami/minio/data
+    healthcheck:
+      test: ['CMD', 'curl', '-fs', 'http://localhost:9000/minio/health/live']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres_data:
+  minio_data:
