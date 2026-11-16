@@ -24,7 +24,7 @@ Nguồn: `requirement/03-quy-tac-chung.md:28`
 
 Nguồn: `requirement/03-quy-tac-chung.md:29`
 
-Đã trích dẫn trong: `backend/src/modules/leads/lead-rules.spec.ts`, `backend/src/modules/leads/lead-rules.ts`, `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/lead-board.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`
+Đã trích dẫn trong: `backend/src/modules/leads/lead-rules.spec.ts`, `backend/src/modules/leads/lead-rules.ts`, `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/lead-board.e2e-spec.ts`, `backend/test/lead-removal.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`
 
 - **PDP-3** Che số điện thoại lead: quản lý tuyến (không phải người được giao, không phải người quản lý lead) thấy `0912***678` (4 số đầu + `***` + 3 số cuối), không tìm theo số điện thoại được, lịch sử đổi số cũng bị che với họ.
 
@@ -32,7 +32,7 @@ Nguồn: `requirement/03-quy-tac-chung.md:29`
 
 Nguồn: `requirement/03-quy-tac-chung.md:30`
 
-Chưa có trong code
+Đã trích dẫn trong: `backend/src/modules/leads/leads.service.ts`, `backend/test/lead-link.e2e-spec.ts`, `frontend/src/components/LeadClientLink.tsx`, `frontend/src/lib/types.ts`
 
 - **PDP-4** Marketing chỉ xem dữ liệu Success qua view đã che: tên viết tắt (`L. T. K.`), mã khách hàng thành hash có salt theo tenant, không có ngày sinh / ngày-tháng sinh, không số điện thoại, không điểm thưởng, không cờ người thụ hưởng; giữ giới tính, nhóm tuổi, hạng, hôn nhân, sản phẩm, số tiền bảo hiểm, phí, định kỳ, trạng thái, ngày, mã đại lý. Lead và chiến dịch Marketing xem đầy đủ.
 

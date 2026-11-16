@@ -14,6 +14,19 @@ Làm xong việc nào thì xóa dòng đó ở đây và ghi "Xong" ở [ROADMAP
 | 4 | Hạ tầng giai đoạn 3: việc chạy nền | BullMQ + worker cho vòng nhắc việc, nhập / xuất file, dọn `form_hits` và `import_rows`; chạy tiếp lần nhập lớn bị ngắt (hiện chỉ đóng lại); thông báo trong chuông khi nhập xong (NTF-2) | Ghi theo lô hiện chạy trong tiến trình API (decisions.md, mục "Nhập file lớn theo lô") |
 | 5 | Test bắt buộc số 1 (mục 23.2) | Chứng minh GA-1 nhận 404 với mọi tài nguyên của GA-2, không chỉ người dùng | Nhiều module đã có test TEN-7 riêng; cần một bộ quét đủ mọi đường dẫn |
 
+## 1b. Lỗi tìm thấy khi audit mã nguồn 17/11/2026
+
+Ba lỗi mức cao và 11 lỗi mức trung bình đã sửa ngày 17/11/2026 (decisions.md, mục "Sửa lỗi mức cao sau audit" và "Sửa lỗi mức trung bình sau audit"). Các mục dưới đây là kết quả đọc mã, chưa chạy thử để tái hiện; nên viết test tái hiện trước khi sửa.
+
+| Mức | Chỗ | Lỗi | Hướng sửa |
+|---|---|---|---|
+| Trung bình | `leads/leads.service.ts` lỗi trùng số | Trả `leadId` khi trùng số, quản lý tuyến dò được số đã che | Product Owner quyết: LEAD-1 yêu cầu trả, PDP-3 yêu cầu che |
+| Trung bình | `auth/login-guard.service.ts` | 5 lần sai mỗi phút chặn cả mật khẩu đúng, nên ai có khoảng 30 địa chỉ IPv4 giữ được một email bị khóa liên tục (đã ghi nhận ngày 05/11 là chấp nhận) | Cân nhắc khi có Redis: giới hạn theo tài khoản chỉ đếm IP chưa từng đăng nhập thành công |
+| Thấp | Frontend `lib/spreadsheet.ts` | Đọc file vẫn chạy trên luồng chính; file 20.000 dòng hợp lệ làm tab khựng vài giây | Chuyển sang Web Worker |
+| Thấp | Nhiều chỗ | Quyền `crm_platform` trên mọi bảng; file chat 50 MB nạp trước khi kiểm tra thành viên; không giới hạn bắt tay socket; công việc không đi theo lead khi phân công lại; `import_errors` không giới hạn; nhãn audit còn mã nội bộ; URL lịch sai ngày làm vỡ trang; id chưa mã hóa trong đường dẫn API; `uuid` cũ trong `exceljs` | Gom vào lát 8d |
+
+Cần Product Owner quyết: Admin có được đặt lại MFA của Chủ GA không (`test/mfa.e2e-spec.ts` hiện khẳng định là được); có trả `leadId` khi trùng số không.
+
 ## 2. Việc nhỏ còn sót
 
 | Việc | Nội dung | Ghi chú |

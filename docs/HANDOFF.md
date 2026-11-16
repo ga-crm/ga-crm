@@ -2,7 +2,7 @@
 
 Cập nhật vào cuối mỗi phiên. Chỉ ghi trạng thái hiện tại, không ghi nhật ký.
 
-**Cập nhật lần cuối:** 14/11/2026
+**Cập nhật lần cuối:** 17/11/2026
 
 ## Trạng thái hiện tại
 
@@ -56,8 +56,9 @@ Cập nhật vào cuối mỗi phiên. Chỉ ghi trạng thái hiện tại, kh�
 - Nhập file theo lô (câu I): file từ 2.000 dòng ghi nền theo lô 500 dòng (`ImportsService.writeInBatches`, trạng thái `COMMITTING`, cột `imports.progress`, sự kiện `import.progress`), lô lỗi báo `batch_failed` từng dòng; dưới 2.000 dòng vẫn một transaction. Migration `1764000000000-import-batches` đã chạy trên DB dev.
 - Trang chủ làm lại (14/11/2026): thẻ số liệu có sparkline và xu hướng, biểu đồ Highcharts (`@highcharts/react`) theo phạm vi báo cáo RPT-3, tự cập nhật qua sự kiện `dashboard.changed`, sắp xếp lưu trên URL. API `GET /reports/dashboard`. Highcharts cần giấy phép thương mại trước go-live.
 - Sidebar chỉ còn một mục "Cài đặt" (cuối sidebar) mở trang `/settings` có 4 thẻ: Giao diện, Đổi mật khẩu, Bảo mật, Thông báo (`SETTINGS_ITEMS` trong `lib/nav.ts`). "Nhập dữ liệu" không còn trong sidebar, mở từ nút ở "Cây đại lý" và "Lịch sử nhập" (mục nav có `parent` thì không hiện ở sidebar). Breadcrumb dùng shadcn/ui, nhiều cấp (`breadcrumbTrail` trong `lib/nav.ts`). Menu tài khoản và chuông thông báo mở thành panel bên phải (`SidePanel`, shadcn Drawer trên `vaul`). Kanban lead tô màu nhạt theo giai đoạn (token `--color-stage-*`); nhấp đúp thẻ hoặc "Xem chi tiết" mở panel chi tiết bên phải (`LeadPeek`, URL `peek`). Trang đăng nhập không còn header; panel xanh chiếm 60% bề ngang, không có chữ, gồm nền lục giác tương tác (`HexBackdrop`, canvas) và minh họa SVG nhiều lớp nghiêng theo con trỏ (`LoginScene`, CSS `crm-scene-*`). Sidebar dùng component Sidebar của shadcn/ui (`AppSidebar` trong `components/Sidebar.tsx`, `SidebarProvider` ở `AppShell`), thu gọn bằng Ctrl/⌘ + B, nút tròn ở giữa mép phải sidebar, hoặc dòng "Thu gọn" ở chân.
-- 752 test đạt (215 unit và 420 tích hợp / e2e ở `backend`, 117 ở frontend). Test tích hợp cần PostgreSQL, Valkey và MinIO (`npm run db:up`). Build sạch; lint `backend` còn 6 cảnh báo `no-misused-spread` cũ.
-- Thư mục chưa phải git repo, chưa có commit nào.
+- 773 test đạt (221 unit và 426 tích hợp / e2e ở `backend`, 126 ở frontend). Test tích hợp cần PostgreSQL, Valkey và MinIO (`npm run db:up`). Build sạch; lint `backend` còn 6 cảnh báo `no-misused-spread` cũ.
+- Từ 16/11/2026 mã nằm ở git repo `/Users/ray/ga-crm` (commit đầu "init commit"); thư mục cũ `Desktop/GA-CRM` không còn. `.env` của bản này tạo ngày 17/11/2026: mật khẩu PostgreSQL và MinIO lấy lại từ container đang chạy, còn `MFA_KEYS_SECRET`, `AI_KEYS_SECRET` và mật khẩu Platform Admin là giá trị mới (khóa AI đã lưu trước đó không đọc được nữa). `DEV_ACCOUNT_SWITCHER` đang tắt.
+- Audit mã nguồn 17/11/2026: 3 lỗi mức cao và 11 lỗi mức trung bình đã sửa cùng ngày (decisions.md, hai mục "Sửa lỗi ... sau audit"). Còn lại: câu hỏi `leadId` khi trùng số (chờ Product Owner) và các lỗi mức thấp, ở [viec-con-lai.md](viec-con-lai.md), mục 1b. `NODE_ENV` nay bắt buộc có trong `.env`; bộ đổi tài khoản chỉ trả lời máy chạy API.
 
 ## Việc kế tiếp
 

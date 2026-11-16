@@ -17,8 +17,13 @@ import {
 const POSTGRES_URL = /^postgres(ql)?:\/\//;
 
 export class Env {
+  /**
+   * Required, with no default: every production safeguard (Secure cookies, no Swagger, no dev
+   * secrets, Turnstile, the account switcher) hangs on it, so a server started without it must
+   * not silently run as development.
+   */
   @IsIn(['development', 'test', 'production'])
-  NODE_ENV: 'development' | 'test' | 'production' = 'development';
+  NODE_ENV: 'development' | 'test' | 'production';
 
   /** The port the API (backend/) listens on. */
   @Type(() => Number)
@@ -181,6 +186,11 @@ export function validateEnv(config: Record<string, unknown>): Env {
     throw new Error(
       'Invalid environment: DEV_ACCOUNT_SWITCHER must not be on in production.',
     );
+  // USER-16: MFA of privileged roles is not optional in production
+  if (env.NODE_ENV === 'production' && env.MFA_ENFORCE === 'false')
+    throw new Error(
+      'Invalid environment: MFA_ENFORCE=false is for local demos and tests, never production.',
+    );
   if (env.NODE_ENV === 'production' && !env.AI_KEYS_SECRET)
     throw new Error(
       'Invalid environment: AI_KEYS_SECRET (32+ characters) is required in production.',
@@ -205,7 +215,7 @@ export function validateEnv(config: Record<string, unknown>): Env {
       )
       .join('\n');
     throw new Error(
-      `Invalid environment. Copy the PG_* and DATABASE_* lines of .env.example into .env.\n${details}`,
+      `Invalid environment. Copy the NODE_ENV, PG_* and DATABASE_* lines of .env.example into .env.\n${details}`,
     );
   }
   return env;

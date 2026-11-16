@@ -608,11 +608,13 @@ export class WorkService {
    */
   async ics(token: string | undefined): Promise<string> {
     if (!token || token.length > 200) throw notFound();
+    // TENANT-3: a suspended GA serves nothing, including links saved in calendar apps before it was
     const [found] = await this.platformDb.run('calendar-feed', (db) =>
       rowsOf<{ tenantId: string; userId: string }>(
         db,
-        `SELECT tenant_id AS "tenantId", user_id AS "userId" FROM calendar_tokens
-          WHERE token_hash = $1`,
+        `SELECT c.tenant_id AS "tenantId", c.user_id AS "userId" FROM calendar_tokens c
+           JOIN tenants t ON t.id = c.tenant_id
+          WHERE c.token_hash = $1 AND t.status = 'active'`,
         [sha256(token)],
       ),
     );

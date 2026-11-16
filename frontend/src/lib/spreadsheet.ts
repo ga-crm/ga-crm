@@ -20,6 +20,12 @@ const MAX_SHEETS = 30
 const MAX_COLUMNS = 200
 const MAX_HEADER_LENGTH = 200
 const MAX_CELL_LENGTH = 4001
+/**
+ * IMP-13: an import stops at 20,000 rows. A sheet keeps its header and one row past the limit, so
+ * the server still answers import_too_large, and a huge file cannot freeze the tab.
+ */
+export const MAX_ROWS = 20_000
+const KEPT_ROWS = MAX_ROWS + 2
 
 const pad = (part: number) => String(part).padStart(2, '0')
 
@@ -52,19 +58,24 @@ export interface RawSheet {
   rows: ParsedRow[]
 }
 
+/**
+ * Walks the rows that hold cells (dense mode), never the range the file declares: a file can declare
+ * A1:XFD1048576 around three cells, and looping over that range froze the tab.
+ */
 function readSheet(name: string, hidden: boolean, sheet: WorkSheet, date1904: boolean): RawSheet {
   const ref = sheet['!ref']
-  if (!ref) return { name, hidden, rows: [] }
+  const data = sheet['!data']
+  if (!ref || !data) return { name, hidden, rows: [] }
   const range = utils.decode_range(ref)
   const lastColumn = Math.min(range.e.c, range.s.c + MAX_COLUMNS - 1)
   const rows: ParsedRow[] = []
-  for (let row = range.s.r; row <= range.e.r; row++) {
+  // forEach skips the holes of a sparse array, so only rows with cells cost anything
+  data.forEach((line, row) => {
+    if (rows.length >= KEPT_ROWS || !line) return
     const cells: Cell[] = []
-    for (let column = range.s.c; column <= lastColumn; column++) {
-      cells.push(cellValue(sheet[utils.encode_cell({ r: row, c: column })] as CellObject | undefined, date1904))
-    }
+    for (let column = range.s.c; column <= lastColumn; column++) cells.push(cellValue(line[column], date1904))
     if (cells.some((cell) => cell !== null)) rows.push({ r: row + 1, cells })
-  }
+  })
   return { name, hidden, rows }
 }
 
@@ -73,7 +84,7 @@ function readSheet(name: string, hidden: boolean, sheet: WorkSheet, date1904: bo
  * server marks as banned therefore never leaves this computer (test 29).
  */
 export function readWorkbook(data: ArrayBuffer): RawSheet[] {
-  const workbook = read(data, { type: 'array', cellNF: true, cellDates: false, cellHTML: false })
+  const workbook = read(data, { type: 'array', cellNF: true, cellDates: false, cellHTML: false, dense: true })
   const date1904 = !!workbook.Workbook?.WBProps?.date1904
   const meta = workbook.Workbook?.Sheets ?? []
   return workbook.SheetNames.slice(0, MAX_SHEETS).map((name, index) => readSheet(name, !!meta[index]?.Hidden, workbook.Sheets[name], date1904))

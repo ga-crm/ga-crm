@@ -10,6 +10,7 @@ import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import { validationException } from './common/errors.js';
 import type { Env } from './config/env.validation.js';
+import { readSessionTokenFromHeader } from './modules/auth/session-cookie.js';
 import { requestContextMiddleware } from './common/request-context.js';
 
 /** Shared by main.ts and the e2e tests. */
@@ -27,12 +28,21 @@ export function configureApp(app: INestApplication): void {
     next();
   });
   // Section 17.10: a chunk of 500 rows is larger than the default limit of every other route.
-  // Wrapped because Nest skips its own parser for every route once it sees one named jsonParser
-  const importsBody = json({ limit: '4mb' });
+  // Wrapped because Nest skips its own parser for every route once it sees one named jsonParser.
+  // This runs before the session guard and the rate limits, so it must stay cheap for strangers:
+  // no gzip (4 KB compressed can inflate to 4 MB and block the event loop), and only for a request
+  // that carries a session cookie. Without one, Nest's own 100 KB parser answers and the guard
+  // then refuses it.
+  const importsBody = json({ limit: '4mb', inflate: false });
   app.use(
     '/api/v1/imports',
-    (req: Request, res: Response, next: NextFunction) =>
-      importsBody(req, res, next),
+    (req: Request, res: Response, next: NextFunction) => {
+      if (!readSessionTokenFromHeader(req.headers.cookie, config)) {
+        next();
+        return;
+      }
+      importsBody(req, res, next);
+    },
   );
   app.use(cookieParser());
   app.use(requestContextMiddleware);

@@ -32,7 +32,7 @@ Nguồn: `requirement/09-ghi-chu-gop-y-viec-can-lam.md:6`
 
 Nguồn: `requirement/09-ghi-chu-gop-y-viec-can-lam.md:7`
 
-Đã trích dẫn trong: `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.service.ts`
+Đã trích dẫn trong: `backend/src/modules/leads/lead-removal.service.ts`, `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.service.ts`
 
 - **NOTE-4** Ghi liên hệ trên lead: đặt `firstContactAt` (sớm nhất) và `lastContactAt` (muộn nhất), chuyển `NEW` → `CONTACTED` (có lịch sử), hoàn thành việc tự động "liên hệ trong 48 giờ" đang mở, được tính vào báo cáo hoạt động và "Lịch sử phụ trách".
 

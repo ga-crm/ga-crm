@@ -29,6 +29,13 @@ import { AuthService } from './auth.service.js';
 import { MeService } from './me.service.js';
 import { readSessionToken, setSessionCookie } from './session-cookie.js';
 
+/** 127.0.0.0/8 and ::1, also written as IPv4 inside IPv6. */
+export function isLoopback(address: string | undefined): boolean {
+  if (!address) return false;
+  const plain = address.replace(/^::ffff:/i, '');
+  return plain === '::1' || /^127\.\d+\.\d+\.\d+$/.test(plain);
+}
+
 export class DevSwitchDto {
   @ApiProperty({ description: 'Id của tài khoản muốn đăng nhập' })
   @IsUUID()
@@ -51,10 +58,17 @@ export class DevSwitchController {
     private readonly config: ConfigService<Env, true>,
   ) {}
 
-  private assertOn(): void {
+  /**
+   * On only with the flag, outside production, and for a caller on this machine. Signing in with no
+   * password must never reach another computer, even when a laptop or a misconfigured server
+   * shares a network. The socket address is used, not req.ip, so X-Forwarded-For cannot fake it;
+   * the Vite dev proxy connects from this machine.
+   */
+  private assertOn(req: Request): void {
     const on =
       this.config.get('DEV_ACCOUNT_SWITCHER', { infer: true }) === 'true' &&
-      this.config.get('NODE_ENV', { infer: true }) !== 'production';
+      this.config.get('NODE_ENV', { infer: true }) !== 'production' &&
+      isLoopback(req.socket.remoteAddress);
     if (!on) throw notFound();
   }
 
@@ -62,10 +76,10 @@ export class DevSwitchController {
   @ApiOperation({
     summary: 'Mọi tài khoản để chuyển nhanh (chỉ môi trường thử)',
     description:
-      'Cần DEV_ACCOUNT_SWITCHER=true; tắt thì trả 404. Không có ở production.',
+      'Cần DEV_ACCOUNT_SWITCHER=true và gọi từ chính máy chạy API; nếu không trả 404. Không có ở production.',
   })
-  async accounts() {
-    this.assertOn();
+  async accounts(@Req() req: Request) {
+    this.assertOn(req);
     return { items: await this.auth.devAccounts() };
   }
 
@@ -82,7 +96,7 @@ export class DevSwitchController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    this.assertOn();
+    this.assertOn(req);
     const { actor, token } = await this.auth.devSwitch(
       dto.userId,
       readSessionToken(req, this.config),

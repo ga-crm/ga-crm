@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, LogOut, Settings } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { t, tDynamic } from '../i18n'
-import { api } from '../lib/api'
+import { api, ApiError, errorMessage } from '../lib/api'
 import { setSessionUser } from '../lib/queryClient'
 import { toast } from '../lib/toast'
 import type { Me } from '../lib/types'
@@ -23,12 +23,20 @@ export function AccountMenu({ me }: { me: Me }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
 
+  const signedOut = () => {
+    setSessionUser(null)
+    toast.info(t('toast.signedOut'))
+    navigate('/login', { replace: true })
+  }
+  // Only a sign-out the API confirmed (or a session it no longer knows, 401) leaves the account.
+  // Anything else keeps the cookie alive, so saying "signed out" would leave the next person on a
+  // shared computer inside this account.
   const signOut = useMutation({
     mutationFn: () => api.post('/auth/sign-out'),
-    onSettled: () => {
-      setSessionUser(null)
-      toast.info(t('toast.signedOut'))
-      navigate('/login', { replace: true })
+    onSuccess: signedOut,
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 401) signedOut()
+      else toast.error(t('toast.signOutFailed'), errorMessage(error))
     },
   })
 

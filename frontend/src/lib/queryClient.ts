@@ -26,7 +26,7 @@ export const queryClient = new QueryClient({
  * `me` is kept as a query rather than removed, because mounted screens are observing it.
  */
 /** Public pages load these without a session, so a sign-in or a 401 must not drop them mid-flight. */
-const SESSION_FREE = new Set<unknown>([keys.me[0], keys.devAccounts[0], 'publicForm', 'invite'])
+export const SESSION_FREE = new Set<unknown>([keys.me[0], keys.devAccounts[0], 'publicForm', 'invite', 'password-reset'])
 
 export function setSessionUser(me: Me | null) {
   queryClient.removeQueries({ predicate: (query) => !SESSION_FREE.has(query.queryKey[0]) })

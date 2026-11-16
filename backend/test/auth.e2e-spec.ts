@@ -1249,6 +1249,31 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       }
     });
 
+    it('section 22.4: an IPv6 /64 counts as one client, so rotating addresses inside it does not reset the lock', async () => {
+      const express = app.getHttpAdapter().getInstance() as {
+        set(name: string, value: unknown): void;
+      };
+      const email = demoEmail(2, 'gad');
+      const from = (ip: string, password: string) =>
+        attempt(email, password).set('X-Forwarded-For', ip);
+      express.set('trust proxy', 1);
+      try {
+        for (let i = 1; i <= 10; i++) {
+          await from(`2001:db8:5:6::${i.toString(16)}`, 'wrong-password').expect(
+            401,
+          );
+          await clearMinuteWindows();
+        }
+        await from('2001:db8:5:6:ffff::1', PASSWORD).expect(429);
+        await from('2001:db8:5:7::1', PASSWORD).expect(200);
+      } finally {
+        express.set('trust proxy', 0);
+        await connection
+          .collection('loginAttempts')
+          .deleteMany({ _id: /^(lock|acct):/ as never });
+      }
+    });
+
     it('ROLE-4: a link made before a role change no longer works', async () => {
       const head = await signIn(demoEmail(2, 'head'));
       const email = 'kept.link@test.local';

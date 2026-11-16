@@ -67,18 +67,19 @@ function SuggestionCard({ leadId, item, onLinked }: { leadId: string; item: Link
 function UnlinkDialog({ detail, open, onClose }: { detail: LeadDetail; open: boolean; onClose: () => void }) {
   const refresh = useRefresh()
   const [reason, setReason] = useState('')
-  const name = detail.link?.clientName ?? detail.link?.clientCode ?? ''
+  // CUS-5 + PDP-4: without the code the client is not named
+  const name = detail.link?.clientName ?? detail.link?.clientCode
   const unlink = useMutation({
     mutationFn: () => api.delete(`/leads/${detail.lead.id}/link`, { reason: reason.trim() }),
     onSuccess: async () => {
       await refresh()
-      toast.info(t('toast.leadUnlinked', { name }))
+      toast.info(name ? t('toast.leadUnlinked', { name }) : t('toast.leadUnlinkedHidden'))
       setReason('')
       onClose()
     },
   })
   return (
-    <Dialog title={t('link.unlinkTitle', { name })} open={open} onClose={onClose}>
+    <Dialog title={name ? t('link.unlinkTitle', { name }) : t('link.unlinkTitleHidden')} open={open} onClose={onClose}>
       <form
         noValidate
         onSubmit={(event) => {
@@ -122,12 +123,17 @@ export function LeadLinkTab({ detail }: { detail: LeadDetail }) {
       {detail.link ? (
         <section className="max-w-3xl rounded-lg bg-chrome p-5">
           <p className="text-caption text-ink-meta">{t('link.linkedTo')}</p>
-          <p className="mt-1 flex flex-wrap items-center gap-2">
-            <Link to={`/clients/${detail.link.clientCode}`} className="text-subhead text-primary hover:underline">
-              {detail.link.clientName ?? detail.link.clientCode}
-            </Link>
-            <span className="text-caption text-ink-meta tabular-nums">{detail.link.clientCode}</span>
-          </p>
+          {detail.link.clientCode ? (
+            <p className="mt-1 flex flex-wrap items-center gap-2">
+              <Link to={`/clients/${detail.link.clientCode}`} className="text-subhead text-primary hover:underline">
+                {detail.link.clientName ?? detail.link.clientCode}
+              </Link>
+              <span className="text-caption text-ink-meta tabular-nums">{detail.link.clientCode}</span>
+            </p>
+          ) : (
+            // CUS-5 + PDP-4: the person does not see client pages, so only the fact of the link
+            <p className="mt-1 text-link text-ink-body">{t('link.hiddenClient')}</p>
+          )}
           {detail.link.linkedAt && <p className="mt-1 text-caption text-ink-meta">{t('link.linkedAt', { at: formatDateTime(detail.link.linkedAt) })}</p>}
           {detail.canWork && (
             <Button variant="ghost" className="mt-3" onClick={() => setUnlinking(true)}>

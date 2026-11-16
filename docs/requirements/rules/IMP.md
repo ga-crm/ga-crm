@@ -109,7 +109,7 @@ Nguồn: `requirement/12-nhap-du-lieu.md:20`
 
 Nguồn: `requirement/12-nhap-du-lieu.md:21`
 
-Đã trích dẫn trong: `backend/src/modules/imports/imports.service.ts`, `backend/test/imports.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`
+Đã trích dẫn trong: `backend/src/modules/imports/imports.service.ts`, `backend/test/imports.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`, `frontend/src/lib/spreadsheet.ts`
 
 - **IMP-13** Hiệu năng: 2.000 dòng trên nhiều sheet kiểm tra và ghi dưới 30 giây; 20.000 dòng (**NEW**) dưới 3 phút qua worker có tiến độ.
 

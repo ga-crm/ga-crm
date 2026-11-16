@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '../components/ui'
-import { api } from '../lib/api'
+import { api, ApiError, errorMessage } from '../lib/api'
 import { setSessionUser } from '../lib/queryClient'
+import { toast } from '../lib/toast'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useMe } from '../auth/useMe'
 import { AuthLayout } from '../components/AuthLayout'
@@ -28,13 +29,19 @@ export function MfaSetupPage() {
         variant="ghost"
         className="mt-4 w-full"
         onClick={() => {
-          void api
-            .post('/auth/sign-out')
-            .catch(() => undefined)
-            .then(() => {
+          // As in AccountMenu: leave only once the API ended the session (or no longer knows it)
+          void api.post('/auth/sign-out').then(
+            () => {
               setSessionUser(null)
               navigate('/login', { replace: true })
-            })
+            },
+            (error: unknown) => {
+              if (error instanceof ApiError && error.status === 401) {
+                setSessionUser(null)
+                navigate('/login', { replace: true })
+              } else toast.error(t('toast.signOutFailed'), errorMessage(error))
+            },
+          )
         }}
       >
         {t('mfa.signOut')}

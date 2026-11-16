@@ -142,6 +142,17 @@ describe('Clients and policies entered by hand (e2e)', () => {
       ).toBe(3);
     });
 
+    it('PERM-2: a new GA starts at the latest permissions version, so a restart never grants back what its head removed', async () => {
+      // The demo GAs were created after the app started, through TenantsService.create
+      const { rows } = await ownerDb().query<{ permissions_version: number }>(
+        'SELECT permissions_version FROM tenant_settings',
+      );
+      expect(rows.length).toBeGreaterThan(0);
+      expect(
+        rows.every((row) => row.permissions_version === PERMISSIONS_VERSION),
+      ).toBe(true);
+    });
+
     it('test 11 + PERM-2: an older GA gets catalog.manage for Admin once, without undoing later choices', async () => {
       const owner = ownerDb();
       // An older GA: before version 1, and without catalog.manage for ADMIN
@@ -159,6 +170,19 @@ describe('Clients and policies entered by hand (e2e)', () => {
             item.permissions_version === PERMISSIONS_VERSION,
         ),
       ).toBe(true);
+      // AUD-1: each GA that received it has a permission change with no person behind it
+      const { rows: grantsAudit } = await owner.query<{
+        user_id: string | null;
+        meta: { added: string[] };
+      }>(
+        `SELECT user_id, meta FROM audit_events
+          WHERE action = 'PERMISSION_CHANGE' AND meta ? 'permissionsVersion'`,
+      );
+      expect(grantsAudit).toHaveLength(all.length);
+      expect(grantsAudit[0]).toMatchObject({
+        user_id: null,
+        meta: { added: ['ADMIN:catalog.manage'] },
+      });
       // A GA that later takes it away keeps its choice
       await owner.query(drop);
       await app.get(TenantsService).onModuleInit();
@@ -489,6 +513,62 @@ describe('Clients and policies entered by hand (e2e)', () => {
         .post(`${API}/clients/5000000099/policies`)
         .send(policyBody('500000032'))
         .expect(404);
+    });
+
+    it('POL-2 + CUS-4 + CUS-6: the insured is a client the person owns or one not in the GA yet, so nobody takes over another agent\'s client', async () => {
+      // 5000000099 belongs to PEER, outside the FC's branch
+      const refused = await fc
+        .post(`${API}/clients/5000000002/policies`)
+        .send(policyBody('500000033', { insuredClientCode: '5000000099' }))
+        .expect(403);
+      expect(refused.body).toEqual({
+        error: 'insured_not_yours',
+        issues: [{ path: 'insuredClientCode', message: 'insured_not_yours' }],
+      });
+      expect(await policyOf('500000033')).toBeNull();
+      expect((await stored('5000000099'))?.ownerAgentCodes).toEqual([PEER]);
+
+      // The same through "Thêm khách hàng", with the path of the policy in the form
+      const nested = await create(fc, {
+        clientCode: '5000000030',
+        name: 'Không Chiếm Được',
+        policies: [
+          policyBody('500000034', { insuredClientCode: '5000000099' }),
+        ],
+      }).expect(403);
+      expect(nested.body.issues).toEqual([
+        {
+          path: 'policies.0.insuredClientCode',
+          message: 'insured_not_yours',
+        },
+      ]);
+      expect(await stored('5000000030')).toBeNull();
+
+      // A line manager sees the FC's client but does not own it (CUS-6)
+      await create(um, {
+        clientCode: '5000000031',
+        name: 'Của Quản Lý',
+        agentCode: UM,
+      }).expect(201);
+      await um
+        .post(`${API}/clients/5000000031/policies`)
+        .send(policyBody('500000035', { insuredClientCode: '5000000002' }))
+        .expect(403);
+
+      // A person not in the GA yet is fine with a name, and GA_HEAD owns every client
+      await fc
+        .post(`${API}/clients/5000000002/policies`)
+        .send(
+          policyBody('500000036', {
+            insuredClientCode: '5000000098',
+            insuredName: 'Người Mới',
+          }),
+        )
+        .expect(201);
+      await head
+        .post(`${API}/clients/5000000099/policies`)
+        .send(policyBody('500000037', { insuredClientCode: '5000000031' }))
+        .expect(201);
     });
 
     it('test 41 + POL-4: editing replaces every programme line; the number and the agent stay; only a policy of this client', async () => {

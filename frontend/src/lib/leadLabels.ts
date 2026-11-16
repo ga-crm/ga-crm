@@ -23,12 +23,31 @@ export const careTone = (value: string): BadgeTone => CARE_TONES[value] ?? 'mute
 /** DATA-2: stored as YYYY-MM-DD, shown as dd/mm/yyyy. */
 export const showDate = (value?: string | null): string | null => (value ? value.split('-').reverse().join('/') : null)
 
-/** For `<input type="datetime-local">`, which wants local time without a zone. */
+const VIETNAM_CLOCK = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Ho_Chi_Minh',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+/**
+ * DATA-2: for `<input type="datetime-local">`, which holds a time without a zone. The app shows
+ * Vietnam time everywhere, so the field does too, whatever the computer's own zone is.
+ */
 export function toLocalInput(value?: string | null): string {
   if (!value) return ''
   const date = new Date(value)
-  const pad = (part: number) => String(part).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  if (Number.isNaN(date.getTime())) return ''
+  const part = Object.fromEntries(VIETNAM_CLOCK.formatToParts(date).map(({ type, value: text }) => [type, text]))
+  return `${part.year}-${part.month}-${part.day}T${part.hour}:${part.minute}`
+}
+
+/** The reverse of toLocalInput: what was typed is Vietnam time (UTC+7, no daylight saving). */
+export function fromLocalInput(value: string): string {
+  return new Date(`${value.slice(0, 16)}:00+07:00`).toISOString()
 }
 
 /** LEAD-20: a history value in words: labels for codes, names for agents. */

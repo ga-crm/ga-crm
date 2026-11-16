@@ -37,7 +37,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:19`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:25`
 
-Đã trích dẫn trong: `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/client-links.ts`, `backend/src/modules/clients/client.constants.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `backend/src/modules/clients/lead-link.service.ts`, `backend/src/modules/clients/lead-links.controller.ts`, `backend/src/modules/imports/imports.service.ts`, `backend/src/modules/imports/success-plan.spec.ts`, `backend/src/modules/imports/success-plan.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/clients.e2e-spec.ts`, `backend/test/import-batches.e2e-spec.ts`, `backend/test/lead-link.e2e-spec.ts`
+Đã trích dẫn trong: `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/client-links.ts`, `backend/src/modules/clients/client.constants.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `backend/src/modules/clients/lead-link.service.ts`, `backend/src/modules/clients/lead-links.controller.ts`, `backend/src/modules/imports/imports.service.ts`, `backend/src/modules/imports/success-plan.spec.ts`, `backend/src/modules/imports/success-plan.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/clients.e2e-spec.ts`, `backend/test/import-batches.e2e-spec.ts`, `backend/test/lead-link.e2e-spec.ts`, `backend/test/manual-clients.e2e-spec.ts`
 
 - **CUS-4** Liên kết khách hàng - đại lý (`agentLinks`, nguồn):
   | Nguồn | Tạo khi | Cho thấy | Cho sở hữu |
@@ -53,7 +53,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:25`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:34`
 
-Đã trích dẫn trong: `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/clients/lead-link.service.ts`, `backend/test/clients.e2e-spec.ts`, `frontend/src/lib/nav.ts`
+Đã trích dẫn trong: `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/clients/lead-link.service.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/clients.e2e-spec.ts`, `backend/test/lead-link.e2e-spec.ts`, `frontend/src/components/LeadClientLink.tsx`, `frontend/src/lib/nav.ts`, `frontend/src/lib/types.ts`
 
 - **CUS-5** **Thấy**: khách hàng trong scope khi có liên kết bất kỳ ở bảng trên với một đại lý trong scope (FC: của mình; quản lý: tuyến; Chủ GA: tất cả). Marketing và Admin không thấy trang khách hàng (view che dữ liệu riêng, PDP-4).
 
@@ -61,7 +61,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:34`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:35`
 
-Đã trích dẫn trong: `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/client-links.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/work/reminders.service.ts`, `backend/src/modules/work/work.controller.ts`, `backend/test/manual-clients.e2e-spec.ts`
+Đã trích dẫn trong: `backend/src/common/errors.ts`, `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/client-links.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/work/reminders.service.ts`, `backend/src/modules/work/work.controller.ts`, `backend/test/manual-clients.e2e-spec.ts`
 
 - **CUS-6** **Sở hữu**: đại lý có liên kết cho sở hữu (bảng trên). **Chủ GA được coi là sở hữu mọi khách hàng của GA** (sửa được mọi khách) [Cooked]. Quản lý tuyến chỉ đọc khách của tuyến dưới (kèm giải thích). Không sở hữu mà sửa → `403 client_not_yours`.
 

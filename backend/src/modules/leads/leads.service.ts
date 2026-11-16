@@ -1081,9 +1081,12 @@ export class LeadsService {
           )
         : undefined;
       const { ms } = await this.deadline(scope, db);
+      // CUS-5 + PDP-4: Marketing and Admin (no agent reach) do not see client pages, so the client
+      // a lead became stays a fact without its code or name
+      const seesClients = actor.reach !== 'NONE';
       // LEAD-32: the client this lead became; the clients module owns that table
       const [linkedClient] =
-        lead.linkStatus === 'CONFIRMED' && lead.clientCode
+        seesClients && lead.linkStatus === 'CONFIRMED' && lead.clientCode
           ? await rowsOf<{ name: string }>(
               db,
               `SELECT name FROM clients WHERE tenant_id = $1 AND client_code = $2`,
@@ -1170,11 +1173,16 @@ export class LeadsService {
           doneBy: item.doneBy,
         })),
         history: history.map((item) => {
-          // LEAD-20 + PDP-3
+          // LEAD-20 + PDP-3: a merge row keeps the merged lead's number, so it is masked too.
+          // CUS-5 + PDP-4: client codes only for someone who sees client pages
           const mask = (value: string | null) =>
-            value && item.field === 'phone' && !canWork
-              ? maskPhone(value)
-              : value;
+            !value
+              ? value
+              : (item.field === 'phone' || item.field === 'merge') && !canWork
+                ? maskPhone(value)
+                : item.field === 'clientCode' && !seesClients
+                  ? null
+                  : value;
           return {
             id: item.id,
             field: item.field,
@@ -1207,7 +1215,7 @@ export class LeadsService {
         link:
           lead.linkStatus === 'CONFIRMED' && lead.clientCode
             ? {
-                clientCode: lead.clientCode,
+                clientCode: seesClients ? lead.clientCode : null,
                 clientName: linkedClient?.name ?? null,
                 linkedAt: lead.linkedAt,
               }

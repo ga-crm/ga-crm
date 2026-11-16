@@ -142,6 +142,14 @@ describe('MFA (e2e)', () => {
     expect(
       (await second.get(`${API}/auth/mfa`).expect(200)).body,
     ).toMatchObject({ enabled: true, required: true, recoveryCodesLeft: 8 });
+    // A signed-in session cannot enrol another authenticator past the code (set-up needs none)
+    for (const path of ['setup', 'enable']) {
+      const again = await second
+        .post(`${API}/auth/mfa/${path}`)
+        .send({ code: '123456' })
+        .expect(409);
+      expect(again.body.error).toBe('mfa_already_enabled');
+    }
     // Mandatory for the role
     const off = await second
       .post(`${API}/auth/mfa/disable`)
@@ -256,5 +264,30 @@ describe('MFA (e2e)', () => {
       );
     expect(statuses.slice(0, 5)).toEqual([400, 400, 400, 400, 400]);
     expect(statuses.at(-1)).toBe(429);
+  });
+
+  it('USER-16 + section 22.4: wrong codes from many addresses lock the second factor of the account', async () => {
+    const express = app.getHttpAdapter().getInstance() as {
+      set(name: string, value: unknown): void;
+    };
+    const attempts = connection.collection('loginAttempts');
+    const { agent } = await signIn('head');
+    const verify = (ip: string, code: string) =>
+      agent
+        .post(`${API}/auth/mfa/verify`)
+        .set('X-Forwarded-For', ip)
+        .send({ code });
+    express.set('trust proxy', 1);
+    try {
+      for (let i = 0; i < 10; i++) {
+        await verify(`198.51.100.${i}`, '000000').expect(400);
+        await attempts.deleteMany({ _id: /^acct:/ as never });
+      }
+      // Holding the password and a fresh address is not enough while it lasts
+      await verify('198.51.100.99', codeFor(secret, 2)).expect(429);
+    } finally {
+      express.set('trust proxy', 0);
+      await attempts.deleteMany({});
+    }
   });
 });

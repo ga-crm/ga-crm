@@ -21,7 +21,10 @@ const DAY_MS = 86_400_000;
 /** LEAD-40: how long a deleted lead can come back. */
 export const RESTORE_DAYS = 30;
 
-/** PDP-6: what counts as personal on a lead, its history and its notes. */
+/**
+ * PDP-6: what counts as personal on a lead, its history and its notes. The application and policy
+ * numbers go too: like the client code, they point straight back at the person in Success data.
+ */
 const PERSONAL_COLUMNS = [
   'email',
   'dob',
@@ -29,6 +32,8 @@ const PERSONAL_COLUMNS = [
   'extra_info',
   'progress_note',
   'ref_link',
+  'application_no',
+  'policy_no',
 ] as const;
 const PERSONAL_HISTORY = [
   'fullName',
@@ -39,6 +44,13 @@ const PERSONAL_HISTORY = [
   'extraInfo',
   'progressNote',
   'refLink',
+  'applicationNo',
+  'policyNo',
+  'clientCode',
+  // The merged lead's number and name (LEAD-41), and note texts before an edit or delete (NOTE-4)
+  'merge',
+  'noteEdited',
+  'noteDeleted',
 ];
 
 /** LEAD-40, LEAD-41, PDP-6: deleting, restoring, merging and erasing leads (leads.manage). */
@@ -135,6 +147,23 @@ export class LeadRemovalService {
         WHERE tenant_id = $1 AND lead_id = $2 AND field = ANY($3::text[])`,
       [...owned, PERSONAL_HISTORY],
     );
+    // Notes written while changing stage are free text too; the change itself stays for statistics
+    await db.query(
+      `UPDATE lead_history SET note = NULL WHERE tenant_id = $1 AND lead_id = $2`,
+      owned,
+    );
+    // Task titles are written by people ("Gọi chị Lan"); the tasks were cancelled above
+    await db.query(
+      `UPDATE tasks SET title = '' WHERE tenant_id = $1 AND lead_id = $2`,
+      owned,
+    );
+    // A lead merged into another left its number and name on that lead's merge row
+    if (lead.mergedInto)
+      await db.query(
+        `UPDATE lead_history SET old_value = NULL, note = NULL
+          WHERE tenant_id = $1 AND lead_id = $2 AND field = 'merge' AND old_value = $3`,
+        [lead.tenantId, lead.mergedInto, lead.deletedPhone ?? lead.phone],
+      );
   }
 
   /** LEAD-40: within 30 days, unless it was merged into another lead. */

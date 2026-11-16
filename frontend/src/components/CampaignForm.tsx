@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { t, tDynamic } from '../i18n'
 import { api, errorField, errorMessage } from '../lib/api'
-import { toLocalInput } from '../lib/leadLabels'
+import { fromLocalInput, toLocalInput } from '../lib/leadLabels'
 import { keys, queries } from '../lib/queries'
 import { toast } from '../lib/toast'
 import { CAMPAIGN_STATUSES, CAMPAIGN_TYPES } from '../lib/types'
@@ -61,7 +61,7 @@ export function CampaignForm({ campaign, onClose, onSaved }: { campaign?: Campai
         endDate: values.endDate || null,
         budgetVnd: values.budgetVnd ? Number(values.budgetVnd) : null,
         ownerUserId: values.ownerUserId || null,
-        eventAt: values.eventAt ? new Date(values.eventAt).toISOString() : null,
+        eventAt: values.eventAt ? fromLocalInput(values.eventAt) : null,
         location: values.location || null,
         notes: values.notes || null,
       }

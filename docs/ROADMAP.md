@@ -156,7 +156,7 @@ Thiết kế ở [thiet-ke-he-thong.md](thiet-ke-he-thong.md), cách chuyển �
 | 8a | Gói dịch vụ và giới hạn (người dùng, token AI, dung lượng), chặn khi vượt, GA xem gói; Platform Admin đặt lại MFA người dùng GA | Xong | Mục 5.2, 16.17, M13. Cách tính cước vẫn chờ câu 9 |
 | 8b | Yêu cầu của chủ thể dữ liệu: ghi nhận, xuất, xóa | Chưa làm | PDP-6, `dsrRequests` |
 | 8c | Danh mục sản phẩm 11_Products; xuất dữ liệu GA khi rời nền tảng | Chưa làm | TENANT-5, TENANT-6 |
-| 8d | Gia cố: correlation id, Idempotency-Key, kiểm thử tải, CI | Chưa làm | Mục 22 |
+| 8d | Gia cố: correlation id, Idempotency-Key, kiểm thử tải, CI | Chưa làm | Mục 22. Audit mã nguồn 17/11/2026: 3 lỗi mức cao và 11 lỗi mức trung bình đã sửa; các lỗi còn lại ở [viec-con-lai.md](viec-con-lai.md), mục 1b |
 | - | Kho kiến thức toàn DLVN, bảng giá AI trên console | Chờ AI | Theo lát cắt 7 |
 
 ## Test bắt buộc ở mục 23.2 (phần liên quan)

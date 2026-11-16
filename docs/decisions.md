@@ -966,6 +966,37 @@ Chủ dự án trả lời ngày 14/11/2026: câu A, D, F, I trả lời riêng;
 | Đã sửa theo | Lệnh `npm --prefix backend` trong `package.json` gốc, `.claude/launch.json`, `scripts/build-rule-index.mjs`, hai đường dẫn tương đối trong code (`config/load-env.ts` đọc `.env` gốc, `common/errors.spec.ts` đọc `vi.json`), ghi chú trong `.env` / `.env.example`, `CLAUDE.md`, skill, README, HANDOFF, ROADMAP, tài liệu thiết kế | |
 | Đọc tài liệu cũ | Các mục trước 16/11/2026 trong file này ghi `apps/api` là chính `backend/` hiện nay. Các mục ghi `backend/` (MongoDB) là bản cũ đã xóa (mục "Xóa bản cũ trên MongoDB") | Giữ nguyên nhật ký để không viết lại lịch sử |
 
+## 2026-11-17: Sửa lỗi mức cao sau audit
+
+Audit mã nguồn ngày 17/11/2026 tìm ra 3 lỗi mức cao; các lỗi còn lại ở [viec-con-lai.md](viec-con-lai.md), mục 1b.
+
+| Điểm | Quyết định | Lý do |
+|---|---|---|
+| Người được bảo hiểm chính trên hợp đồng nhập tay (POL-2, CUS-4, CUS-6) | Mã người được bảo hiểm là khách đã có trong GA thì người nhập phải sở hữu khách đó (Chủ GA sở hữu mọi khách); nếu không, `403 insured_not_yours`, lỗi gắn vào ô `insuredClientCode` (`policies.<n>.insuredClientCode` khi thêm cùng khách hàng). Mã chưa có trong GA vẫn nhận, kèm tên. Khi sửa hợp đồng, giữ nguyên người được bảo hiểm cũ thì không kiểm tra lại. `insured_not_yours` là mã lỗi mới, không có trong mục 20 của đặc tả | Liên kết `POLICY_INSURED` cho đại lý phục vụ quyền sở hữu khách đó, nên trước đây một FC gõ mã khách của FC khác là chiếm được khách (xem, sửa) và đọc được tên. Đặc tả không nói người nhập phải sở hữu người được bảo hiểm; đây là cách hiểu chặt nhất của CUS-6 |
+| Body 4 MB của `/api/v1/imports` | Chỉ đọc khi request có cookie phiên, và không giải nén (`inflate: false`, body nén trả 415). Không có cookie thì bộ đọc mặc định 100 KB của Nest xử lý và guard từ chối | Bộ đọc chạy trước guard phiên và giới hạn tần suất; trước đây 4 KB gzip của người lạ nở thành 4 MB JSON, chặn event loop khoảng 60 ms mỗi request. Frontend không gửi body nén |
+| `multer` | Nâng từ 2.0.2 lên 2.5.0 | 9 lỗ hổng DoS (npm audit mức cao); route gửi file chat chạm tới được với mọi người đã đăng nhập |
+| `uuid` trong `exceljs` | Chưa sửa (mức trung bình) | Chỉ sửa được bằng cách hạ `exceljs` xuống 3.4.0 (thay đổi gây vỡ). Lỗ hổng chỉ ở v3, v5, v6 khi truyền `buf`; `exceljs` chỉ gọi `v4()` không tham số nên không chạm tới |
+
+## 2026-11-17: Sửa lỗi mức trung bình sau audit
+
+| Điểm | Quyết định | Lý do |
+|---|---|---|
+| Cài MFA khi đã bật (USER-16) | `POST /auth/mfa/setup` và `/enable` trả `409 mfa_already_enabled` khi tài khoản đã bật MFA. Đổi điện thoại: tắt bằng mã rồi cài lại, hoặc quản trị viên đặt lại (khi MFA bắt buộc). Mã lỗi mới, không có trong mục 20 | Cài đặt không đòi mã, nên trước đây ai cầm một phiên đang mở gắn được ứng dụng xác thực của mình và lấy 10 mã khôi phục mới, vượt qua mã mà tắt MFA và tạo mã khôi phục đòi hỏi. Giao diện vốn chỉ cho cài khi chưa bật |
+| IP khi đếm lần đăng nhập sai (mục 22.4) | Địa chỉ IPv6 tính theo cả /64; IPv4 viết dạng IPv6 (`::ffff:1.2.3.4`) là IPv4 (`common/ip-bucket.ts`) | Một máy IPv6 thường có cả /64, đổi địa chỉ là vượt mọi giới hạn theo IP |
+| Khóa mã MFA theo tài khoản | Ngoài khóa theo tài khoản + IP, 10 lần sai mã MFA liên tiếp khóa bước nhập mã của tài khoản đó với mọi IP (15, 30, rồi 60 phút) | Ai tới bước này đã có mật khẩu; khóa họ không làm hại chủ tài khoản. Trước đây đổi IP là đoán tiếp được khoảng 7.200 mã mỗi ngày |
+| `NODE_ENV` | Bắt buộc khai báo, không còn mặc định `development`; `.env.example` đã có dòng này | Cookie Secure, tắt Swagger, khóa bí mật thật, Turnstile và việc tắt bộ đổi tài khoản đều dựa vào biến này; quên đặt thì máy chủ âm thầm chạy như máy dev |
+| `MFA_ENFORCE=false` | API từ chối khởi động với giá trị này khi `NODE_ENV=production` | Chỉ dùng cho demo và test |
+| Bộ đổi tài khoản | Ngoài cờ `DEV_ACCOUNT_SWITCHER` và không phải production, còn phải gọi từ chính máy chạy API (địa chỉ socket 127.0.0.0/8 hoặc ::1, không đọc `X-Forwarded-For`) | Máy dev hay máy chủ cấu hình sai trong mạng chung không để người khác đăng nhập không mật khẩu. Proxy của Vite chạy trên cùng máy nên vẫn dùng được |
+| Link lịch ICS (TENANT-3) | GA bị tạm ngưng thì link ICS trả 404; kích hoạt lại thì link cũ chạy lại | Trước đây link đã lưu trong ứng dụng lịch vẫn trả tên việc và tên lead |
+| `permissions_version` của GA mới (PERM-2) | GA tạo mới ghi phiên bản quyền mới nhất. Lần cấp quyền mới lúc API khởi động ghi audit `PERMISSION_CHANGE` không có người thực hiện, `meta.added` liệt kê `VAI_TRÒ:quyền` | Trước đây GA mới nhận phiên bản 1, nên lần khởi động sau cấp lại `leads.assign_line` mà Chủ GA đã gỡ, không có audit |
+| Dòng lịch sử gộp lead (LEAD-41, PDP-3) | Số điện thoại của lead bị gộp trên dòng `merge` được che như số của lead với người không làm việc trên lead | Trước đây quản lý tuyến đọc được số đầy đủ ở tab Lịch sử |
+| Xóa theo PDP-6 | Ngoài tên, số, email, ngày sinh, ghi chú, còn xóa: số hồ sơ, số hợp đồng, dòng lịch sử `merge`, `noteEdited`, `noteDeleted`, `clientCode`, `applicationNo`, `policyNo`, ghi chú đổi giai đoạn và tên việc cần làm của lead. Giữ giai đoạn, ngày, nguồn, chiến dịch, đại lý, giới tính, tỉnh | Số hồ sơ, số hợp đồng trỏ thẳng về người đó trong dữ liệu Success như mã khách (đã xóa từ trước); các dòng lịch sử và tên việc là nội dung ghi chú do người gõ |
+| Liên kết lead - khách với Marketing, Admin (CUS-5, PDP-4) | Chi tiết lead với người không có phạm vi đại lý (Marketing, Admin không kiêm vai trò đại lý) trả liên kết không có mã và tên khách; dòng lịch sử `clientCode` có giá trị rỗng. Giao diện ghi "Một khách hàng trong sổ của tư vấn viên…" và vẫn cho hủy liên kết | Hai vai trò này không xem trang khách hàng; trước đây chi tiết lead lộ mã và tên khách thật |
+| Đăng xuất | Giao diện chỉ báo "Đã đăng xuất" khi API xác nhận (hoặc trả 401 vì phiên đã hết); lỗi khác báo "Chưa đăng xuất được" và giữ nguyên trang. Áp dụng cả ở trang bắt buộc cài MFA | Trước đây lỗi mạng vẫn chuyển về trang đăng nhập trong khi cookie còn hiệu lực; người sau trên máy dùng chung tải lại là vào tài khoản cũ |
+| Trang đặt lại mật khẩu | Truy vấn `password-reset` vào `SESSION_FREE`, có test cho mọi truy vấn công khai | 401 của `/me` từng hủy truy vấn kiểm tra link, trang đứng ở vòng xoay |
+| Đọc file Excel | Đọc ở chế độ dense của SheetJS, chỉ duyệt các dòng có ô; giữ tối đa 20.001 dòng dữ liệu mỗi sheet để API vẫn trả `import_too_large` (IMP-13) | File khai báo vùng `A1:XFD1048576` từng làm treo tab |
+| Ô nhập ngày giờ | `toLocalInput` / `fromLocalInput` trong `lib/leadLabels.ts` luôn theo giờ Việt Nam (UTC+7), không theo múi giờ của máy; dùng cho việc cần làm, lịch hẹn của lead và ngày sự kiện của chiến dịch | Máy đặt múi giờ khác từng lưu lệch giờ so với giờ hiển thị (DATA-2) |
+
 ## Not built yet
 
 | Rule | Item | Needed before go-live |

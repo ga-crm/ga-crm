@@ -35,6 +35,8 @@ export const ErrorCode = {
   ClientExists: 'client_exists',
   PolicyExists: 'policy_exists',
   ClientNotYours: 'client_not_yours',
+  /** POL-2 + CUS-6: a policy entered by hand names as insured a client someone else owns. */
+  InsuredNotYours: 'insured_not_yours',
   AgentRequired: 'agent_required',
   InvalidClientCode: 'invalid_client_code',
   /** LEAD-32 */
@@ -110,6 +112,8 @@ export const ErrorCode = {
   MfaRequired: 'mfa_required',
   MfaSetupRequired: 'mfa_setup_required',
   MfaMandatory: 'mfa_mandatory',
+  /** USER-16: set-up is for an account without MFA; a new phone goes through disable or a reset. */
+  MfaAlreadyEnabled: 'mfa_already_enabled',
   /** Section 5.2 plan limits */
   PlanUserLimit: 'plan_user_limit',
   PlanAiLimit: 'plan_ai_limit',

@@ -1,6 +1,8 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { startApp, stopApp } from './support/app.js';
+import { ownerDb } from './support/owner-db.js';
+import { sha256 } from '../src/common/crypto.js';
 import { demoEmail, seedDemoData } from '../src/seed/demo-data.js';
 
 const API = '/api/v1';
@@ -263,6 +265,24 @@ describe('Tasks, Today and calendar (e2e)', () => {
       .get(`${API}/calendar.ics`)
       .query({ token: 'sai' })
       .expect(404);
+    // TENANT-3: a suspended GA stops serving the feed; reactivating brings it back
+    const setStatus = (status: string) =>
+      ownerDb().query(
+        `UPDATE tenants SET status = $2
+          WHERE id = (SELECT tenant_id FROM calendar_tokens WHERE token_hash = $1)`,
+        [sha256(token), status],
+      );
+    await setStatus('suspended');
+    await request(app.getHttpServer())
+      .get(`${API}/calendar.ics`)
+      .query({ token })
+      .expect(404);
+    await setStatus('active');
+    await request(app.getHttpServer())
+      .get(`${API}/calendar.ics`)
+      .query({ token })
+      .expect(200);
+
     await fc.post(`${API}/calendar/token`).expect(201);
     await request(app.getHttpServer())
       .get(`${API}/calendar.ics`)

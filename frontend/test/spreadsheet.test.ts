@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { utils, write } from 'xlsx'
+import { CFB, utils, write } from 'xlsx'
 import type { CellObject, WorkSheet } from 'xlsx'
-import { parseWorkbook, pickCells } from '../src/lib/spreadsheet'
+import { MAX_ROWS, parseWorkbook, pickCells } from '../src/lib/spreadsheet'
 
 /** Builds a real .xlsx in memory, so these tests go through the same parser as a user's file. */
 function workbook(sheets: Record<string, WorkSheet>, options: { date1904?: boolean } = {}): ArrayBuffer {
@@ -91,6 +91,27 @@ describe('parseWorkbook', () => {
   it('handles a sheet with nothing in it', () => {
     const [sheet] = parseWorkbook(workbook({ s: utils.aoa_to_sheet([]) }))
     expect(sheet.rows).toEqual([])
+  })
+
+  it('IMP-13: a declared range of a whole worksheet costs only the cells it holds', () => {
+    // Writing such a range would itself loop over it, so the file's <dimension> is edited instead
+    const zip = CFB.read(new Uint8Array(workbook({ s: utils.aoa_to_sheet([['a', 'b'], ['x', 'y']]) })), { type: 'array' })
+    const entry = zip.FileIndex.find((_, index) => zip.FullPaths[index].endsWith('sheet1.xml'))!
+    const xml = new TextDecoder().decode(entry.content as Uint8Array)
+    entry.content = new TextEncoder().encode(xml.replace(/<dimension ref="[^"]*"\/>/, '<dimension ref="A1:XFD1048576"/>'))
+    const file = Uint8Array.from(CFB.write(zip, { type: 'array', fileType: 'zip' }) as ArrayLike<number>).buffer
+    const started = performance.now()
+    const [parsed] = parseWorkbook(file)
+    expect(performance.now() - started).toBeLessThan(2_000)
+    expect(parsed.headers.slice(0, 2)).toEqual(['a', 'b'])
+    expect(parsed.rows.map((row) => row.cells.slice(0, 2))).toEqual([['x', 'y']])
+  })
+
+  it('IMP-13: keeps one row past 20,000, enough for the server to refuse the file', () => {
+    const rows = Array.from({ length: MAX_ROWS + 50 }, (_, index) => [`FC: ${index}`])
+    const [parsed] = parseWorkbook(workbook({ s: utils.aoa_to_sheet([['h'], ...rows]) }))
+    expect(parsed.rows).toHaveLength(MAX_ROWS + 1)
+    expect(parsed.rows.at(-1)).toEqual({ r: MAX_ROWS + 2, cells: [`FC: ${MAX_ROWS}`] })
   })
 
   it('throws on a file that is not a spreadsheet, for the screen to report', () => {

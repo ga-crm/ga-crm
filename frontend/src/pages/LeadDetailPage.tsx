@@ -15,7 +15,7 @@ import { Alert, Badge, Button, ConfirmDialog, Container, Dialog, EmptyState, Row
 import { formatDate, formatDateTime, t, tDynamic } from '../i18n'
 import type { MessageKey } from '../i18n'
 import { api, ApiError, errorField, errorMessage } from '../lib/api'
-import { careTone, historyValue, interestTone, showDate, toLocalInput } from '../lib/leadLabels'
+import { careTone, fromLocalInput, historyValue, interestTone, showDate, toLocalInput } from '../lib/leadLabels'
 import { keys, queries } from '../lib/queries'
 import { toast } from '../lib/toast'
 import { useLeadOptions } from '../lib/leadOptions'
@@ -193,7 +193,7 @@ function StatusForm({ detail }: { detail: LeadDetail }) {
     mutationFn: () => {
       const body: Record<string, unknown> = {}
       for (const key of changedKeys) {
-        if (key === 'nextActionAt') body[key] = values[key] ? new Date(values[key]).toISOString() : null
+        if (key === 'nextActionAt') body[key] = values[key] ? fromLocalInput(values[key]) : null
         else body[key] = values[key] || null
       }
       return api.patch(`/leads/${lead.id}`, body)
@@ -452,7 +452,7 @@ function TaskForm({ leadId, task, onClose }: { leadId: string; task?: LeadTask; 
   const form = useForm<TaskValues>({ resolver: zodResolver(taskSchema), defaultValues: { title: task?.title ?? '', dueAt: toLocalInput(task?.dueAt) } })
   const save = useMutation({
     mutationFn: ({ title, dueAt }: TaskValues) => {
-      const body = { title, dueAt: new Date(dueAt).toISOString() }
+      const body = { title, dueAt: fromLocalInput(dueAt) }
       return task ? api.patch(`/leads/${leadId}/tasks/${task.id}`, body) : api.post(`/leads/${leadId}/tasks`, body)
     },
     onSuccess: async (_, { title }) => {

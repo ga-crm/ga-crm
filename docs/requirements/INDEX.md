@@ -2,7 +2,7 @@
 
 # Chỉ mục đặc tả
 
-Tổng cộng 317 quy tắc, 265 quy tắc đã được trích dẫn trong code. "Đã trích dẫn" chỉ nghĩa là code hoặc test có nhắc mã quy tắc, không có nghĩa là đã làm đủ. Phần còn thiếu xem `docs/ROADMAP.md` và `docs/decisions.md`.
+Tổng cộng 317 quy tắc, 266 quy tắc đã được trích dẫn trong code. "Đã trích dẫn" chỉ nghĩa là code hoặc test có nhắc mã quy tắc, không có nghĩa là đã làm đủ. Phần còn thiếu xem `docs/ROADMAP.md` và `docs/decisions.md`.
 
 ## Quy tắc theo miền
 
@@ -10,7 +10,7 @@ Tổng cộng 317 quy tắc, 265 quy tắc đã được trích dẫn trong code
 |---|---|---|---|
 | [TEN](rules/TEN.md) | Cô lập tenant | 7 | 6 |
 | [SCOPE](rules/SCOPE.md) | Phạm vi theo cây đại lý | 6 | 5 |
-| [PDP](rules/PDP.md) | Bảo vệ dữ liệu cá nhân | 10 | 6 |
+| [PDP](rules/PDP.md) | Bảo vệ dữ liệu cá nhân | 10 | 7 |
 | [AUD](rules/AUD.md) | Kiểm toán | 5 | 5 |
 | [DATA](rules/DATA.md) | Quy ước dữ liệu | 9 | 8 |
 | [UI](rules/UI.md) | Ngôn ngữ và giao diện | 4 | 3 |

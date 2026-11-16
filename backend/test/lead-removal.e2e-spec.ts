@@ -171,6 +171,25 @@ describe('Deleting and merging leads (e2e)', () => {
       .post(`${API}/leads/${id}/comments`)
       .send({ body: 'Gọi lại cho khách' })
       .expect(201);
+    // Text that lives on in history rows and tasks: an edited note, a stage note, a task title
+    const edited = (
+      await fc
+        .post(`${API}/leads/${id}/notes`)
+        .send({ body: 'Khách nói nhà ở Thủ Đức' })
+        .expect(201)
+    ).body.id as string;
+    await fc
+      .patch(`${API}/leads/${id}/notes/${edited}`)
+      .send({ body: 'Đã gọi' })
+      .expect(204);
+    await fc
+      .patch(`${API}/leads/${id}`)
+      .send({ stage: 'CONTACTED', stageNote: 'Chị Lan hẹn tuần sau' })
+      .expect(200);
+    await fc
+      .post(`${API}/leads/${id}/tasks`)
+      .send({ title: 'Gọi chị Lan', dueAt: new Date(Date.now() + 86_400_000) })
+      .expect(201);
     await head
       .delete(`${API}/leads/${id}`)
       .send({ reason: 'Khách yêu cầu xóa dữ liệu', mode: 'PDP' })
@@ -181,7 +200,7 @@ describe('Deleting and merging leads (e2e)', () => {
     expect(stored).toMatchObject({
       fullName: '',
       phone: `erased:${id}`,
-      stage: 'NEW',
+      stage: 'CONTACTED',
       source: expect.any(String),
     });
     expect(stored!.erasedAt).toBeInstanceOf(Date);
@@ -192,8 +211,13 @@ describe('Deleting and merging leads (e2e)', () => {
         .toArray(),
       await connection.collection('comments').find({ leadId: id }).toArray(),
       await connection.collection('leadHistory').find({ leadId: id }).toArray(),
+      await tasksOf(id),
     ]);
-    expect(texts).not.toMatch(/tiểu đường|Gọi lại|Khách Yêu Cầu|0936000004/);
+    expect(texts).not.toMatch(
+      /tiểu đường|Gọi lại|Khách Yêu Cầu|0936000004|Thủ Đức|Chị Lan|chị Lan/,
+    );
+    // The change of stage itself stays for the statistics
+    expect(texts).toContain('CONTACTED');
     // Not in the bin, so it cannot be restored
     await head.post(`${API}/leads/${id}/restore`).expect(404);
   });
@@ -241,6 +265,14 @@ describe('Deleting and merging leads (e2e)', () => {
           item.field === 'merge' && item.oldValue === '0936000006',
       ),
     ).toBe(true);
+    // PDP-3: a line manager sees the merged number masked, as on the phone field
+    const um = await as('um');
+    const forUm = (await um.get(`${API}/leads/${keep}`).expect(200)).body;
+    expect(forUm.lead.phone).toBe('0936***005');
+    expect(
+      forUm.history.find((item: { field: string }) => item.field === 'merge')
+        ?.oldValue,
+    ).toBe('0936***006');
     // Only the kept lead's own automatic task stays open
     expect(
       (await tasksOf(keep)).filter((task) => task.status === 'OPEN'),

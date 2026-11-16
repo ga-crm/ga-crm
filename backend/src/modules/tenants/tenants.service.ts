@@ -60,20 +60,41 @@ export class TenantsService implements OnModuleInit {
     const changed = await this.platformDb.run(
       'platform-console',
       async (db) => {
+        // AUD-1: a grant made without a person is still a permission change of that GA
+        const added = new Map<string, string[]>();
         for (const step of PERMISSION_STEPS)
-          for (const role of step.roles)
-            await db.query(
+          for (const role of step.roles) {
+            const rows = await rowsOf<{ tenant_id: string }>(
+              db,
               `UPDATE tenant_settings
                   SET grants = jsonb_set(grants, ARRAY[$3::text], coalesce(grants -> $3, '[]') || to_jsonb($2::text))
-                WHERE permissions_version < $1 AND NOT coalesce(grants -> $3, '[]') ? $2`,
+                WHERE permissions_version < $1 AND NOT coalesce(grants -> $3, '[]') ? $2
+                RETURNING tenant_id`,
               [step.version, step.permission, role],
             );
+            for (const { tenant_id } of rows)
+              added.set(tenant_id, [
+                ...(added.get(tenant_id) ?? []),
+                `${role}:${step.permission}`,
+              ]);
+          }
         const rows = await rowsOf<{ tenant_id: string }>(
           db,
           `UPDATE tenant_settings SET permissions_version = $1
             WHERE permissions_version < $1 RETURNING tenant_id`,
           [PERMISSIONS_VERSION],
         );
+        for (const [tenantId, grants] of added)
+          await this.audit.record(
+            {
+              tenantId,
+              userId: null,
+              action: AuditAction.PermissionChange,
+              entity: 'permissions',
+              meta: { added: grants, permissionsVersion: PERMISSIONS_VERSION },
+            },
+            db,
+          );
         return rows.length;
       },
     );
@@ -187,7 +208,11 @@ export class TenantsService implements OnModuleInit {
     });
   }
 
-  /** PERM-2: a new tenant starts with the default grants. Runs in the platform's transaction. */
+  /**
+   * PERM-2: a new tenant starts with the default grants. Runs in the platform's transaction.
+   * DEFAULT_GRANTS already hold every step, so the version is the latest: otherwise the next
+   * start would grant again what the GA head has since removed.
+   */
   async create(
     input: { gaCode: string; name: string },
     db: EntityManager,
@@ -197,6 +222,7 @@ export class TenantsService implements OnModuleInit {
       .save(db.getRepository(Tenant).create(input));
     await db.getRepository(TenantSettings).insert({
       tenantId: tenant.id,
+      permissionsVersion: PERMISSIONS_VERSION,
       grants: structuredClone(DEFAULT_GRANTS),
       leadRules: { ...DEFAULT_LEAD_RULES },
       notifications: structuredClone(DEFAULT_NOTIFICATIONS),

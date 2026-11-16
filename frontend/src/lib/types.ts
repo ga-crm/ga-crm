@@ -125,7 +125,8 @@ export interface LeadDetail {
   /** LEAD-28: oldest first; `to` is null for the current holder. */
   handovers: { agentCode: string; name: string | null; from: string; to: string | null; days: number; contacts: number }[]
   /** LEAD-32: the client this lead became. */
-  link: { clientCode: string; clientName: string | null; linkedAt: string | null } | null
+  /** clientCode is null for someone who does not see client pages (CUS-5, PDP-4) */
+  link: { clientCode: string | null; clientName: string | null; linkedAt: string | null } | null
   canLink: boolean
   canWork: boolean
   canManage: boolean

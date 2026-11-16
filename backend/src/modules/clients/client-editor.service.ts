@@ -298,9 +298,16 @@ export class ClientEditorService {
     dto: PolicyFieldsDto,
     agentCode: string,
     db: EntityManager,
+    currentInsured?: string | null,
   ) {
     const scope = this.scopeOf(actor);
-    const insured = await this.insuredOf(scope, client, dto, db);
+    const insured = await this.insuredOf(
+      actor,
+      client,
+      dto,
+      db,
+      currentInsured,
+    );
     const programs = await this.programsFor(scope, dto.products ?? [], db);
     const lines = buildProductLines({
       lines: dto.products ?? [],
@@ -338,19 +345,38 @@ export class ClientEditorService {
     };
   }
 
-  /** POL-2: blank means the client is also the main insured. */
+  /**
+   * POL-2: blank means the client is also the main insured.
+   * CUS-4 + CUS-6: the insured link makes the serving agent an owner of that client, so a client
+   * already in the GA can be named only by someone who owns it. Otherwise any agent could take
+   * over another agent's client, and read its name, by typing its code. `current` is the policy's
+   * insured before an edit, which may stay as it is.
+   */
   private async insuredOf(
-    scope: Scope,
+    actor: Actor,
     client: { clientCode: string; name: string },
     dto: PolicyFieldsDto,
     db: EntityManager,
+    current?: string | null,
   ): Promise<{ code: string; name: string }> {
+    const scope = this.scopeOf(actor);
     const code = dto.insuredClientCode ?? client.clientCode;
     if (code === client.clientCode)
       return { code, name: dto.insuredName || client.name };
     const known = await db
       .getRepository(Client)
       .findOneBy({ tenantId: scope.tenantId, clientCode: code });
+    if (
+      known &&
+      code !== current &&
+      !actor.roles.includes(Role.GaHead) &&
+      !(actor.agentCode && known.ownerAgentCodes.includes(actor.agentCode))
+    )
+      throw new ApiException(HttpStatus.FORBIDDEN, ErrorCode.InsuredNotYours, {
+        issues: [
+          { path: 'insuredClientCode', message: ErrorCode.InsuredNotYours },
+        ],
+      });
     const name = dto.insuredName || known?.name;
     if (!name)
       throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.InvalidInput, {
@@ -725,6 +751,7 @@ export class ClientEditorService {
         { ...dto, products: dto.products ?? [] },
         policy.servicingAgentCode ?? policy.currentAgentCodes[0],
         db,
+        policy.insuredClientCode,
       );
       // POL-4: the PO and LI links are written again, in case the insured person changed
       const clients = policy.clients.map((link) => ({ ...link }));

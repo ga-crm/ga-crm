@@ -19,7 +19,7 @@ import { rowsOf } from '../../core/persistence/sql.js';
 import { TenantDb } from '../../core/tenancy/tenant-db.js';
 import { AuditAction, AuditService } from '../audit/audit.service.js';
 import { MFA_CLEARED } from '../users/users.service.js';
-import { LoginGuardService } from './login-guard.service.js';
+import { LoginGuardService, MFA_KEY_PREFIX } from './login-guard.service.js';
 import { afterCommit } from '../../core/persistence/after-commit.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 
@@ -110,9 +110,21 @@ export class MfaService {
     };
   }
 
+  /**
+   * Set-up and confirmation need no code, so they are only for an account without MFA. Otherwise
+   * anyone holding a signed-in session could enrol their own authenticator and new recovery codes,
+   * past the code that disable and recovery-codes ask for. A new phone: disable with a code, or a
+   * reset by an administrator when MFA is mandatory.
+   */
+  private assertNotEnabled(user: MfaUser): void {
+    if (user.mfaEnabled)
+      throw new ApiException(HttpStatus.CONFLICT, ErrorCode.MfaAlreadyEnabled);
+  }
+
   /** Step 1: a new secret for the authenticator app. Nothing changes until it is confirmed. */
   async setup(actor: Actor) {
     const user = await this.load(actor);
+    this.assertNotEnabled(user);
     const secret = newTotpSecret();
     await this.actorDb.run(actor, (db) =>
       db.query(`UPDATE users SET mfa_pending_secret = $2 WHERE id = $1`, [
@@ -129,23 +141,31 @@ export class MfaService {
     code: string,
   ): Promise<{ recoveryCodes: string[] }> {
     const user = await this.load(actor);
+    this.assertNotEnabled(user);
     const pending = this.openFor(user, user.mfaPendingSecret);
     const step = pending ? verifyTotp(pending, code.trim(), Date.now()) : null;
     if (!pending || step === null)
       throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.InvalidCode);
     const recoveryCodes = newRecoveryCodes();
     await this.actorDb.run(actor, async (db) => {
-      await db.query(
+      // Two racing confirmations: only the first one turns MFA on
+      const [row] = (await rowsOf(
+        db,
         `UPDATE users SET mfa_enabled = true, mfa_enabled_at = now(), mfa_secret = $2,
            mfa_last_step = $3, mfa_recovery_codes = $4, mfa_pending_secret = NULL
-         WHERE id = $1`,
+         WHERE id = $1 AND NOT mfa_enabled RETURNING id`,
         [
           user.id,
           this.sealFor(user, pending),
           step,
           recoveryCodes.map((item) => sha256(item)),
         ],
-      );
+      )) as { id: string }[];
+      if (!row)
+        throw new ApiException(
+          HttpStatus.CONFLICT,
+          ErrorCode.MfaAlreadyEnabled,
+        );
       await this.record(user, AuditAction.Update, { mfa: 'enabled' }, db);
     });
     return { recoveryCodes };
@@ -159,7 +179,7 @@ export class MfaService {
     user: MfaUser,
     raw: string,
   ): Promise<{ step?: number; recovery?: string }> {
-    const guardKey = `mfa:${user.id}`;
+    const guardKey = `${MFA_KEY_PREFIX}${user.id}`;
     const slots = await this.loginGuard.reserve(guardKey);
     const code = raw.trim();
     const secret = this.openFor(user, user.mfaSecret);

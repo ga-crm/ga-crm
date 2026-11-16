@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom'
 import { z } from 'zod'
 import { formatDateTime, t, tDynamic } from '../i18n'
 import { api, errorMessage } from '../lib/api'
-import { toLocalInput } from '../lib/leadLabels'
+import { fromLocalInput, toLocalInput } from '../lib/leadLabels'
 import { toast } from '../lib/toast'
 import { useTaskRefresh } from '../lib/useTaskRefresh'
 import type { TaskItem } from '../lib/types'
@@ -32,7 +32,7 @@ export function TaskForm({ task, clientCode, signal, defaults, onClose }: { task
   })
   const save = useMutation({
     mutationFn: async (values: Values) => {
-      const body = { title: values.title, dueAt: new Date(values.dueAt).toISOString() }
+      const body = { title: values.title, dueAt: fromLocalInput(values.dueAt) }
       if (task) await api.patch(`/tasks/${task.id}`, body)
       else if (clientCode) await api.post(`/clients/${clientCode}/tasks`, { ...body, ...(signal && { signal }) })
       else await api.post('/tasks', body)

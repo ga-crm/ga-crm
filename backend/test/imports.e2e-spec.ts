@@ -1,4 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
+import { gzipSync } from 'node:zlib';
 import ExcelJS from 'exceljs';
 import request from 'supertest';
 import { startApp, stopApp } from './support/app.js';
@@ -945,6 +946,36 @@ describe('Agent tree and imports (e2e)', () => {
         .send({ sheet: SHEET, rows: [{ r: 0, c: [] }] })
         .expect(400);
       await head.post(`${API}/imports/${id}/cancel`).expect(204);
+    });
+
+    it('section 17.10: the 4 MB body is read only with a session cookie and never inflated, so strangers cannot block the API', async () => {
+      const rows = {
+        sheet: SHEET,
+        rows: Array.from({ length: 3000 }, (_, index) => ({
+          r: index + 2,
+          c: agentRow(`FC: ${80000 + index}-Đại lý ${index}`),
+        })),
+      };
+      const plain = Buffer.from(JSON.stringify(rows));
+      const packed = gzipSync(plain);
+      expect(plain.length).toBeGreaterThan(200_000);
+      const post = (agent: Agent, body: Buffer) =>
+        agent
+          .post(`${API}/imports/any/rows`)
+          .set('Content-Type', 'application/json')
+          .send(body);
+
+      // Without a session the default 100 KB limit applies, packed or not
+      await post(http(), plain).expect(413);
+      // Inflating stops at 100 KB; the aborted stream reports 400 or 413
+      const stranger = await post(http(), packed).set(
+        'Content-Encoding',
+        'gzip',
+      );
+      expect([400, 413]).toContain(stranger.status);
+      // With one, a packed body is refused before it is inflated
+      const head = await signIn(demoEmail(1, 'head'));
+      await post(head, packed).set('Content-Encoding', 'gzip').expect(415);
     });
 
     it('IMP-13: stops at 20,000 rows', async () => {

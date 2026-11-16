@@ -16,7 +16,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:60`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:61`
 
-Đã trích dẫn trong: `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/clients.dto.ts`, `frontend/src/components/ClientForms.tsx`
+Đã trích dẫn trong: `backend/src/common/errors.ts`, `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/clients.dto.ts`, `backend/test/manual-clients.e2e-spec.ts`, `frontend/src/components/ClientForms.tsx`
 
 - **POL-2** Trường hợp đồng: Số HĐBH (**đúng 9 chữ số**, chưa có trong GA → `409 policy_exists`), trạng thái hiệu lực (bắt buộc), ngày hiệu lực, ngày đáo hạn, định kỳ đóng phí (Năm, Nửa năm, Quý, Tháng), phí định kỳ / cơ bản (bắt buộc), ngày đến hạn đóng phí, phí dự tính, phí chưa đóng, nợ APL, đã có người thụ hưởng, mã + tên người được bảo hiểm chính (để trống = chính khách hàng), đại lý phục vụ (phải trong scope; để trống = người nhập hoặc đại lý của khách → `400 agent_required` / `agent_not_found`), các chương trình (tối đa 20, 10.7).
 

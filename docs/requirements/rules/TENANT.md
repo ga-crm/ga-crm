@@ -24,7 +24,7 @@ Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:5`
 
 Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:6`
 
-Đã trích dẫn trong: `backend/src/modules/auth/auth.service.ts`, `backend/src/modules/platform/platform.service.ts`, `backend/src/modules/realtime/realtime.service.ts`, `backend/test/auth.e2e-spec.ts`
+Đã trích dẫn trong: `backend/src/modules/auth/auth.service.ts`, `backend/src/modules/platform/platform.service.ts`, `backend/src/modules/realtime/realtime.service.ts`, `backend/src/modules/work/work.service.ts`, `backend/test/auth.e2e-spec.ts`, `backend/test/work.e2e-spec.ts`
 
 - **TENANT-3** Tenant bị tạm ngưng: mọi người dùng nhận `401` ở request kế tiếp; dữ liệu được giữ; Platform Admin kích hoạt lại được.
 

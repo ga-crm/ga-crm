@@ -2,6 +2,7 @@ import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
 import { sha256 } from '../../common/crypto.js';
 import { ApiException, ErrorCode } from '../../common/errors.js';
+import { ipBucket } from '../../common/ip-bucket.js';
 import { getRequestContext } from '../../common/request-context.js';
 import { PlatformDb } from '../../core/tenancy/platform-db.js';
 
@@ -13,6 +14,8 @@ const LOCK_AFTER_FAILURES = 10; // Section 22.4: lock after repeated failures fr
 const LOCK_BASE_MS = 15 * MINUTE_MS;
 const LOCK_MAX_MS = 60 * MINUTE_MS;
 const LOCK_MEMORY_MS = 24 * 60 * MINUTE_MS;
+/** Keys of the second factor (MfaService.check). */
+export const MFA_KEY_PREFIX = 'mfa:';
 
 function tooMany(untilMs: number): ApiException {
   const seconds = Math.max(1, Math.ceil((untilMs - Date.now()) / 1000));
@@ -46,13 +49,17 @@ export class LoginGuardService {
 
   async reserve(key: string): Promise<string[]> {
     const hash = sha256(key);
-    const [lock] = (await this.run((db) =>
-      db.query(`SELECT locked_until FROM login_attempts WHERE id = $1`, [
-        this.lockId(key),
-      ]),
+    const locks = (await this.run((db) =>
+      db.query(
+        `SELECT locked_until FROM login_attempts WHERE id = ANY($1::text[])`,
+        [this.lockIds(key)],
+      ),
     )) as { locked_until: Date | null }[];
-    if (lock?.locked_until && lock.locked_until.getTime() > Date.now())
-      throw tooMany(lock.locked_until.getTime());
+    const until = Math.max(
+      0,
+      ...locks.map((lock) => lock.locked_until?.getTime() ?? 0),
+    );
+    if (until > Date.now()) throw tooMany(until);
 
     const now = Date.now();
     const accountEnd = (Math.floor(now / MINUTE_MS) + 1) * MINUTE_MS;
@@ -68,8 +75,8 @@ export class LoginGuardService {
 
   async succeeded(key: string, slots: string[]): Promise<void> {
     await this.run(async (db) => {
-      await db.query(`DELETE FROM login_attempts WHERE id = $1`, [
-        this.lockId(key),
+      await db.query(`DELETE FROM login_attempts WHERE id = ANY($1::text[])`, [
+        this.lockIds(key),
       ]);
       await db.query(
         `UPDATE login_attempts SET count = count - 1 WHERE id = ANY($1::text[])`,
@@ -80,33 +87,43 @@ export class LoginGuardService {
 
   /** Each run of failures locks for longer: 15, 30, then 60 minutes. */
   async failed(key: string): Promise<void> {
-    const id = this.lockId(key);
     await this.run(async (db) => {
-      const [lock] = (await db.query(
-        `INSERT INTO login_attempts (id, count, expires_at) VALUES ($1, 1, $2)
-         ON CONFLICT (id) DO UPDATE SET count = login_attempts.count + 1, expires_at = $2
-         RETURNING count`,
-        [id, new Date(Date.now() + LOCK_MEMORY_MS)],
-      )) as { count: number }[];
-      if (lock.count % LOCK_AFTER_FAILURES !== 0) return;
-      const runs = lock.count / LOCK_AFTER_FAILURES;
-      const duration = Math.min(LOCK_BASE_MS * 2 ** (runs - 1), LOCK_MAX_MS);
-      await db.query(
-        `UPDATE login_attempts SET locked_until = $2 WHERE id = $1`,
-        [id, new Date(Date.now() + duration)],
-      );
-      this.logger.warn(
-        `Sign-in locked for ${duration / MINUTE_MS} minutes: ${id}`,
-      );
+      for (const id of this.lockIds(key)) {
+        const [lock] = (await db.query(
+          `INSERT INTO login_attempts (id, count, expires_at) VALUES ($1, 1, $2)
+           ON CONFLICT (id) DO UPDATE SET count = login_attempts.count + 1, expires_at = $2
+           RETURNING count`,
+          [id, new Date(Date.now() + LOCK_MEMORY_MS)],
+        )) as { count: number }[];
+        if (lock.count % LOCK_AFTER_FAILURES !== 0) continue;
+        const runs = lock.count / LOCK_AFTER_FAILURES;
+        const duration = Math.min(LOCK_BASE_MS * 2 ** (runs - 1), LOCK_MAX_MS);
+        await db.query(
+          `UPDATE login_attempts SET locked_until = $2 WHERE id = $1`,
+          [id, new Date(Date.now() + duration)],
+        );
+        this.logger.warn(
+          `Sign-in locked for ${duration / MINUTE_MS} minutes: ${id}`,
+        );
+      }
     });
   }
 
+  /** Section 22.4: an IPv6 /64 is one client, so rotating addresses inside it gains nothing. */
   private clientIp(): string {
-    return getRequestContext()?.ip ?? 'unknown';
+    return ipBucket(getRequestContext()?.ip);
   }
 
-  private lockId(key: string): string {
-    return `lock:${sha256(`${key}|${this.clientIp()}`)}`;
+  /**
+   * The long locks a key counts towards. Always the account with this IP (see the class note).
+   * A second factor is also locked for the account alone: whoever reaches that step already
+   * holds the password, so locking them out costs the owner nothing, and it stops guessing the
+   * 6 digits from many addresses.
+   */
+  private lockIds(key: string): string[] {
+    const ids = [`lock:${sha256(`${key}|${this.clientIp()}`)}`];
+    if (key.startsWith(MFA_KEY_PREFIX)) ids.push(`lock:${sha256(key)}`);
+    return ids;
   }
 
   private async take(id: string, endsAt: number): Promise<number> {
