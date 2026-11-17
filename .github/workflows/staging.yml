@@ -1,10 +1,10 @@
 # main -> staging -> VPS, in one run started by hand (Actions > Promote to staging > Run workflow):
-#   1. promote  copies the paths of deploy/staging-paths.txt from main to the staging branch
+#   1. promote  waits for the CI run (ci.yml) of this commit of main and stops unless it passed;
+#               then copies the paths of deploy/staging-paths.txt from main to the staging branch
 #               (deploy/sync-staging.sh). staging is generated: docs/, requirement/, .claude/ and
 #               everything else not listed never reach it, and nobody commits to it by hand.
 #   2. build    builds exactly that staging commit (the compilers still check types). Tests are
-#               not run here: they run on main before a push (npm test), and the staging branch
-#               carries no test files.
+#               not run here: CI ran them on main, and the staging branch carries no test files.
 #   3. deploy   ships one archive over SSH to the Ubuntu 24.04 VPS and switches to it
 #               (deploy/remote-deploy.sh). The server is prepared once by deploy/setup-server.sh,
 #               which prints the values below (deploy/README.md).
@@ -24,6 +24,11 @@ name: Promote to staging
 
 on:
   workflow_dispatch:
+    inputs:
+      skip_ci:
+        description: 'Khẩn cấp: deploy mà không chờ CI của commit này xanh'
+        type: boolean
+        default: false
 
 # One run at a time; a second one waits instead of cutting a running deploy in half
 concurrency:
@@ -40,9 +45,12 @@ jobs:
   promote:
     name: Copy main to staging
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    # Up to 20 minutes of waiting for CI, then seconds of work
+    timeout-minutes: 25
     permissions:
       contents: write
+      # To read the CI run of this commit
+      actions: read
     outputs:
       sha: ${{ steps.sync.outputs.sha }}
     steps:
@@ -53,8 +61,43 @@ jobs:
           echo "::error::Run this workflow from main, not ${GITHUB_REF_NAME}."
           exit 1
 
+      # Nothing reaches staging before the tests of this exact commit passed on main. A run still
+      # going is waited for, so the button can be pressed right after a merge.
+      - name: CI of this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SKIP_CI: ${{ inputs.skip_ci }}
+        run: |
+          if [[ "$SKIP_CI" == "true" ]]; then
+            echo "::warning::CI check skipped by ${GITHUB_ACTOR}: ${GITHUB_SHA::7} goes to staging without proof that its tests pass."
+            exit 0
+          fi
+          for attempt in $(seq 1 80); do
+            run="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" \
+              --event push --limit 1 --json status,conclusion,url \
+              --jq '.[0] // empty | "\(.status) \(.conclusion) \(.url)"')"
+            read -r status conclusion url <<<"$run" || true
+            if [[ "$status" == completed ]]; then
+              if [[ "$conclusion" == success ]]; then
+                echo "CI passed: $url"
+                exit 0
+              fi
+              echo "::error::CI of ${GITHUB_SHA::7} ended as '$conclusion' ($url). Fix main first, or run again with the emergency box ticked."
+              exit 1
+            fi
+            # A push to main starts CI within seconds; none after a minute means none is coming
+            if [[ -z "$status" && $attempt -ge 4 ]]; then
+              echo "::error::No CI run found for ${GITHUB_SHA::7}. Re-run the CI workflow on main, or run again with the emergency box ticked."
+              exit 1
+            fi
+            echo "CI is ${status:-not started yet}; waiting ($attempt/80)"
+            sleep 15
+          done
+          echo "::error::CI of ${GITHUB_SHA::7} did not finish within 20 minutes."
+          exit 1
+
       # Full history: the new staging commit is added on top of the staging branch
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -74,11 +117,11 @@ jobs:
       RELEASE_SHA: ${{ needs.promote.outputs.sha }}
     steps:
       # The filtered tree, to prove it builds without what stayed on main
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.promote.outputs.sha }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -110,7 +153,7 @@ jobs:
           echo "${RELEASE_SHA}" > release/REVISION
           tar -czf release.tgz -C release .
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release
           path: release.tgz
@@ -129,7 +172,7 @@ jobs:
       # The staging commit that was built, not the commit of main the run started from
       RELEASE_SHA: ${{ needs.promote.outputs.sha }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release
 

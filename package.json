@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "setup:env": "node scripts/setup-env.mjs",
-    "setup": "npm run setup:env && npm --prefix backend install && npm --prefix frontend install",
+    "setup": "npm run setup:env && npm --prefix backend install && npm --prefix frontend install && npm run hooks:install",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "check": "bash scripts/pre-push-check.sh",
     "db:up": "docker compose up -d --wait postgres valkey minio",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f postgres",

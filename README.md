@@ -176,6 +176,15 @@ Mỗi GA có sẵn:
 5. **Nhập cây đại lý.** Đăng nhập `admin@ga1.gacrm.local`, vào **Đại lý > Lịch sử nhập** và mở lần nhập đang chờ xác nhận để xem cách hệ thống báo lỗi từng dòng.
 6. **Phân quyền.** Đăng nhập `head@ga1.gacrm.local`, vào **Quản trị > Phân quyền**, đổi quyền của một vai trò rồi đăng nhập bằng vai trò đó để thấy thay đổi.
 
+## Quy trình đưa code lên
+
+1. Bật hook một lần trên máy: `npm run hooks:install`. Từ đó mỗi lần `git push`, máy tự chạy kiểm tra nhanh (kiểu, lint, unit test; khoảng 10 giây) và dừng push nếu lỗi. Chạy tay: `npm run check`. Bỏ qua có chủ ý: `git push --no-verify`.
+2. Làm trên nhánh riêng (`git switch -c ten-nhanh`), push, rồi mở Pull Request vào `main`.
+3. GitHub chạy workflow "CI": `Checks` (khoảng 1,5 phút) và `Integration tests` (khoảng 9 phút). Chỉ merge khi cả hai xanh.
+4. Đưa lên staging: Actions > "Promote to staging" > Run workflow trên `main`. Pipeline chờ CI của commit đó xanh, lọc file sang nhánh `staging`, build và deploy (khoảng 1,5 phút sau khi CI xong). Chi tiết ở `deploy/README.md`.
+
+Không commit lên nhánh `staging` và không merge `staging` vào `main`: `staging` là bản lọc của `main`, thiếu tài liệu và file test.
+
 ## Lệnh thường dùng
 
 | Lệnh                 | Việc thực hiện                                                                                       |
@@ -187,6 +196,7 @@ Mỗi GA có sẵn:
 | `npm run db:logs`    | Xem log PostgreSQL                                                                                     |
 | `npm test`           | Chạy toàn bộ test (cần `npm run db:up`; test dùng database riêng `ga_crm_test`)                        |
 | `npm run build`      | Build API và frontend                                                                                  |
+| `npm run check`      | Kiểm tra nhanh trước khi push: kiểu, lint, unit test của cả hai phần (hook pre-push chạy lệnh này)        |
 | `npm run staging:sync -- --dry-run` | Xem trước những gì sẽ đổi trên nhánh `staging`. Đưa code lên staging và deploy: GitHub Actions > "Promote to staging"; hướng dẫn ở `deploy/README.md` |
 
 Muốn demo lại từ đầu thì chạy lệnh dưới. Dữ liệu bạn đã nhập sẽ mất.
