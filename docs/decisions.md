@@ -1015,7 +1015,21 @@ Audit mã nguồn ngày 17/11/2026 tìm ra 3 lỗi mức cao; các lỗi còn l�
 |---|---|---|
 | Test trong workflow "Promote to staging" | Bỏ typecheck riêng, lint, unit test và test tích hợp khỏi job build; job chỉ còn cài package, build (`nest build`, `tsc -b && vite build`, vẫn dừng khi lỗi kiểu) và đóng gói. Một lần chạy còn khoảng 3 đến 4 phút thay vì khoảng 15 | Chủ dự án yêu cầu: test chạy trên máy trước khi push `main` là đủ, cần deploy nhanh |
 | File test trên `staging` | Không sang `staging`: `backend/test/**`, `backend/src/**/*.spec.ts`, hai file `vitest.config*.ts` của backend, `frontend/test/**` (dòng `!` trong `deploy/staging-paths.txt`; `sync-staging.sh` hiểu cú pháp glob của git và dừng nếu một dòng `!` không khớp gì) | Nhánh staging chỉ chứa thứ cần để chạy |
-| Hệ quả | Không còn gì tự động chặn một commit làm vỡ test (kể cả test cách ly tenant ở mục 23.2 của đặc tả) trước khi lên staging. Người push `main` phải chạy `npm test` và lint trên máy. Trước go-live production nên bật lại test trong pipeline của nhánh production | Ghi rõ để không ai tưởng staging đã được kiểm tra tự động |
+| Hệ quả | Trong ngày 18/11/2026 không có gì tự động chặn một commit làm vỡ test trước khi lên staging. Đã khắc phục cùng ngày bằng CI trên `main` và bước chờ CI trong Promote (mục "CI trên main, chặn Promote, hook pre-push") | Ghi lại để hiểu vì sao test nằm ở CI của `main` chứ không ở workflow deploy |
+
+## 2026-11-18: CI trên main, chặn Promote, hook pre-push
+
+Rà lại luồng làm việc cho thấy hai tài khoản push thẳng `main`, và sau khi gỡ test khỏi workflow staging thì không còn lớp kiểm tra tự động nào.
+
+| Điểm | Quyết định | Lý do |
+|---|---|---|
+| CI | `.github/workflows/ci.yml`, chạy trên Pull Request vào `main` và push lên `main`. Hai job song song: `Checks` (typecheck, lint, unit test của backend và frontend, `docs:rules:check`) và `Integration tests` (PostgreSQL, Valkey, MinIO bằng `docker compose`, rồi `test:int`). Tên hai job là tên status check mà ruleset của `main` yêu cầu | Test tách khỏi workflow deploy nên deploy vẫn nhanh, nhưng mọi commit trên `main` đều được kiểm tra |
+| Chặn Promote | Job `promote` của "Promote to staging" tìm lần chạy CI (sự kiện push) của đúng commit: đang chạy thì chờ tối đa 20 phút, đỏ hoặc không có thì dừng. Input `skip_ci` (ô đánh dấu) bỏ qua khi khẩn cấp và ghi cảnh báo kèm tên người bấm | Không commit nào lên staging khi chưa qua test, kể cả test cách ly tenant (mục 23.2); vẫn có lối thoát khi cần sửa gấp |
+| Vào `main` | Qua Pull Request từ nhánh riêng; ruleset của `main` (chủ dự án đặt trên GitHub) yêu cầu PR và hai status check trên | Hai người cùng làm; tránh đè code và code hỏng vào `main` |
+| Hook pre-push | `.githooks/pre-push` chạy `scripts/pre-push-check.sh` (kiểu, lint, unit test, chỉ mục quy tắc; khoảng 10 giây; không có test tích hợp). Bật bằng `npm run hooks:install` (cũng nằm trong `npm run setup`). Bỏ qua khi push nhánh `staging`, tag hoặc xóa nhánh | Bắt lỗi trước khi tốn một vòng CI; hook không tự bật khi clone nên mỗi người chạy lệnh một lần |
+| Phiên bản action | `checkout@v7`, `setup-node@v7`, `upload-artifact@v7`, `download-artifact@v8` | Các bản v4 chạy trên Node 20 đã bị GitHub báo ngừng hỗ trợ |
+| Không sang staging | `.github/`, `.githooks/`, `scripts/pre-push-check.sh` không có trong `deploy/staging-paths.txt` | Staging chỉ chứa thứ cần để chạy |
+| PR `staging` → `main` | Không bao giờ merge: `staging` thiếu tài liệu, file test và workflow, merge sẽ xóa chúng khỏi `main`. PR #1 (mở ngày 16/11/2026) cần được đóng | `staging` là bản lọc một chiều của `main` |
 
 ## Not built yet
 

@@ -8,7 +8,7 @@ Code viết trên `main`. Nhánh `staging` do pipeline sinh ra từ `main` và c
 
 Đưa code sang staging và deploy: trên GitHub, tab **Actions > Promote to staging > Run workflow** (nhánh `main`). Một lần chạy làm ba việc: lọc và đẩy sang `staging`, build đúng commit đó, rồi deploy lên VPS (khoảng 3 đến 4 phút).
 
-**Test chạy trên máy trước khi push `main`**, không chạy trong workflow: `npm test` (cần `npm run db:up`), cùng `npm --prefix backend run lint` và `npm --prefix frontend run lint`. Nhánh `staging` không chứa file test (các dòng `!` trong `deploy/staging-paths.txt`).
+**Test chạy ở CI của `main`, không chạy trong workflow deploy.** Workflow "CI" (`.github/workflows/ci.yml`) chạy trên mọi Pull Request vào `main` và mọi lần push lên `main`: job `Checks` (typecheck, lint, unit test, chỉ mục quy tắc; khoảng 1,5 phút) và job `Integration tests` (khoảng 9 phút). "Promote to staging" chờ CI của đúng commit đó xanh rồi mới đẩy sang `staging`; CI đỏ thì dừng. Khi khẩn cấp, đánh dấu ô "Khẩn cấp…" lúc bấm Run workflow để bỏ qua (log ghi lại ai bỏ qua). Nhánh `staging` không chứa file test (các dòng `!` trong `deploy/staging-paths.txt`).
 
 Xem trước những gì sẽ đổi trên `staging`, không đẩy gì (chạy trên máy, tính theo `origin/main`, tức là các commit đã push):
 
@@ -125,7 +125,7 @@ Chạy lại khi `main` không có gì mới vẫn được: bước đồng b�
 
 ## Giới hạn đã biết
 
-- Workflow không chạy test hay lint (quyết định của chủ dự án ngày 18/11/2026 để rút thời gian chạy): code chưa qua `npm test` trên máy vẫn deploy được nếu build qua. Chạy test trước khi push `main`.
+- Workflow deploy không tự chạy test; nó dựa vào CI của `main`. Ô bỏ qua khẩn cấp cho phép deploy commit chưa qua test, nên chỉ dùng khi thật cần.
 - `gacrm` (người dùng nhận deploy) thuộc nhóm `docker`, tức là có quyền tương đương root trên VPS; cần để deploy bật các container cơ sở dữ liệu. Vì vậy khóa `VPS_SSH_KEY` phải được giữ như khóa root. API chạy bằng `gacrm-api`, không thuộc nhóm này.
 - API lắng nghe cổng 4200 trên mọi địa chỉ; tường lửa (ufw, mặc định chặn chiều vào) là thứ giữ cổng này sau nginx. Không tắt ufw và không mở 4200 ở tường lửa của nhà cung cấp.
 - Khi vừa deploy, tab đang mở có thể báo lỗi tải một màn hình (file build cũ đã đổi tên); tải lại trang là hết.

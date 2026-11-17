@@ -1,0 +1,98 @@
+# Tests of main: on every pull request into main and on every push to it. Kept apart from the
+# staging deploy (staging.yml), which stays quick and only waits for this to be green.
+#   Checks             typecheck, lint, unit tests, rule index (about 1.5 minutes)
+#   Integration tests  tenant isolation, permissions, audit against PostgreSQL, Valkey and MinIO
+#                      (about 9 minutes)
+# Both job names are the status checks that the ruleset of main requires; renaming one means
+# updating the ruleset too.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# A newer push to the same branch or pull request replaces the run still going
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '26'
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install
+        run: |
+          npm --prefix backend ci --no-audit --no-fund
+          npm --prefix frontend ci --no-audit --no-fund
+
+      # Unit tests read the root .env like the API does; throwaway values, never used elsewhere
+      - name: Test environment
+        run: node scripts/setup-env.mjs
+
+      - name: Backend
+        working-directory: backend
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test
+
+      - name: Frontend
+        working-directory: frontend
+        run: |
+          npx tsc -b
+          npm run lint
+          npm test
+
+      # docs/requirements is generated from the spec and the rule citations in code
+      - name: Rule index
+        run: npm run docs:rules:check
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install
+        run: npm --prefix backend ci --no-audit --no-fund
+
+      - name: Test environment
+        run: node scripts/setup-env.mjs
+
+      # The same PostgreSQL, Valkey and MinIO as on a developer's machine and on the server
+      - name: Start services
+        run: docker compose up -d --wait postgres valkey minio
+
+      - name: Integration tests
+        run: npm --prefix backend run test:int
+
+      - name: Stop services
+        if: always()
+        run: docker compose down -v

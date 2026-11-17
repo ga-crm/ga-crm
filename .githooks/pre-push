@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Runs the quick checks (scripts/pre-push-check.sh) before a push; a failure stops the push.
+# On: `npm run hooks:install`. Skip once, on purpose: `git push --no-verify`.
+set -euo pipefail
+
+ZERO=0000000000000000000000000000000000000000
+needed=0
+# git feeds one line per ref being pushed: <local ref> <local sha> <remote ref> <remote sha>
+while read -r _local_ref local_sha remote_ref _remote_sha; do
+  # Deleting a branch pushes no code
+  [[ "$local_sha" == "$ZERO" ]] && continue
+  # staging is generated from main by deploy/sync-staging.sh, whose commits hold no tests
+  [[ "$remote_ref" == refs/heads/staging ]] && continue
+  # Tags move no new code that a branch push did not already check
+  [[ "$remote_ref" == refs/tags/* ]] && continue
+  needed=1
+done
+
+[[ $needed -eq 1 ]] || exit 0
+
+echo "pre-push: checking before the push (skip with --no-verify)"
+if ! bash "$(git rev-parse --show-toplevel)/scripts/pre-push-check.sh"; then
+  echo
+  echo "pre-push: checks failed, nothing was pushed." >&2
+  exit 1
+fi

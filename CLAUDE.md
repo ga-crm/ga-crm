@@ -20,6 +20,7 @@ Way of working:
 - Build vertical slices: schema, service, API, UI, tests. Do not start a new slice while tests fail.
 - Ask the Product Owner when a business rule is unclear. Do not invent insurance rules.
 - At the end of a session, update `docs/HANDOFF.md`, `docs/ROADMAP.md` and `docs/decisions.md`, then run `npm run docs:rules`.
+- Code reaches `main` through a pull request from a branch; CI (`.github/workflows/ci.yml`) must be green. Run `npm run check` before pushing (the pre-push hook does it once `npm run hooks:install` has run). Never commit to `staging` or merge it into `main`: it is generated from `main` by "Promote to staging" (`deploy/README.md`).
 - Commands: `npm run dev:api`, `npm run dev:web`, `npm test`, `npm --prefix backend run typecheck`, `npm --prefix backend run lint`, `npm --prefix frontend run lint`, `npm run seed`. Never run `npm run seed:reset` on someone's data without asking: it drops the database.
 - `DEV_ACCOUNT_SWITCHER=true` in `.env` turns on the account switcher (header and sign-in page) for testing roles; the API refuses to start with it on in production and production builds never show it.
 - The API is `backend` (NestJS, TypeORM 1.x, PostgreSQL 18; schema changes are hand-written SQL migrations, no Drizzle).
