@@ -72,6 +72,14 @@ Nếu VPS chỉ cho đăng nhập bằng người dùng có sudo (không phải 
 
 Cuối cùng script in ra giá trị cho GitHub, gồm dòng `VPS_KNOWN_HOSTS` lấy từ chính khóa máy chủ của VPS.
 
+**Nếu script dừng ở "HTTPS certificate".** `sslip.io` không nằm trong Public Suffix List, nên giới hạn cấp chứng chỉ của Let's Encrypt (theo tên miền đăng ký) dùng chung cho mọi người dùng sslip.io và có lúc bị đầy ("too many certificates already issued"). Cách xử lý:
+
+1. Chạy lại đúng lệnh trên, thêm `--no-tls` ở cuối. Script hoàn tất phần còn lại và in giá trị cho GitHub. Lúc này web mở được bằng HTTP nhưng **chưa đăng nhập được** (cookie cần HTTPS).
+2. Thử lấy chứng chỉ lại sau vài giờ: `sudo certbot --nginx -d 221-132-21-32.sslip.io --redirect -m <email> --agree-tos -n`.
+3. Hoặc dùng tên miền riêng: tạo bản ghi A (ví dụ `staging.ten-mien.vn`) trỏ về `221.132.21.32`, chạy lại `setup-server.sh` với `--domain staging.ten-mien.vn` (script sửa nginx và `APP_URL`), rồi đặt biến `STAGING_URL` của environment `staging` trên GitHub thành `https://staging.ten-mien.vn`.
+
+Lỗi khác của certbot thường do cổng 80 chưa mở ở tường lửa của nhà cung cấp VPS.
+
 Script tự sinh mọi mật khẩu và khóa trong `/opt/ga-crm/.env` (PostgreSQL, MinIO, `MFA_KEYS_SECRET`, `AI_KEYS_SECRET`, mật khẩu Platform Admin) và đặt các giá trị production: `NODE_ENV=production`, `APP_URL=https://221-132-21-32.sslip.io`, `TRUST_PROXY_HOPS=1`, `MFA_ENFORCE=true`, `DEV_ACCOUNT_SWITCHER=false`. Xem mật khẩu Platform Admin:
 
 ```bash
