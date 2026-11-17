@@ -187,6 +187,7 @@ Mỗi GA có sẵn:
 | `npm run db:logs`    | Xem log PostgreSQL                                                                                     |
 | `npm test`           | Chạy toàn bộ test (cần `npm run db:up`; test dùng database riêng `ga_crm_test`)                        |
 | `npm run build`      | Build API và frontend                                                                                  |
+| `npm run staging:sync -- --dry-run` | Xem trước những gì sẽ đổi trên nhánh `staging`. Đưa code lên staging và deploy: GitHub Actions > "Promote to staging"; hướng dẫn ở `deploy/README.md` |
 
 Muốn demo lại từ đầu thì chạy lệnh dưới. Dữ liệu bạn đã nhập sẽ mất.
 

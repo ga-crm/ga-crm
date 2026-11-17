@@ -997,6 +997,18 @@ Audit mã nguồn ngày 17/11/2026 tìm ra 3 lỗi mức cao; các lỗi còn l�
 | Đọc file Excel | Đọc ở chế độ dense của SheetJS, chỉ duyệt các dòng có ô; giữ tối đa 20.001 dòng dữ liệu mỗi sheet để API vẫn trả `import_too_large` (IMP-13) | File khai báo vùng `A1:XFD1048576` từng làm treo tab |
 | Ô nhập ngày giờ | `toLocalInput` / `fromLocalInput` trong `lib/leadLabels.ts` luôn theo giờ Việt Nam (UTC+7), không theo múi giờ của máy; dùng cho việc cần làm, lịch hẹn của lead và ngày sự kiện của chiến dịch | Máy đặt múi giờ khác từng lưu lệch giờ so với giờ hiển thị (DATA-2) |
 
+## 2026-11-17: Pipeline main → staging
+
+| Điểm | Quyết định | Lý do |
+|---|---|---|
+| Nhánh `staging` | Do pipeline sinh ra từ `main`, không commit tay. Mỗi lần đồng bộ thêm một commit "Sync from main <sha>" lên trên lịch sử của `staging` | Chủ dự án muốn `staging` chỉ có code và file deploy, không có tài liệu nội bộ; làm tay bằng `git restore` dễ quên hoặc gõ sai |
+| File được sang | Danh sách **cho phép** ở `deploy/staging-paths.txt`: `backend`, `frontend`, `deploy`, `infra`, `docker-compose.yml`, `.env.example`, `.gitignore`, `package.json`, `scripts/setup-env.mjs`. Đường dẫn không tồn tại trong danh sách làm script dừng | Danh sách loại trừ sẽ để lọt thư mục mới thêm vào `main` sau này (tài liệu, ghi chú) |
+| Kích hoạt | Bằng tay: Actions > "Promote to staging" > Run workflow trên `main`. Push lên `main` không tự deploy | Chủ dự án chọn lúc đưa code sang staging; đổi sang tự động chỉ cần thêm `on: push` |
+| Một workflow | `.github/workflows/staging.yml` chỉ có trên `main`, gồm ba job: `promote` (lọc và đẩy sang `staging`), `build` (kiểm tra và build đúng commit `staging` đó), `deploy`. `staging` không có workflow nào | Push bằng `GITHUB_TOKEN` không kích hoạt workflow khác, nên deploy phải nằm cùng lần chạy; cũng tránh deploy trùng |
+| `deploy/` | Nằm trên `main` (trước đó chỉ có trên `staging`) | `main` là nguồn duy nhất; sửa script deploy không phải chuyển nhánh |
+| Environment `staging` trên GitHub | "Deployment branches" đặt là `main` | Lần chạy xuất phát từ `main`; thiếu giới hạn này thì nhánh bất kỳ dùng được khóa SSH của VPS |
+| `sync-staging.sh` | Dựng cây file bằng index tạm (`git read-tree`, `update-index`, `commit-tree`), không chuyển nhánh, không đụng thư mục làm việc; push thường, không ép | Chạy được trong CI lẫn trên máy khi server dev đang chạy; nếu ai đó vừa push lên `staging` thì bị từ chối thay vì ghi đè |
+
 ## Not built yet
 
 | Rule | Item | Needed before go-live |
