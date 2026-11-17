@@ -1009,6 +1009,14 @@ Audit mã nguồn ngày 17/11/2026 tìm ra 3 lỗi mức cao; các lỗi còn l�
 | Environment `staging` trên GitHub | "Deployment branches" đặt là `main` | Lần chạy xuất phát từ `main`; thiếu giới hạn này thì nhánh bất kỳ dùng được khóa SSH của VPS |
 | `sync-staging.sh` | Dựng cây file bằng index tạm (`git read-tree`, `update-index`, `commit-tree`), không chuyển nhánh, không đụng thư mục làm việc; push thường, không ép | Chạy được trong CI lẫn trên máy khi server dev đang chạy; nếu ai đó vừa push lên `staging` thì bị từ chối thay vì ghi đè |
 
+## 2026-11-18: Workflow staging không chạy test
+
+| Điểm | Quyết định | Lý do |
+|---|---|---|
+| Test trong workflow "Promote to staging" | Bỏ typecheck riêng, lint, unit test và test tích hợp khỏi job build; job chỉ còn cài package, build (`nest build`, `tsc -b && vite build`, vẫn dừng khi lỗi kiểu) và đóng gói. Một lần chạy còn khoảng 3 đến 4 phút thay vì khoảng 15 | Chủ dự án yêu cầu: test chạy trên máy trước khi push `main` là đủ, cần deploy nhanh |
+| File test trên `staging` | Không sang `staging`: `backend/test/**`, `backend/src/**/*.spec.ts`, hai file `vitest.config*.ts` của backend, `frontend/test/**` (dòng `!` trong `deploy/staging-paths.txt`; `sync-staging.sh` hiểu cú pháp glob của git và dừng nếu một dòng `!` không khớp gì) | Nhánh staging chỉ chứa thứ cần để chạy |
+| Hệ quả | Không còn gì tự động chặn một commit làm vỡ test (kể cả test cách ly tenant ở mục 23.2 của đặc tả) trước khi lên staging. Người push `main` phải chạy `npm test` và lint trên máy. Trước go-live production nên bật lại test trong pipeline của nhánh production | Ghi rõ để không ai tưởng staging đã được kiểm tra tự động |
+
 ## Not built yet
 
 | Rule | Item | Needed before go-live |

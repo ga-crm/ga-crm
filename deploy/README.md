@@ -6,7 +6,9 @@ Staging chạy ở **https://221-132-21-32.sslip.io** trên VPS `221.132.21.32` 
 
 Code viết trên `main`. Nhánh `staging` do pipeline sinh ra từ `main` và chỉ chứa các đường dẫn liệt kê trong `deploy/staging-paths.txt` (`backend/`, `frontend/`, `deploy/`, `infra/` và vài file gốc). `docs/`, `requirement/`, `.claude/`, `CLAUDE.md`, `README.md`, `.github/` và mọi thứ không có trong danh sách không bao giờ sang `staging`. Không commit thẳng lên `staging`: lần đồng bộ sau sẽ thay nội dung đó.
 
-Đưa code sang staging và deploy: trên GitHub, tab **Actions > Promote to staging > Run workflow** (nhánh `main`). Một lần chạy làm ba việc: lọc và đẩy sang `staging`, kiểm tra và build đúng commit đó, rồi deploy lên VPS.
+Đưa code sang staging và deploy: trên GitHub, tab **Actions > Promote to staging > Run workflow** (nhánh `main`). Một lần chạy làm ba việc: lọc và đẩy sang `staging`, build đúng commit đó, rồi deploy lên VPS (khoảng 3 đến 4 phút).
+
+**Test chạy trên máy trước khi push `main`**, không chạy trong workflow: `npm test` (cần `npm run db:up`), cùng `npm --prefix backend run lint` và `npm --prefix frontend run lint`. Nhánh `staging` không chứa file test (các dòng `!` trong `deploy/staging-paths.txt`).
 
 Xem trước những gì sẽ đổi trên `staging`, không đẩy gì (chạy trên máy, tính theo `origin/main`, tức là các commit đã push):
 
@@ -20,14 +22,14 @@ Muốn thêm hoặc bớt thứ được sang staging: sửa `deploy/staging-pat
 
 | File | Việc |
 |---|---|
-| `staging-paths.txt` | Danh sách đường dẫn được sang nhánh `staging` |
+| `staging-paths.txt` | Danh sách đường dẫn được sang nhánh `staging`; dòng bắt đầu bằng `!` loại bớt file (hiện là file test) |
 | `sync-staging.sh` | Dựng nhánh `staging` từ một commit của `main` theo danh sách trên, không đụng thư mục làm việc |
 | `setup-server.sh` | Chạy **một lần** bằng root trên VPS mới: cài gói, Node 26, Docker, hai người dùng (`gacrm` nhận deploy, `gacrm-api` chạy API), quyền sudo hẹp, thư mục `/opt/ga-crm`, file `.env`, systemd, nginx, tường lửa, sao lưu hằng ngày, chứng chỉ HTTPS. Chạy lại an toàn |
 | `remote-deploy.sh` | GitHub Actions chạy mỗi lần deploy: giải nén bản mới, cài package, bật PostgreSQL/Valkey/MinIO, migration, chuyển `current`, khởi động lại API, health check, tự quay về bản trước nếu hỏng |
 | `systemd/ga-crm-api.service` | Dịch vụ chạy API bằng người dùng `gacrm-api` (không thuộc nhóm `docker`), có sandbox |
 | `nginx/ga-crm.conf.template` | Site nginx: file tĩnh của web, `/api` và `/socket.io` chuyển vào API, nén gzip, cache file build 1 năm |
 | `nginx/ga-crm-headers.conf` | Header bảo mật cho file tĩnh (HSTS, nosniff, chặn nhúng iframe, no-referrer) |
-| `../.github/workflows/staging.yml` | Workflow "Promote to staging" (chỉ có trên `main`): đồng bộ sang `staging`, typecheck, lint, unit test, test tích hợp (PostgreSQL, Valkey, MinIO trong CI), build, gửi gói lên VPS, gọi `remote-deploy.sh`, rồi kiểm tra địa chỉ công khai |
+| `../.github/workflows/staging.yml` | Workflow "Promote to staging" (chỉ có trên `main`): đồng bộ sang `staging`, build (trình biên dịch vẫn bắt lỗi kiểu), gửi gói lên VPS, gọi `remote-deploy.sh`, rồi kiểm tra địa chỉ công khai |
 
 Trên VPS:
 
@@ -123,6 +125,7 @@ Chạy lại khi `main` không có gì mới vẫn được: bước đồng b�
 
 ## Giới hạn đã biết
 
+- Workflow không chạy test hay lint (quyết định của chủ dự án ngày 18/11/2026 để rút thời gian chạy): code chưa qua `npm test` trên máy vẫn deploy được nếu build qua. Chạy test trước khi push `main`.
 - `gacrm` (người dùng nhận deploy) thuộc nhóm `docker`, tức là có quyền tương đương root trên VPS; cần để deploy bật các container cơ sở dữ liệu. Vì vậy khóa `VPS_SSH_KEY` phải được giữ như khóa root. API chạy bằng `gacrm-api`, không thuộc nhóm này.
 - API lắng nghe cổng 4200 trên mọi địa chỉ; tường lửa (ufw, mặc định chặn chiều vào) là thứ giữ cổng này sau nginx. Không tắt ufw và không mở 4200 ở tường lửa của nhà cung cấp.
 - Khi vừa deploy, tab đang mở có thể báo lỗi tải một màn hình (file build cũ đã đổi tên); tải lại trang là hết.

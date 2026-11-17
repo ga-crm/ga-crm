@@ -43,11 +43,17 @@ export GIT_INDEX_FILE="$WORK/index"
 git read-tree --empty
 
 count=0
+EXCLUDES=()
 while IFS= read -r path; do
   path="${path%%#*}"
   path="$(printf '%s' "$path" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's:/*$::')"
   [[ -n "$path" ]] || continue
   [[ "$path" != /* && "$path" != *..* ]] || fail "$LIST: '$path' must be a path inside the repository"
+  # "!pattern" lines are applied after every path is in, whatever their place in the file
+  if [[ "$path" == '!'* ]]; then
+    EXCLUDES+=("${path#!}")
+    continue
+  fi
   # A typo here would silently drop a folder from staging, so a path that matches nothing stops
   [[ -n "$(git ls-tree -r --name-only "$SRC" -- "$path" | head -n 1)" ]] ||
     fail "$LIST: '$path' does not exist in $SOURCE"
@@ -55,6 +61,14 @@ while IFS= read -r path; do
   count=$((count + 1))
 done <<<"$PATHS"
 [[ $count -gt 0 ]] || fail "$LIST lists no path"
+
+# The index is this script's own temporary one, so removing from it touches no file on disk
+for pattern in ${EXCLUDES[@]+"${EXCLUDES[@]}"}; do
+  # The same care as above: a pattern that matches nothing is more likely a typo than a wish
+  [[ -n "$(git ls-files -- ":(glob)$pattern" | head -n 1)" ]] ||
+    fail "$LIST: '!$pattern' matches nothing among the listed paths"
+  git ls-files -z -- ":(glob)$pattern" | git update-index -z --force-remove --stdin
+done
 
 TREE="$(git write-tree)"
 unset GIT_INDEX_FILE

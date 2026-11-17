@@ -2,7 +2,9 @@
 #   1. promote  copies the paths of deploy/staging-paths.txt from main to the staging branch
 #               (deploy/sync-staging.sh). staging is generated: docs/, requirement/, .claude/ and
 #               everything else not listed never reach it, and nobody commits to it by hand.
-#   2. build    checks, tests and builds exactly that staging commit
+#   2. build    builds exactly that staging commit (the compilers still check types). Tests are
+#               not run here: they run on main before a push (npm test), and the staging branch
+#               carries no test files.
 #   3. deploy   ships one archive over SSH to the Ubuntu 24.04 VPS and switches to it
 #               (deploy/remote-deploy.sh). The server is prepared once by deploy/setup-server.sh,
 #               which prints the values below (deploy/README.md).
@@ -64,14 +66,14 @@ jobs:
           bash deploy/sync-staging.sh --source "$GITHUB_SHA"
 
   build:
-    name: Check and build
+    name: Build
     needs: promote
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 10
     env:
       RELEASE_SHA: ${{ needs.promote.outputs.sha }}
     steps:
-      # The filtered tree, to prove it tests and builds without what stayed on main
+      # The filtered tree, to prove it builds without what stayed on main
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.promote.outputs.sha }}
@@ -89,39 +91,11 @@ jobs:
           npm --prefix backend ci --no-audit --no-fund
           npm --prefix frontend ci --no-audit --no-fund
 
-      # Unit tests read the root .env like the API does; throwaway values, never used elsewhere
-      - name: Test environment
-        run: node scripts/setup-env.mjs
-
-      - name: Backend checks
-        working-directory: backend
-        run: |
-          npm run typecheck
-          npm run lint
-          npm test
-
-      # Tenant isolation, permissions and audit are proven here, against the same PostgreSQL,
-      # Valkey and MinIO as on the server, with the throwaway .env made above
-      - name: Backend integration tests
-        run: |
-          docker compose up -d --wait postgres valkey minio
-          npm --prefix backend run test:int
-
-      - name: Stop test services
-        if: always()
-        run: docker compose down -v
-
-      - name: Frontend checks
-        working-directory: frontend
-        run: |
-          npx tsc -b
-          npm run lint
-          npm test
-
+      # nest build and tsc -b stop on a type error; no linter and no test runs here
       - name: Build
         run: |
           npm --prefix backend run build
-          (cd frontend && npx vite build)
+          npm --prefix frontend run build
 
       # One archive: the built API with its lockfile (packages are installed on the server), the
       # built web app, and what the server needs around them

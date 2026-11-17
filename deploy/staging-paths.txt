@@ -10,3 +10,11 @@ docker-compose.yml
 .gitignore
 package.json
 scripts/setup-env.mjs
+
+# A line starting with ! takes files out again (git glob: * within a folder, ** across folders).
+# Tests run on main before a push (npm test), so staging carries none and its workflow only builds.
+!backend/test/**
+!backend/src/**/*.spec.ts
+!backend/vitest.config.ts
+!backend/vitest.config.int.ts
+!frontend/test/**
