@@ -1,0 +1,65 @@
+# nginx site of GA CRM. setup-server.sh renders it to /etc/nginx/sites-available/ga-crm, putting
+# the server's name in place of __DOMAIN__, then certbot adds the HTTPS server and the redirect.
+# HTTPS is required: in production the session cookie is Secure (__Host- prefix).
+
+# A name of its own, so it cannot clash with a `map` of another site on the same server
+map $http_upgrade $ga_crm_connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DOMAIN__;
+
+    root /opt/ga-crm/current/frontend/dist;
+    index index.html;
+    server_tokens off;
+
+    # Chat files go up to 50 MB; imports send chunks of up to 4 MB
+    client_max_body_size 55m;
+
+    gzip on;
+    gzip_min_length 1024;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    # The API sets its own security headers (helmet). TRUST_PROXY_HOPS=1 in .env makes it read the
+    # client IP that nginx passes on; $remote_addr replaces whatever the client sent.
+    location /api/ {
+        proxy_pass http://127.0.0.1:4200;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+
+    # Realtime (Socket.IO): same origin, so the session cookie goes with the WebSocket
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:4200;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $ga_crm_connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+    }
+
+    # Built files carry a hash in their name, so they can be kept for a year.
+    # `expires` instead of add_header for caching: an add_header in a location would drop the
+    # security headers of the snippet.
+    location /assets/ {
+        include /etc/nginx/snippets/ga-crm-headers.conf;
+        expires 1y;
+        try_files $uri =404;
+    }
+
+    # Every other path is a screen of the single-page app; index.html is checked on every visit
+    location / {
+        include /etc/nginx/snippets/ga-crm-headers.conf;
+        expires -1;
+        try_files $uri /index.html;
+    }
+}

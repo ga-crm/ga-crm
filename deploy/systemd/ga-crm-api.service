@@ -1,0 +1,40 @@
+# systemd unit of the API, installed by setup-server.sh as /etc/systemd/system/ga-crm-api.service.
+[Unit]
+Description=GA CRM API
+# PostgreSQL, Valkey and MinIO run in Docker; until they answer, the API exits and is restarted
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Not the deploy user: gacrm-api is outside the docker group (docker = root on the host)
+User=gacrm-api
+Group=gacrm
+# `current` points at the live release; the API reads /opt/ga-crm/.env through it
+WorkingDirectory=/opt/ga-crm/current/backend
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node dist/main.js
+Restart=always
+RestartSec=5
+# Nest closes the database pool and sockets on SIGTERM (enableShutdownHooks)
+KillSignal=SIGTERM
+TimeoutStopSec=20
+# One socket per signed-in tab, plus the database and Redis pools
+LimitNOFILE=65536
+
+# Sandbox: the API writes nothing to disk (chat files go to MinIO / S3, uploads stay in memory)
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+UMask=0027
+# A second lock on the Docker socket, should the user ever join the docker group
+InaccessiblePaths=-/run/docker.sock -/var/run/docker.sock
+
+[Install]
+WantedBy=multi-user.target
