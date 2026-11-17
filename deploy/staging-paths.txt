@@ -1,0 +1,12 @@
+# What goes from main to the staging branch (deploy/sync-staging.sh). One path per line, a file or
+# a folder, relative to the repository root. Anything not listed stays on main only: docs/,
+# requirement/, .claude/, CLAUDE.md, README.md, .github/ and whatever is added later.
+backend
+frontend
+deploy
+infra
+docker-compose.yml
+.env.example
+.gitignore
+package.json
+scripts/setup-env.mjs

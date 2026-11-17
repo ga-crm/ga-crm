@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs on the VPS, as the deploy user (gacrm), from .github/workflows/deploy-staging.yml.
+# Runs on the VPS, as the deploy user (gacrm), from .github/workflows/staging.yml.
 # Unpacks a release next to the previous ones, migrates, switches `current` to it and restarts the
 # API; if the API does not answer its health check, `current` goes back to the previous release.
 #

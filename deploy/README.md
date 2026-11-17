@@ -2,16 +2,32 @@
 
 Staging chạy ở **https://221-132-21-32.sslip.io** trên VPS `221.132.21.32` (Ubuntu 24.04 LTS x64). `221-132-21-32.sslip.io` là tên miễn phí luôn trỏ về IP này, nên không cần tạo bản ghi DNS. App bắt buộc chạy HTTPS vì ở production cookie đăng nhập có cờ Secure.
 
+## Từ main sang staging
+
+Code viết trên `main`. Nhánh `staging` do pipeline sinh ra từ `main` và chỉ chứa các đường dẫn liệt kê trong `deploy/staging-paths.txt` (`backend/`, `frontend/`, `deploy/`, `infra/` và vài file gốc). `docs/`, `requirement/`, `.claude/`, `CLAUDE.md`, `README.md`, `.github/` và mọi thứ không có trong danh sách không bao giờ sang `staging`. Không commit thẳng lên `staging`: lần đồng bộ sau sẽ thay nội dung đó.
+
+Đưa code sang staging và deploy: trên GitHub, tab **Actions > Promote to staging > Run workflow** (nhánh `main`). Một lần chạy làm ba việc: lọc và đẩy sang `staging`, kiểm tra và build đúng commit đó, rồi deploy lên VPS.
+
+Xem trước những gì sẽ đổi trên `staging`, không đẩy gì (chạy trên máy, tính theo `origin/main`, tức là các commit đã push):
+
+```bash
+npm run staging:sync -- --dry-run
+```
+
+Muốn thêm hoặc bớt thứ được sang staging: sửa `deploy/staging-paths.txt` trên `main`.
+
 ## Thư mục này
 
 | File | Việc |
 |---|---|
+| `staging-paths.txt` | Danh sách đường dẫn được sang nhánh `staging` |
+| `sync-staging.sh` | Dựng nhánh `staging` từ một commit của `main` theo danh sách trên, không đụng thư mục làm việc |
 | `setup-server.sh` | Chạy **một lần** bằng root trên VPS mới: cài gói, Node 26, Docker, hai người dùng (`gacrm` nhận deploy, `gacrm-api` chạy API), quyền sudo hẹp, thư mục `/opt/ga-crm`, file `.env`, systemd, nginx, tường lửa, sao lưu hằng ngày, chứng chỉ HTTPS. Chạy lại an toàn |
 | `remote-deploy.sh` | GitHub Actions chạy mỗi lần deploy: giải nén bản mới, cài package, bật PostgreSQL/Valkey/MinIO, migration, chuyển `current`, khởi động lại API, health check, tự quay về bản trước nếu hỏng |
 | `systemd/ga-crm-api.service` | Dịch vụ chạy API bằng người dùng `gacrm-api` (không thuộc nhóm `docker`), có sandbox |
 | `nginx/ga-crm.conf.template` | Site nginx: file tĩnh của web, `/api` và `/socket.io` chuyển vào API, nén gzip, cache file build 1 năm |
 | `nginx/ga-crm-headers.conf` | Header bảo mật cho file tĩnh (HSTS, nosniff, chặn nhúng iframe, no-referrer) |
-| `../.github/workflows/deploy-staging.yml` | Workflow: typecheck, lint, unit test, test tích hợp (PostgreSQL, Valkey, MinIO trong CI), build, gửi gói lên VPS, gọi `remote-deploy.sh`, rồi kiểm tra địa chỉ công khai |
+| `../.github/workflows/staging.yml` | Workflow "Promote to staging" (chỉ có trên `main`): đồng bộ sang `staging`, typecheck, lint, unit test, test tích hợp (PostgreSQL, Valkey, MinIO trong CI), build, gửi gói lên VPS, gọi `remote-deploy.sh`, rồi kiểm tra địa chỉ công khai |
 
 Trên VPS:
 
@@ -36,10 +52,10 @@ Khóa công khai `~/.ssh/ga-crm-deploy.pub` lên VPS ở bước 2; khóa bí m�
 
 ## Bước 2. Dựng VPS (một lần)
 
-Chép các file cần thiết từ nhánh `staging` lên VPS, kèm khóa công khai (chạy trên máy bạn, trong thư mục repo):
+Chép các file cần thiết lên VPS, kèm khóa công khai (chạy trên máy bạn, trong thư mục repo; `origin/main` cần đã có thư mục `deploy/`):
 
 ```bash
-git archive origin/staging deploy docker-compose.yml infra .env.example scripts/setup-env.mjs | ssh root@221.132.21.32 'rm -rf /root/ga-crm-setup && mkdir -p /root/ga-crm-setup && tar -x -C /root/ga-crm-setup'
+git archive origin/main deploy docker-compose.yml infra .env.example scripts/setup-env.mjs | ssh root@221.132.21.32 'rm -rf /root/ga-crm-setup && mkdir -p /root/ga-crm-setup && tar -x -C /root/ga-crm-setup'
 ```
 
 ```bash
@@ -55,6 +71,14 @@ ssh root@221.132.21.32 'bash /root/ga-crm-setup/deploy/setup-server.sh --domain 
 Nếu VPS chỉ cho đăng nhập bằng người dùng có sudo (không phải root), thay `ssh root@...` bằng `ssh ten-ban@...` và thêm `sudo` trước `bash`. Nếu nhà cung cấp VPS có tường lửa riêng, mở cổng 22, 80, 443 ở đó trước khi chạy (certbot cần cổng 80).
 
 Cuối cùng script in ra giá trị cho GitHub, gồm dòng `VPS_KNOWN_HOSTS` lấy từ chính khóa máy chủ của VPS.
+
+**Nếu script dừng ở "HTTPS certificate".** `sslip.io` không nằm trong Public Suffix List, nên giới hạn cấp chứng chỉ của Let's Encrypt (theo tên miền đăng ký) dùng chung cho mọi người dùng sslip.io và có lúc bị đầy ("too many certificates already issued"). Cách xử lý:
+
+1. Chạy lại đúng lệnh trên, thêm `--no-tls` ở cuối. Script hoàn tất phần còn lại và in giá trị cho GitHub. Lúc này web mở được bằng HTTP nhưng **chưa đăng nhập được** (cookie cần HTTPS).
+2. Thử lấy chứng chỉ lại sau vài giờ: `sudo certbot --nginx -d 221-132-21-32.sslip.io --redirect -m <email> --agree-tos -n`.
+3. Hoặc dùng tên miền riêng: tạo bản ghi A (ví dụ `staging.ten-mien.vn`) trỏ về `221.132.21.32`, chạy lại `setup-server.sh` với `--domain staging.ten-mien.vn` (script sửa nginx và `APP_URL`), rồi đặt biến `STAGING_URL` của environment `staging` trên GitHub thành `https://staging.ten-mien.vn`.
+
+Lỗi khác của certbot thường do cổng 80 chưa mở ở tường lửa của nhà cung cấp VPS.
 
 Script tự sinh mọi mật khẩu và khóa trong `/opt/ga-crm/.env` (PostgreSQL, MinIO, `MFA_KEYS_SECRET`, `AI_KEYS_SECRET`, mật khẩu Platform Admin) và đặt các giá trị production: `NODE_ENV=production`, `APP_URL=https://221-132-21-32.sslip.io`, `TRUST_PROXY_HOPS=1`, `MFA_ENFORCE=true`, `DEV_ACCOUNT_SWITCHER=false`. Xem mật khẩu Platform Admin:
 
@@ -79,17 +103,13 @@ Repo > Settings > Environments > New environment `staging`:
 | Secret | `VPS_KNOWN_HOSTS` | Các dòng script in ra ở bước 2 |
 | Variable | `STAGING_URL` | Bỏ qua nếu là `https://221-132-21-32.sslip.io` |
 
-Trong environment `staging`, đặt **Deployment branches and tags** thành "Selected branches" và chỉ thêm `staging`. Thiếu bước này, ai có quyền ghi vào repo cũng tạo được một nhánh có workflow dùng environment này và đọc khóa SSH. Nên bật thêm "Required reviewers" để mỗi lần deploy cần người duyệt.
+Trong environment `staging`, đặt **Deployment branches and tags** thành "Selected branches" và chỉ thêm `main` (workflow chạy từ `main`). Thiếu bước này, ai có quyền ghi vào repo cũng tạo được một nhánh có workflow dùng environment này và đọc khóa SSH. Nên bật thêm "Required reviewers" để mỗi lần deploy cần người duyệt.
 
 ## Bước 4. Deploy
 
-Push nhánh `staging`. Muốn chạy lại mà không có commit mới: tab Actions > mở lần chạy gần nhất > Re-run all jobs (nút "Run workflow" chỉ hiện khi file workflow có trên nhánh mặc định `main`). Sau đó vào https://221-132-21-32.sslip.io, đăng nhập bằng Platform Admin, cài MFA, rồi tạo GA và mời người dùng. Staging chạy ở chế độ production nên không có dữ liệu demo (`npm run seed` từ chối production) và không có bộ đổi tài khoản.
+Tab Actions > Promote to staging > Run workflow, chọn nhánh `main`. Sau đó vào https://221-132-21-32.sslip.io, đăng nhập bằng Platform Admin, cài MFA, rồi tạo GA và mời người dùng. Staging chạy ở chế độ production nên không có dữ liệu demo (`npm run seed` từ chối production) và không có bộ đổi tài khoản.
 
-Đưa thay đổi mới từ `main` sang `staging` (lệnh này cũng xóa file đã bị xóa trên `main`):
-
-```bash
-git switch staging && git restore --source=main --staged --worktree -- backend frontend docker-compose.yml infra .env.example scripts/setup-env.mjs && git commit -m "Sync staging with main" && git push
-```
+Chạy lại khi `main` không có gì mới vẫn được: bước đồng bộ báo không có gì đổi, rồi build và deploy lại commit `staging` hiện có.
 
 ## Vận hành
 
