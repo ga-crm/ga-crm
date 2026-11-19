@@ -67,7 +67,7 @@ Thiết kế ở [thiet-ke-he-thong.md](thiet-ke-he-thong.md), cách chuyển �
 | Rate limit, khóa tạm, chống quá tải đăng nhập | Xong, trừ Redis | Bộ đếm đăng nhập trong MongoDB; giới hạn theo IP và người dùng còn trong bộ nhớ |
 | Đổi mật khẩu, cá nhân hóa giao diện | Xong | Bổ sung ngoài đặc tả, xem `decisions.md` |
 | Quản trị viên đổi mật khẩu hộ, link đặt lại mật khẩu | Xong | Link sao chép tay, chưa gửi email |
-| MFA TOTP | Xong | USER-16: bắt buộc với GA_HEAD, ADMIN, PLATFORM_ADMIN; GA bật được cho mọi người |
+| MFA TOTP | Xong | USER-16: bắt buộc với GA_HEAD, ADMIN, PLATFORM_ADMIN; GA bật được cho mọi người. Từ 20/11/2026 Platform Admin bỏ ép buộc được cho mọi GA (`/platform/settings`, xem decisions) |
 | Quên mật khẩu tự phục vụ, gửi email mời | Chưa làm | Bắt buộc trước go-live (USER-3, USER-16). Cần dịch vụ email (câu C) |
 | SSO OIDC, kiểm tra mật khẩu bị lộ | Chưa làm | USER-4, USER-16, mục 22.4 |
 | CI, Playwright, Idempotency-Key, correlation id trong log | Chưa làm | |

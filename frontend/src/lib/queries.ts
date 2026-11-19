@@ -1,7 +1,7 @@
 import { infiniteQueryOptions, keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { api, ApiError } from './api'
 import type { LeadColumn } from './leadImport'
-import type { AgentDetail, AgentNode, ActivitySummary, AiSettings, AuditItem, CalendarData, ChatConversation, ChatConversationItem, ChatMember, ChatMessagePage, ChatPerson, ChatReviewItem, ChatSearchHit, DepartedWork, CampaignDetail, CampaignRow, ClientCounts, ClientDetail, ClientRow, Dashboard, DeletedLead, DevAccount, GaSettings, Grants, ImportDetail, ImportProblem, ImportSummary, InsuranceProgram, LeadBoard, LeadCounts, LeadDetail, LeadOption, LeadRow, LinkSuggestion, Me, MentionCandidate, NotificationPage, NotificationPref, Page, Presence, PublicFormDefinition, ReportData, ReportName, SavedFilter, TaskItem, Tenant, TodayData, User } from './types'
+import type { AgentDetail, AgentNode, ActivitySummary, AiSettings, AuditItem, CalendarData, ChatConversation, ChatConversationItem, ChatMember, ChatMessagePage, ChatPerson, ChatReviewItem, ChatSearchHit, DepartedWork, CampaignDetail, CampaignRow, ClientCounts, ClientDetail, ClientRow, Dashboard, DeletedLead, DevAccount, GaSettings, Grants, ImportDetail, ImportProblem, ImportSummary, InsuranceProgram, LeadBoard, LeadCounts, LeadDetail, LeadOption, LeadRow, LinkSuggestion, Me, MentionCandidate, NotificationPage, NotificationPref, Page, PlatformSettings, Presence, PublicFormDefinition, ReportData, ReportName, SavedFilter, TaskItem, Tenant, TodayData, User } from './types'
 import { pollInterval } from './realtimeStatus'
 
 /** Every query key and request of the app, so invalidating a group cannot miss a screen. */
@@ -12,6 +12,7 @@ export const keys = {
   permissions: ['permissions'] as const,
   audit: ['audit'] as const,
   tenants: ['tenants'] as const,
+  platformSettings: ['platformSettings'] as const,
   agents: ['agents'] as const,
   imports: ['imports'] as const,
   leads: ['leads'] as const,
@@ -434,6 +435,13 @@ export const queries = {
       queryFn: ({ signal }) => api.get<ClientDetail>(`/clients/${code}`, undefined, { signal }),
       staleTime: 0,
       retry: (count, error) => !(error instanceof ApiError && (error.status === 404 || error.status === 403)) && count < 2,
+    }),
+
+  /** USER-16: PLATFORM_ADMIN only; the switches above every GA's own settings. */
+  platformSettings: () =>
+    queryOptions({
+      queryKey: keys.platformSettings,
+      queryFn: ({ signal }) => api.get<PlatformSettings>('/platform/settings', undefined, { signal }),
     }),
 
   /** Section 5.2: GA_HEAD only. `version` goes back with the save. */

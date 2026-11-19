@@ -12,6 +12,7 @@ import { ChatFiles1763740800000 } from './1763740800000-chat-files.js';
 import { LastSeen1763827200000 } from './1763827200000-last-seen.js';
 import { GaLists1763913600000 } from './1763913600000-ga-lists.js';
 import { ImportBatches1764000000000 } from './1764000000000-import-batches.js';
+import { PlatformSettings1764086400000 } from './1764086400000-platform-settings.js';
 
 /** In order. Listed rather than globbed, so the ESM build loads them without file scanning. */
 export const MIGRATIONS = [
@@ -29,4 +30,5 @@ export const MIGRATIONS = [
   LastSeen1763827200000,
   GaLists1763913600000,
   ImportBatches1764000000000,
+  PlatformSettings1764086400000,
 ];

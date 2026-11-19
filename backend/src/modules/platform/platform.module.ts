@@ -11,7 +11,10 @@ import { AuthModule } from '../auth/auth.module.js';
 import { TenantsModule } from '../tenants/tenants.module.js';
 import { UsersModule } from '../users/users.module.js';
 import { UsersService } from '../users/users.service.js';
-import { PlatformController } from './platform.controller.js';
+import {
+  PlatformController,
+  PlatformSettingsController,
+} from './platform.controller.js';
 import { PlatformService } from './platform.service.js';
 
 /** Creates the first Platform Admin from the environment when none exists. */
@@ -49,7 +52,7 @@ class PlatformAdminBootstrap implements OnApplicationBootstrap {
 
 @Module({
   imports: [TenantsModule, UsersModule, AuthModule],
-  controllers: [PlatformController],
+  controllers: [PlatformController, PlatformSettingsController],
   providers: [PlatformService, PlatformAdminBootstrap],
 })
 export class PlatformModule {}

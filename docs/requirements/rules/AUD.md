@@ -24,7 +24,7 @@ Nguồn: `requirement/03-quy-tac-chung.md:40`
 
 Nguồn: `requirement/03-quy-tac-chung.md:41`
 
-Đã trích dẫn trong: `backend/src/modules/audit/audit.service.ts`, `backend/src/modules/imports/imports.service.ts`, `backend/src/modules/users/users.service.ts`
+Đã trích dẫn trong: `backend/src/modules/audit/audit.service.ts`, `backend/src/modules/imports/imports.service.ts`, `backend/src/modules/platform/platform.service.ts`, `backend/src/modules/users/users.service.ts`
 
 - **AUD-3** Ghi audit trong cùng transaction với thay đổi.
 

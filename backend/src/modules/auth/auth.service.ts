@@ -73,11 +73,14 @@ interface ActorRow {
   tenant_status: TenantStatus | null;
   grants: Grants | null;
   security: { mfaForAll?: boolean } | null;
+  /** The platform's switch; false when the Platform Admin stopped forcing MFA set-up. */
+  mfa_enforced: boolean | null;
 }
 
 const ACTOR_COLUMNS = `
   u.id, u.tenant_id, u.email, u.name, u.roles, u.agent_code, u.member_no, u.status, u.mfa_enabled, u.appearance,
-  t.status AS tenant_status, ts.grants, ts.security`;
+  t.status AS tenant_status, ts.grants, ts.security,
+  (SELECT mfa_enforced FROM platform_settings) AS mfa_enforced`;
 const ACTOR_JOINS = `
   LEFT JOIN tenants t ON t.id = u.tenant_id
   LEFT JOIN tenant_settings ts ON ts.tenant_id = u.tenant_id`;
@@ -583,11 +586,14 @@ export class AuthService {
     const mfaForAll = !!row.security?.mfaForAll;
     const roles = row.roles as Role[];
     return {
-      // USER-16: mandatory for privileged roles, or for everyone when the GA says so
+      // USER-16: mandatory for privileged roles, or for everyone when the GA says so. The
+      // Platform Admin can stop forcing it for all GAs (decisions.md, 20/11/2026); whoever has
+      // MFA on is still asked for the code.
       mfa: {
         enabled: row.mfa_enabled,
         required:
           this.config.get('MFA_ENFORCE', { infer: true }) !== 'false' &&
+          row.mfa_enforced !== false &&
           (mfaForAll || roles.some((role) => MFA_ROLES.includes(role))),
       },
       id: row.id,

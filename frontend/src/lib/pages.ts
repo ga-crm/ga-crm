@@ -18,6 +18,7 @@ export const pages = {
   gaSettings: () => import('../pages/GaSettingsPage').then((module) => module.GaSettingsPage),
   audit: () => import('../pages/AuditPage').then((module) => module.AuditPage),
   tenants: () => import('../pages/TenantsPage').then((module) => module.TenantsPage),
+  platformSettings: () => import('../pages/PlatformSettingsPage').then((module) => module.PlatformSettingsPage),
   settings: () => import('../pages/SettingsPage').then((module) => module.SettingsPage),
   appearance: () => import('../pages/AppearancePage').then((module) => module.AppearancePage),
   mfaSetup: () => import('../pages/MfaSetupPage').then((module) => module.MfaSetupPage),

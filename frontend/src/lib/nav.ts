@@ -73,6 +73,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/ga-settings', label: 'nav.settingsGa', icon: Settings2, group: 'nav.groupAdmin', visible: (me) => hasRole(me, 'GA_HEAD'), chunk: pages.gaSettings, prefetch: () => queries.gaSettings() },
   { to: '/audit', label: 'nav.audit', icon: ScrollText, group: 'nav.groupAdmin', visible: (me) => hasPermission(me, 'audit.view'), chunk: pages.audit },
   { to: '/platform/tenants', label: 'nav.tenants', icon: Building2, group: 'nav.groupPlatform', visible: (me) => hasRole(me, 'PLATFORM_ADMIN'), chunk: pages.tenants, prefetch: () => queries.tenants(FIRST_PAGE_WITH_FILTERS.tenants) },
+  { to: '/platform/settings', label: 'nav.platformSettings', icon: Settings2, group: 'nav.groupPlatform', visible: (me) => hasRole(me, 'PLATFORM_ADMIN'), chunk: pages.platformSettings, prefetch: () => queries.platformSettings() },
   { to: '/settings', label: 'nav.settings', icon: Settings, bottom: true, visible: () => true, chunk: pages.settings },
 ]
 

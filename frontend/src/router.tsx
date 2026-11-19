@@ -82,6 +82,8 @@ export const router = createBrowserRouter([
                   { path: 'ga-settings', lazy: screen(pages.gaSettings, (me) => hasRole(me, 'GA_HEAD')) },
                   { path: 'audit', lazy: screen(pages.audit, (me) => hasPermission(me, 'audit.view')) },
                   { path: 'platform/tenants', lazy: screen(pages.tenants, (me) => hasRole(me, 'PLATFORM_ADMIN')) },
+                  // USER-16: the platform-wide MFA switch
+                  { path: 'platform/settings', lazy: screen(pages.platformSettings, (me) => hasRole(me, 'PLATFORM_ADMIN')) },
                   { path: 'settings', lazy: screen(pages.settings) },
                   { path: 'settings/appearance', lazy: screen(pages.appearance) },
                   { path: 'settings/password', lazy: screen(pages.password) },

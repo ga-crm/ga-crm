@@ -176,6 +176,8 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
         'login_attempts',
         // The reminder rounds' lease (TASK-7): one per job, for all GAs; only crm_platform
         'job_locks',
+        // The Platform Admin's switches (USER-16): one row for every GA; only crm_platform
+        'platform_settings',
         // TypeORM's own bookkeeping
         'migrations',
       ]);
