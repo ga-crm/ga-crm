@@ -235,6 +235,80 @@ describe('MFA (e2e)', () => {
     });
   });
 
+  it('USER-16: the Platform Admin stops forcing MFA set-up for every GA; whoever has it on still enters the code', async () => {
+    const audited = () =>
+      connection.collection('auditEvents').countDocuments({
+        entity: 'platform_settings',
+        action: 'SETTINGS_CHANGE',
+      });
+    const platform = request.agent(app.getHttpServer());
+    await platform
+      .post(`${API}/auth/sign-in/email`)
+      .send({
+        email: process.env.PLATFORM_ADMIN_EMAIL!,
+        password: process.env.PLATFORM_ADMIN_PASSWORD!,
+      })
+      .expect(200);
+    // A privileged role itself: held at set-up until it has MFA
+    const held = await platform.get(`${API}/platform/settings`).expect(403);
+    expect(held.body.error).toBe('mfa_setup_required');
+    const own = (await platform.post(`${API}/auth/mfa/setup`).expect(200)).body
+      .secret as string;
+    await platform
+      .post(`${API}/auth/mfa/enable`)
+      .send({ code: codeFor(own) })
+      .expect(200);
+    expect(
+      (await platform.get(`${API}/platform/settings`).expect(200)).body,
+    ).toEqual({ mfaEnforced: true });
+
+    // PERM-4: a GA_HEAD reaches neither the value nor the switch
+    await head.get(`${API}/platform/settings`).expect(403);
+    await head
+      .put(`${API}/platform/settings`)
+      .send({ mfaEnforced: false })
+      .expect(403);
+    await platform.put(`${API}/platform/settings`).send({}).expect(400);
+
+    await platform
+      .put(`${API}/platform/settings`)
+      .send({ mfaEnforced: false })
+      .expect(204);
+    expect(await audited()).toBe(1);
+    // Saving the same value again changes nothing, so it leaves no second event
+    await platform
+      .put(`${API}/platform/settings`)
+      .send({ mfaEnforced: false })
+      .expect(204);
+    expect(await audited()).toBe(1);
+
+    // GA 2's admin, a privileged role that never set MFA up, is no longer held
+    const { agent: admin2, body: admin2Me } = await signIn('admin', 2);
+    expect(admin2Me.mfa).toEqual({
+      enabled: false,
+      required: false,
+      setupRequired: false,
+    });
+    await admin2.get(`${API}/agents`).expect(200);
+    // GA 1 requires MFA of everyone (above); the platform's switch is above that
+    expect((await signIn('fc')).body.mfa).toEqual({
+      enabled: false,
+      required: false,
+      setupRequired: false,
+    });
+    // GA 1's head has MFA on, so the code is still asked for
+    expect((await signIn('head')).body).toEqual({ mfaRequired: true });
+
+    // Back on: an open session is held from its next request
+    await platform
+      .put(`${API}/platform/settings`)
+      .send({ mfaEnforced: true })
+      .expect(204);
+    expect(await audited()).toBe(2);
+    const again = await admin2.get(`${API}/agents`).expect(403);
+    expect(again.body.error).toBe('mfa_setup_required');
+  });
+
   it('USER-10: disabling a user clears their MFA', async () => {
     const um = (await userOf('um'))!;
     await connection.collection('users').updateOne(

@@ -1038,6 +1038,21 @@ Rà lại luồng làm việc cho thấy hai tài khoản push thẳng `main`, v
 | `frontend/vite.config.ts` | Bật `build.rolldownOptions.output.strictExecutionOrder` | Trên staging trang Tổng quan không hiển thị: Rolldown (Vite 8) tách Highcharts thành nhiều chunk và chạy sai thứ tự, loại biểu đồ `scatter` kế thừa `line` khi `line` chưa đăng ký. Chỉ xảy ra ở bản build, bản dev không tách chunk nên không lỗi. Tùy chọn này giữ đúng thứ tự của mã nguồn giữa các chunk; JS tăng khoảng 3% (2,88 MB lên 2,97 MB chưa nén) |
 | Kiểm tra bản build | Thêm cấu hình preview `web-prod-preview` (`vite preview`, cổng 4173) vào `.claude/launch.json` | `vite build` thành công không chứng minh bản build chạy được; trước đó chưa lần nào mở bản build trên trình duyệt. Chưa có test tự động cho việc này (cần trình duyệt, xem Playwright ở lát 8d) |
 
+## 2026-11-20: Platform Admin bỏ bắt buộc xác thực hai lớp (khác USER-16)
+
+Chủ dự án yêu cầu ngày 20/11/2026: Platform Admin có công tắc để mọi người đăng nhập không bị buộc cài xác thực hai lớp. USER-16 ghi MFA bắt buộc với Chủ GA, Admin và Platform Admin; từ nay điều đó chỉ đúng khi công tắc đang bật (mặc định bật).
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Nơi lưu | Bảng `platform_settings` một dòng (`mfa_enforced`, mặc định `true`), không có `tenant_id`; RLS bắt buộc, không policy, chỉ `crm_platform` đọc / ghi | Là cài đặt của cả nền tảng, không phải dữ liệu của GA; đã thêm vào danh sách miễn trừ của test TEN-2 kèm lý do |
+| API | `GET` / `PUT /platform/settings` `{mfaEnforced}`, chỉ `PLATFORM_ADMIN`; đổi giá trị ghi audit `SETTINGS_CHANGE`, `entity: platform_settings`, `meta: {before, after}` trong chuỗi audit của nền tảng; lưu lại giá trị cũ thì không ghi | PERM-4, AUD-3 |
+| Khi tắt | Không ai bị giữ ở trang "Bật xác thực hai lớp", ở mọi GA, kể cả GA đã chọn "Bắt buộc cho mọi người" (`security.mfaForAll`). Người **đã bật** MFA vẫn phải nhập mã khi đăng nhập, và tự tắt được bằng mã (không còn `409 mfa_mandatory`) | Chủ dự án chọn phương án này thay vì bỏ hẳn bước nhập mã: tài khoản đã tự bảo vệ thì không bị hạ xuống chỉ còn mật khẩu |
+| Hiệu lực | Ngay ở request kế tiếp của mọi phiên: `ACTOR_COLUMNS` đọc `mfa_enforced` cùng câu truy vấn dựng actor, không cache. Bật lại thì tài khoản thuộc diện bắt buộc mà chưa cài bị giữ lại ngay | Không cần đăng xuất ai |
+| Platform Admin chưa cài MFA | Vẫn bị giữ ở trang cài đặt MFA khi công tắc đang bật, nên phải cài MFA một lần rồi mới vào được màn "Cài đặt nền tảng" để tắt | Không mở ngoại lệ cho endpoint này trong lúc bị giữ |
+| `MFA_ENFORCE` | Giữ nguyên: `false` vẫn tắt ép buộc trên máy dev / test bất kể công tắc, và vẫn bị từ chối trong production. Trên staging / production chỉ còn công tắc này để bỏ ép buộc | Công tắc có kiểm toán và đổi được không cần khởi động lại |
+| Giao diện | Màn `/platform/settings` "Cài đặt nền tảng" (nhóm "Nền tảng"); tắt thì hỏi xác nhận, bật thì lưu ngay | Tắt làm yếu mọi GA cùng lúc |
+| Rủi ro | Khi tắt, tài khoản đặc quyền chưa cài MFA chỉ còn mật khẩu bảo vệ. Nên bật lại trước khi có dữ liệu thật | Cần quyết định của chủ dự án trước go-live |
+
 ## Not built yet
 
 | Rule | Item | Needed before go-live |

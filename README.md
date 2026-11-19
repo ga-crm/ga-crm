@@ -147,7 +147,7 @@ Mở http://localhost:5173 rồi đăng nhập bằng một tài khoản bên d�
 
 Có 5 Tổng đại lý demo theo khu vực, mỗi GA có đủ các tài khoản này, chỉ khác số sau `@ga`: `@ga1` Hà Nội (`GA-HN`), `@ga2` Hồ Chí Minh (`GA-HCM`), `@ga3` Miền Trung (`GA-MT`), `@ga4` Miền Nam (`GA-MN`), `@ga5` Miền Bắc (`GA-MB`). Các GA tách biệt hoàn toàn về dữ liệu.
 
-**Xác thực hai lớp:** Chủ GA, Quản trị viên và Quản trị nền tảng bắt buộc dùng MFA. Lần đầu đăng nhập, các tài khoản này được đưa tới trang "Bật xác thực hai lớp": quét mã QR bằng ứng dụng xác thực trên điện thoại (Google Authenticator, Microsoft Authenticator...) rồi nhập mã 6 số. Nếu chỉ demo trên máy và không muốn bước này, thêm dòng `MFA_ENFORCE=false` vào file `.env` rồi chạy lại API.
+**Xác thực hai lớp:** Chủ GA, Quản trị viên và Quản trị nền tảng bắt buộc dùng MFA. Lần đầu đăng nhập, các tài khoản này được đưa tới trang "Bật xác thực hai lớp": quét mã QR bằng ứng dụng xác thực trên điện thoại (Google Authenticator, Microsoft Authenticator...) rồi nhập mã 6 số. Nếu chỉ demo trên máy và không muốn bước này, thêm dòng `MFA_ENFORCE=false` vào file `.env` rồi chạy lại API. Quản trị nền tảng có thể bỏ ép buộc cho mọi GA ở Nền tảng > Cài đặt nền tảng; người đã bật vẫn phải nhập mã.
 
 **Chuyển nhanh tài khoản khi thử:** thêm dòng `DEV_ACCOUNT_SWITCHER=true` vào `.env` rồi chạy lại API. Trang đăng nhập có nút "Đăng nhập nhanh bằng tài khoản thử" và thanh trên cùng có nút "Đổi tài khoản": chọn bất kỳ tài khoản nào của mọi GA để vào ngay, không cần mật khẩu hay MFA. Chỉ dùng trên máy: API từ chối khởi động nếu bật cờ này khi `NODE_ENV=production`, và bản build production không có nút này.
 

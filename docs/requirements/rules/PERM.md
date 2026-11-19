@@ -32,6 +32,6 @@ Nguồn: `requirement/04-vai-tro-va-phan-quyen.md:47`
 
 Nguồn: `requirement/04-vai-tro-va-phan-quyen.md:48`
 
-Đã trích dẫn trong: `backend/src/modules/auth/auth.guards.ts`, `backend/src/modules/leads/lead-removal.service.ts`, `backend/test/ai-settings.e2e-spec.ts`, `backend/test/auth.e2e-spec.ts`, `frontend/src/auth/guards.tsx`, `frontend/src/components/ClientAssignDialog.tsx`, `frontend/src/lib/nav.ts`, `frontend/src/pages/ClientsPage.tsx`, `frontend/src/router.tsx`
+Đã trích dẫn trong: `backend/src/modules/auth/auth.guards.ts`, `backend/src/modules/leads/lead-removal.service.ts`, `backend/test/ai-settings.e2e-spec.ts`, `backend/test/auth.e2e-spec.ts`, `backend/test/mfa.e2e-spec.ts`, `frontend/src/auth/guards.tsx`, `frontend/src/components/ClientAssignDialog.tsx`, `frontend/src/lib/nav.ts`, `frontend/src/pages/ClientsPage.tsx`, `frontend/src/router.tsx`
 
 - **PERM-4** Menu ẩn những gì người dùng không dùng được, nhưng API kiểm tra mọi quyền độc lập.
