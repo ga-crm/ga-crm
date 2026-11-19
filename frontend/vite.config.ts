@@ -6,6 +6,17 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  build: {
+    rolldownOptions: {
+      output: {
+        // Highcharts registers its series types as its modules load, each one building on the one
+        // before (scatter extends line). Split into chunks, they ran out of order in the built
+        // app only, and the home page failed with "Class extends value undefined". This keeps the
+        // order of the source across chunks.
+        strictExecutionOrder: true,
+      },
+    },
+  },
   server: {
     port: 5173,
     strictPort: true,

@@ -1031,6 +1031,13 @@ Rà lại luồng làm việc cho thấy hai tài khoản push thẳng `main`, v
 | Không sang staging | `.github/`, `.githooks/`, `scripts/pre-push-check.sh` không có trong `deploy/staging-paths.txt` | Staging chỉ chứa thứ cần để chạy |
 | PR `staging` → `main` | Không bao giờ merge: `staging` thiếu tài liệu, file test và workflow, merge sẽ xóa chúng khỏi `main`. PR #1 (mở ngày 16/11/2026) cần được đóng | `staging` là bản lọc một chiều của `main` |
 
+## 2026-11-19: Bản build giữ thứ tự chạy module
+
+| Điểm | Quyết định | Lý do |
+|---|---|---|
+| `frontend/vite.config.ts` | Bật `build.rolldownOptions.output.strictExecutionOrder` | Trên staging trang Tổng quan không hiển thị: Rolldown (Vite 8) tách Highcharts thành nhiều chunk và chạy sai thứ tự, loại biểu đồ `scatter` kế thừa `line` khi `line` chưa đăng ký. Chỉ xảy ra ở bản build, bản dev không tách chunk nên không lỗi. Tùy chọn này giữ đúng thứ tự của mã nguồn giữa các chunk; JS tăng khoảng 3% (2,88 MB lên 2,97 MB chưa nén) |
+| Kiểm tra bản build | Thêm cấu hình preview `web-prod-preview` (`vite preview`, cổng 4173) vào `.claude/launch.json` | `vite build` thành công không chứng minh bản build chạy được; trước đó chưa lần nào mở bản build trên trình duyệt. Chưa có test tự động cho việc này (cần trình duyệt, xem Playwright ở lát 8d) |
+
 ## Not built yet
 
 | Rule | Item | Needed before go-live |

@@ -58,6 +58,21 @@
       ],
       "port": 5174,
       "url": "http://127.0.0.1:5174"
+    },
+    {
+      "name": "web-prod-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "preview",
+        "--",
+        "--port",
+        "4173",
+        "--strictPort"
+      ],
+      "port": 4173
     }
   ]
 }

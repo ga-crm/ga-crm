@@ -2,7 +2,7 @@
 
 Cập nhật vào cuối mỗi phiên. Chỉ ghi trạng thái hiện tại, không ghi nhật ký.
 
-**Cập nhật lần cuối:** 17/11/2026
+**Cập nhật lần cuối:** 19/11/2026
 
 ## Trạng thái hiện tại
 
@@ -100,6 +100,7 @@ Mật khẩu của mọi tài khoản demo là `Demo@2026`, có sau khi chạy `
 
 | Hiện tượng | Nguyên nhân | Cách xử lý |
 |---|---|---|
+| Trang Tổng quan báo "Không tải được màn hình này" chỉ ở bản build (staging), bản dev vẫn chạy | Bản build tách Highcharts thành nhiều chunk và chạy sai thứ tự module: loại `scatter` dựng trước khi `line` đăng ký ("Class extends value undefined") | `strictExecutionOrder: true` trong `frontend/vite.config.ts` (19/11/2026). Lỗi chỉ có ở bản build nên `vite build` thành công chưa đủ: xem bản build bằng preview `web-prod-preview` (cổng 4173, `.claude/launch.json`) trước khi đưa lên staging |
 | Đổi `DEV_ACCOUNT_SWITCHER` trong `.env` mà nút chuyển tài khoản không hiện / vẫn hiện | API chỉ đọc `.env` lúc khởi động | Khởi động lại `npm run dev:api` |
 | CLI `shadcn add` ghi file vào `frontend/@/components/shadcn/` | CLI không đọc được alias `@/` qua tsconfig gốc (chỉ có `references`) | Chuyển file vào `src/components/shadcn/` rồi chỉnh theo skill `ga-crm-ui` |
 | Chuông thông báo không cập nhật ngay, API log `Redis unavailable` | Valkey chưa chạy (Docker tắt, hoặc chỉ bật `postgres`) | `npm run db:up`; API tự kết nối lại. Trong lúc đó mỗi bản API vẫn đẩy được tới socket của chính nó |
