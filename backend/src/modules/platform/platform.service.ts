@@ -16,6 +16,7 @@ import { UsersService } from '../users/users.service.js';
 import type {
   CreateTenantDto,
   ListTenantsQueryDto,
+  PlatformSettingsDto,
   UpdateTenantDto,
 } from './platform.dto.js';
 import { afterCommit } from '../../core/persistence/after-commit.js';
@@ -207,6 +208,45 @@ export class PlatformService {
       );
     });
     return { tenantId };
+  }
+
+  /** USER-16: the platform-wide switches (docs/decisions.md, 20/11/2026). */
+  async settings(): Promise<PlatformSettingsDto> {
+    const [row] = (await this.platformDb.run('platform-console', (db) =>
+      db.query(`SELECT mfa_enforced FROM platform_settings`),
+    )) as { mfa_enforced: boolean }[];
+    return { mfaEnforced: row.mfa_enforced };
+  }
+
+  /**
+   * USER-16: with `mfaEnforced` off nobody is held at MFA set-up, in any GA. It takes effect on the
+   * next request of every session, because the actor is rebuilt from this row each time.
+   */
+  async updateSettings(actor: Actor, dto: PlatformSettingsDto): Promise<void> {
+    await this.platformDb.run('platform-console', async (db) => {
+      const [before] = (await db.query(
+        `SELECT mfa_enforced FROM platform_settings FOR UPDATE`,
+      )) as { mfa_enforced: boolean }[];
+      if (before.mfa_enforced === dto.mfaEnforced) return;
+      await db.query(
+        `UPDATE platform_settings SET mfa_enforced = $1, updated_at = now(), updated_by = $2`,
+        [dto.mfaEnforced, actor.id],
+      );
+      // AUD-3: in the platform's own chain, with the change
+      await this.audit.record(
+        {
+          tenantId: null,
+          userId: actor.id,
+          action: AuditAction.SettingsChange,
+          entity: 'platform_settings',
+          meta: {
+            before: { mfaEnforced: before.mfa_enforced },
+            after: { mfaEnforced: dto.mfaEnforced },
+          },
+        },
+        db,
+      );
+    });
   }
 
   /** Bootstrap helper for the first Platform Admin. */

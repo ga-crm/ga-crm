@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import {
@@ -34,6 +35,7 @@ import {
 import {
   CreateTenantDto,
   ListTenantsQueryDto,
+  PlatformSettingsDto,
   UpdateTenantDto,
 } from './platform.dto.js';
 import { PlatformService } from './platform.service.js';
@@ -117,5 +119,37 @@ export class PlatformController {
     @Param('userId', IdPipe) userId: string,
   ): Promise<void> {
     await this.platform.resetMfa(actor, id, userId);
+  }
+}
+
+/** USER-16: switches for the whole platform, above every GA's own settings. */
+@ApiTags('Platform')
+@ApiCookieAuth(SESSION_COOKIE)
+@ApiForbiddenResponse({ description: 'forbidden: chỉ Quản trị nền tảng' })
+@RequireRoles(Role.PlatformAdmin)
+@Controller('platform/settings')
+export class PlatformSettingsController {
+  constructor(private readonly platform: PlatformService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Cài đặt nền tảng' })
+  @ApiOkResponse({ type: PlatformSettingsDto })
+  get(): Promise<PlatformSettingsDto> {
+    return this.platform.settings();
+  }
+
+  @Put()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Lưu cài đặt nền tảng',
+    description:
+      'Tắt `mfaEnforced`: không tài khoản nào bị buộc cài xác thực hai lớp, ở mọi GA; người đã bật vẫn phải nhập mã (USER-16). Có kiểm toán `SETTINGS_CHANGE`.',
+  })
+  @ApiNoContentResponse()
+  async update(
+    @CurrentActor() actor: Actor,
+    @Body() dto: PlatformSettingsDto,
+  ): Promise<void> {
+    await this.platform.updateSettings(actor, dto);
   }
 }

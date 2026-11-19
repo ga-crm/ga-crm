@@ -237,6 +237,11 @@ export interface GaSettings {
   plan: { name: string; users: number; limits: TenantLimits }
 }
 
+/** USER-16: the Platform Admin's switches for every GA. */
+export interface PlatformSettings {
+  mfaEnforced: boolean
+}
+
 export interface Page<T> {
   items: T[]
   page: number

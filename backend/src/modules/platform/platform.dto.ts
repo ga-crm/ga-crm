@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsInt,
@@ -129,4 +130,14 @@ export class ListTenantsQueryDto extends PageQueryDto {
   @IsOptional()
   @IsEnum(TenantStatus)
   status?: TenantStatus;
+}
+
+/** USER-16: what the Platform Admin decides for every GA at once. */
+export class PlatformSettingsDto {
+  @ApiProperty({
+    description:
+      'false: không ai bị buộc cài xác thực hai lớp; người đã bật vẫn phải nhập mã.',
+  })
+  @IsBoolean()
+  mfaEnforced: boolean;
 }
