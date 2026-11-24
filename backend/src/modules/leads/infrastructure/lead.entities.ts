@@ -102,6 +102,8 @@ export class Lead {
   @Column({ type: 'date' }) leadDate: string;
   @text() registeredAt: string | null;
   @text() productInterest: string | null;
+  /** TENANT-5: the catalogue product the lead is interested in (decided 25/11/2026). */
+  @text() productCode: string | null;
   @text() productSecondary: string | null;
   /** bigint comes back as a string; the API sends a number. */
   @Column({ type: 'bigint', nullable: true }) valueVnd: string | null;

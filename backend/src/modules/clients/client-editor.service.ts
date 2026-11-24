@@ -25,7 +25,7 @@ import {
   buildProductLines,
   policyDeletable,
 } from './client-rules.js';
-import type { ProductLineInput, ProgramRef } from './client-rules.js';
+import type { ProductLineInput, ProductRef } from './client-rules.js';
 import type {
   AssignClientsDto,
   ClientFieldsDto,
@@ -48,7 +48,7 @@ import type {
   PolicyClient,
   PolicyProduct,
 } from './infrastructure/client.entities.js';
-import { ProgramsService } from './programs.service.js';
+import { ProductsService } from '../products/products.service.js';
 
 const todayInVietnam = () =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(
@@ -125,7 +125,7 @@ export class ClientEditorService {
   constructor(
     private readonly tenantDb: TenantDb,
     private readonly agents: AgentsService,
-    private readonly programs: ProgramsService,
+    private readonly products: ProductsService,
     private readonly reader: ClientsService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
@@ -248,27 +248,40 @@ export class ClientEditorService {
     return { set, unset };
   }
 
-  /** PRD-2: every programme a request names, from the catalogue and shown. */
-  private async programsFor(
-    scope: Scope,
+  /**
+   * PRD-2 as decided on 25/11/2026: every product a request names, from the shared catalogue and
+   * shown (TENANT-5). A code already on the policy may stay even when the catalogue no longer shows
+   * it, so editing an older policy never fails on its own lines.
+   */
+  private async productsFor(
     lines: readonly ProductLineInput[],
     db: EntityManager,
-  ) {
-    const found = await this.programs.usable(
-      scope,
-      lines.map((line) => line.programCode),
+    existing: readonly PolicyProduct[] = [],
+  ): Promise<Map<string, ProductRef>> {
+    const kept = new Map(existing.map((line) => [line.productCode, line]));
+    const found = await this.products.usable(
       db,
+      lines.map((line, index) => ({
+        code: line.productCode,
+        path: `products.${index}.productCode`,
+      })),
+      new Set(kept.keys()),
     );
-    return new Map<string, ProgramRef>(
-      [...found].map(([code, program]) => [
-        code,
-        {
-          code,
-          label: program.label,
-          productRole: program.productRole,
-          productCode: program.productCode ?? undefined,
-        },
-      ]),
+    return new Map(
+      lines.map((line): [string, ProductRef] => {
+        const product = found.get(line.productCode);
+        const old = kept.get(line.productCode);
+        return [
+          line.productCode,
+          {
+            productCode: line.productCode,
+            productName:
+              product?.productName ?? old?.productName ?? line.productCode,
+            productRole: product?.productRole ?? old?.productRole ?? 'Chính',
+            ...(old?.programCode && { programCode: old.programCode }),
+          },
+        ];
+      }),
     );
   }
 
@@ -284,13 +297,13 @@ export class ClientEditorService {
     agentCode: string,
     db: EntityManager,
     current?: { id: string | null; name: string } | null,
+    existing: readonly PolicyProduct[] = [],
   ) {
-    const scope = this.scopeOf(actor);
     const insured = this.insuredOf(holder, dto, current);
-    const programs = await this.programsFor(scope, dto.products ?? [], db);
+    const products = await this.productsFor(dto.products ?? [], db, existing);
     const lines = buildProductLines({
       lines: dto.products ?? [],
-      programs,
+      products,
       mainInsured: {
         clientId: insured?.id ?? undefined,
         name: insured?.name ?? '',
@@ -300,7 +313,7 @@ export class ClientEditorService {
       throw new ApiException(HttpStatus.CONFLICT, ErrorCode.ProgramRepeated, {
         issues: [
           {
-            path: `products.${lines.repeated}.programCode`,
+            path: `products.${lines.repeated}.productCode`,
             message: ErrorCode.ProgramRepeated,
           },
         ],
@@ -772,6 +785,7 @@ export class ClientEditorService {
         policy.insuredName
           ? { id: policy.insuredClientId, name: policy.insuredName }
           : null,
+        policy.products,
       );
       // POL-4: the PO and LI links are written again, in case the insured person changed; an
       // insured known only by name ends the old insured's link

@@ -21,18 +21,20 @@ export function ageBandOf(dob: string, today: string): string {
 export const birthDayMonthOf = (dob: string): string =>
   `${dob.slice(8, 10)}/${dob.slice(5, 7)}`;
 
-export interface ProgramRef {
-  code: string;
-  label: string;
+/** TENANT-5: what a hand-entered line takes from the product it names. */
+export interface ProductRef {
+  productCode: string;
+  productName: string;
   productRole: string;
-  productCode?: string;
+  /** PRG: the programme an older line came from, kept when that line is sent back unchanged. */
+  programCode?: string;
 }
 
 export interface ProductLineInput {
   insuredName?: string;
   insuredDob?: string;
   insuredGender?: string;
-  programCode: string;
+  productCode: string;
   sumAssuredVnd?: number;
   termYears?: number;
   status?: string;
@@ -43,40 +45,39 @@ export interface ProductLineInput {
 
 /**
  * POL-3 and PRD-1 to PRD-4: the product lines of a policy entered by hand. Returns the lines, or the
- * index of the first line that repeats a programme for the same insured person.
+ * index of the first line that repeats a product for the same insured person.
  */
 export function buildProductLines(input: {
   lines: readonly ProductLineInput[];
-  programs: ReadonlyMap<string, ProgramRef>;
+  products: ReadonlyMap<string, ProductRef>;
   mainInsured: { clientId?: string; name: string };
 }): { products: PolicyProduct[] } | { repeated: number } {
   const seen = new Set<string>();
   const products: PolicyProduct[] = [];
   for (const [index, line] of input.lines.entries()) {
-    const program = input.programs.get(line.programCode)!;
+    const product = input.products.get(line.productCode)!;
     const name = line.insuredName?.trim() || input.mainInsured.name;
     // PRD-3: only the main insured is a client; a name alone never becomes a client link
     const isMain =
       normalizeName(name) === normalizeName(input.mainInsured.name);
-    // PRD-6: the DLVN product code when the GA knows it, so a later 04 import matches this line
-    const productCode = program.productCode || program.code;
-    // PRD-4: one programme once per insured person
+    // PRD-4: one product once per insured person
     const person = isMain
       ? `#${input.mainInsured.clientId ?? ''}`
       : normalizeName(name);
-    const key = `${productCode}|${person}`;
+    const key = `${product.productCode}|${person}`;
     if (seen.has(key)) return { repeated: index };
     seen.add(key);
     products.push({
-      productCode,
+      // TENANT-5: the DLVN code, so a later 04 import matches this line (PRD-6)
+      productCode: product.productCode,
       ...(isMain &&
         input.mainInsured.clientId && {
           insuredClientId: input.mainInsured.clientId,
         }),
-      productName: program.label,
-      // PRG-7: the catalogue's role unless the line says otherwise
-      productRole: line.productRole ?? program.productRole,
-      programCode: program.code,
+      productName: product.productName,
+      // The product's role unless the line says otherwise
+      productRole: line.productRole ?? product.productRole,
+      ...(product.programCode && { programCode: product.programCode }),
       insuredName: name,
       ...(line.insuredDob && { insuredDob: line.insuredDob }),
       ...(line.insuredGender && { insuredGender: line.insuredGender }),

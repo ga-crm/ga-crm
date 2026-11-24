@@ -53,7 +53,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:25`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:34`
 
-Đã trích dẫn trong: `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/clients/lead-link.service.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/clients.e2e-spec.ts`, `backend/test/lead-link.e2e-spec.ts`, `frontend/src/components/LeadClientLink.tsx`, `frontend/src/lib/nav.ts`, `frontend/src/lib/types.ts`, `frontend/src/pages/ClientDetailPage.tsx`
+Đã trích dẫn trong: `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/clients/lead-link.service.ts`, `backend/src/modules/clients/products.controller.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/clients.e2e-spec.ts`, `backend/test/lead-link.e2e-spec.ts`, `backend/test/products.e2e-spec.ts`, `frontend/src/components/LeadClientLink.tsx`, `frontend/src/lib/nav.ts`, `frontend/src/lib/types.ts`, `frontend/src/pages/ClientDetailPage.tsx`, `frontend/src/pages/ProductDetailPage.tsx`
 
 - **CUS-5** **Thấy**: khách hàng trong scope khi có liên kết bất kỳ ở bảng trên với một đại lý trong scope (FC: của mình; quản lý: tuyến; Chủ GA: tất cả). Marketing và Admin không thấy trang khách hàng (view che dữ liệu riêng, PDP-4).
 
@@ -77,7 +77,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:36`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:37`
 
-Đã trích dẫn trong: `backend/src/modules/clients/client-care.service.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/test/clients.e2e-spec.ts`, `frontend/src/pages/ClientDetailPage.tsx`
+Đã trích dẫn trong: `backend/src/modules/clients/client-care.service.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/test/clients.e2e-spec.ts`, `backend/test/products.e2e-spec.ts`, `frontend/src/pages/ClientDetailPage.tsx`
 
 - **CUS-8** Chỉ hiện các hợp đồng của khách nằm trong scope người xem, kèm mọi đại lý và tỉ lệ chia của từng hợp đồng.
 
@@ -101,7 +101,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:77`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:78`
 
-Đã trích dẫn trong: `backend/src/common/errors.ts`, `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/clients.dto.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `backend/src/modules/imports/success-plan.spec.ts`, `backend/src/modules/imports/success-plan.ts`, `backend/test/manual-clients.e2e-spec.ts`, `frontend/src/lib/clientLabels.ts`, `frontend/src/lib/types.ts`, `frontend/src/pages/ClientDetailPage.tsx`
+Đã trích dẫn trong: `backend/src/common/errors.ts`, `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/clients.dto.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `backend/src/modules/imports/success-plan.spec.ts`, `backend/src/modules/imports/success-plan.ts`, `backend/test/manual-clients.e2e-spec.ts`, `frontend/src/lib/clientLabels.ts`, `frontend/src/lib/types.ts`, `frontend/src/pages/ClientDetailPage.tsx`, `frontend/src/pages/ProductDetailPage.tsx`
 
 - **CUS-11** Vai trò: `PO`, `LI` (LI chính và người được bảo hiểm của từng sản phẩm), `BEN` (đã mô hình, chưa có cột nguồn; **OPEN**). Một khách có thể giữ nhiều vai trò trên nhiều hợp đồng. Liên kết PO / LI từ lần nhập mới thay liên kết cũ (liên kết cũ kết thúc, giữ lịch sử).
 

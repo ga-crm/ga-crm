@@ -28,6 +28,7 @@ import {
   GENDERS,
   MARITAL_STATUSES,
   PREMIUM_FREQUENCIES,
+  PRODUCT_KEY,
   PRODUCT_ROLES,
 } from './client.constants.js';
 import { LIST_SIGNALS, RELATIONS } from './client-insights.js';
@@ -79,7 +80,7 @@ const trimmed = ({ value }: { value: unknown }) =>
 const given = (_: unknown, value: unknown) =>
   value !== undefined && value !== null;
 
-/** PRD-1: one programme for one insured person, in the order the GA asked for. */
+/** PRD-1: one product for one insured person, in the order the GA asked for. */
 export class ProductLineDto {
   @ApiPropertyOptional({
     example: 'Nguyễn Văn Con',
@@ -101,12 +102,13 @@ export class ProductLineDto {
   @IsIn(GENDERS)
   insuredGender?: string;
 
-  /** PRD-2: from the GA's programme catalogue only. */
-  @ApiProperty({ example: 'AN_TAM_SONG_HANH' })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(40)
-  programCode: string;
+  /**
+   * PRD-2 as decided on 25/11/2026: a product of the shared catalogue (TENANT-5), by its code. A
+   * line already on the policy may keep a code the catalogue no longer shows.
+   */
+  @ApiProperty({ example: 'P001' })
+  @Matches(PRODUCT_KEY)
+  productCode: string;
 
   @ApiPropertyOptional({ example: 500000000 })
   @IsOptional()

@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FileUp, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import { hasPermission } from '../auth/access'
@@ -11,6 +11,7 @@ import { useContactDeadlineHours, useMe } from '../auth/useMe'
 import { buttonClass } from '../components/buttonStyles'
 import { LeadBoard } from '../components/LeadBoard'
 import { LeadAssignDialog } from '../components/LeadAssignDialog'
+import { ProductPicker } from '../components/ProductPicker'
 import { SavedFilters } from '../components/SavedFilters'
 import { Alert, Badge, Button, Card, Checkbox, ClearFilters, Container, Dialog, EmptyState, Field, FilterBand, FilterField, FormError, Input, MODAL_FOOTER, PageHeader, Pagination, SearchInput, Segmented, Select, SortButton, Spinner, TabBar, TableScroll, Textarea, WIDE_FORM_GRID } from '../components/ui'
 import { formatDateTime, t, tDynamic } from '../i18n'
@@ -57,10 +58,12 @@ const schema = z.object({
   note: optionalText(4000),
   campaignId: z.string(),
   assignedAgentCode: z.string(),
+  // TENANT-5: a shown product of the shared catalogue, optional
+  productCode: z.string(),
 })
 type FormValues = z.infer<typeof schema>
 
-const FIELD_ERRORS = { invalid_phone: 'phone', phone_exists: 'phone', agent_not_found: 'assignedAgentCode', campaign_not_found: 'campaignId', unknown_option: 'source' } as const
+const FIELD_ERRORS = { invalid_phone: 'phone', phone_exists: 'phone', agent_not_found: 'assignedAgentCode', campaign_not_found: 'campaignId', unknown_option: 'source', unknown_product: 'productCode' } as const
 
 /** LEAD-3 */
 function CreateLeadForm({ manages, onClose, onCreated }: { manages: boolean; onClose: () => void; onCreated: (id: string) => void }) {
@@ -71,10 +74,10 @@ function CreateLeadForm({ manages, onClose, onCreated }: { manages: boolean; onC
     resolver: zodResolver(schema),
     // Errors appear when leaving a field, then update while it is being corrected
     mode: 'onTouched',
-    defaultValues: { fullName: '', phone: '', source: '', email: '', region: '', province: '', gender: '', dob: '', note: '', campaignId: '', assignedAgentCode: '' },
+    defaultValues: { fullName: '', phone: '', source: '', email: '', region: '', province: '', gender: '', dob: '', note: '', campaignId: '', assignedAgentCode: '', productCode: '' },
   })
   const create = useMutation({
-    mutationFn: ({ consent, email, region, province, gender, dob, note, campaignId, assignedAgentCode, ...required }: FormValues) =>
+    mutationFn: ({ consent, email, region, province, gender, dob, note, campaignId, assignedAgentCode, productCode, ...required }: FormValues) =>
       api.post<{ id: string }>('/leads', {
         ...required,
         consent: consent === 'yes',
@@ -86,6 +89,7 @@ function CreateLeadForm({ manages, onClose, onCreated }: { manages: boolean; onC
         note: note || undefined,
         campaignId: campaignId || undefined,
         assignedAgentCode: assignedAgentCode || undefined,
+        productCode: productCode || undefined,
       }),
     onSuccess: async ({ id }, { fullName }) => {
       // OPT-13: a typed source has joined the GA's list, so the pickers and filters need it
@@ -139,6 +143,15 @@ function CreateLeadForm({ manages, onClose, onCreated }: { manages: boolean; onC
         </Field>
         <Field label={t('agents.gender')} htmlFor="lead-gender" error={errors.gender?.message}>
           <Input id="lead-gender" placeholder={t('agents.genderPlaceholder')} {...form.register('gender')} />
+        </Field>
+        <Field label={t('leads.productInterest')} htmlFor="lead-product" error={errors.productCode?.message}>
+          <Controller
+            control={form.control}
+            name="productCode"
+            render={({ field, fieldState }) => (
+              <ProductPicker ref={field.ref} id="lead-product" label={t('leads.productInterest')} emptyLabel={t('leads.noProduct')} value={field.value} onChange={field.onChange} onBlur={field.onBlur} invalid={fieldState.invalid} />
+            )}
+          />
         </Field>
         {manages && (
           <>
@@ -224,6 +237,8 @@ export function LeadsPage() {
   const source = url.get('source')
   const campaignId = url.get('campaign')
   const assignee = url.get('assignee')
+  // TENANT-5: leads interested in one catalogue product
+  const product = url.get('product')
   const from = url.get('from')
   const to = url.get('to')
   const order = url.oneOf('order', ['asc', 'desc']) as 'asc' | 'desc' | ''
@@ -239,6 +254,7 @@ export function LeadsPage() {
     stage,
     source,
     campaignId,
+    product,
     from,
     to,
     order,
@@ -285,8 +301,8 @@ export function LeadsPage() {
   })
   const canSelectMore = allOnPage && total > items.length && selected.size < Math.min(total, MAX_ASSIGN)
 
-  const filtered = !!(search.input || interest || care || stage || source || campaignId || assignee || from || to)
-  const clearFilters = () => url.set({ q: null, interest: null, care: null, stage: null, source: null, campaign: null, assignee: null, from: null, to: null, page: null })
+  const filtered = !!(search.input || interest || care || stage || source || campaignId || product || assignee || from || to)
+  const clearFilters = () => url.set({ q: null, interest: null, care: null, stage: null, source: null, campaign: null, product: null, assignee: null, from: null, to: null, page: null })
 
   return (
     <>
@@ -393,6 +409,9 @@ export function LeadsPage() {
               </option>
             ))}
           </Select>
+        </FilterField>
+        <FilterField label={t('leads.productInterest')} className="sm:w-56 sm:flex-none">
+          <ProductPicker label={t('leads.productInterest')} placeholder={t('leads.allProducts')} emptyLabel={t('leads.allProducts')} value={product} onChange={(code) => url.set({ product: code, page: null })} />
         </FilterField>
         {tab.key !== 'unassigned' && tab.key !== 'mine' && (
           <FilterField label={t('leads.assignee')} className="sm:w-48 sm:flex-none">

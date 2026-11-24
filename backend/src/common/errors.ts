@@ -31,6 +31,8 @@ export const ErrorCode = {
   ProgramExists: 'program_exists',
   ProgramInUse: 'program_in_use',
   UnknownProgram: 'unknown_program',
+  /** TENANT-5: a product code that is not in the catalogue, or a hidden product. */
+  UnknownProduct: 'unknown_product',
   ProgramRepeated: 'program_repeated',
   PolicyExists: 'policy_exists',
   ClientNotYours: 'client_not_yours',

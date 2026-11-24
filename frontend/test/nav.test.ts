@@ -17,7 +17,7 @@ describe('sidebar groups (decided 25/11/2026: one group per kind of work)', () =
     expect(sidebar(head)).toEqual([
       [null, ['/', '/reports']],
       ['nav.groupWork', ['/tasks', '/calendar']],
-      ['nav.groupSales', ['/leads', '/campaigns', '/clients']],
+      ['nav.groupSales', ['/leads', '/campaigns', '/clients', '/products']],
       ['nav.groupComms', ['/chat', '/notifications']],
       ['nav.groupTeam', ['/agents', '/users', '/users/activity', '/permissions']],
       ['nav.groupData', ['/leads/import', '/imports']],
@@ -31,7 +31,7 @@ describe('sidebar groups (decided 25/11/2026: one group per kind of work)', () =
     expect(sidebar(fc)).toEqual([
       [null, ['/', '/reports']],
       ['nav.groupWork', ['/tasks', '/calendar']],
-      ['nav.groupSales', ['/leads', '/campaigns', '/clients']],
+      ['nav.groupSales', ['/leads', '/campaigns', '/clients', '/products']],
       ['nav.groupComms', ['/chat', '/notifications']],
       ['nav.groupTeam', ['/agents']],
     ])
@@ -41,7 +41,7 @@ describe('sidebar groups (decided 25/11/2026: one group per kind of work)', () =
     const platform = person(['PLATFORM_ADMIN'], [], { tenant: null } as unknown as Partial<Me>)
     expect(sidebar(platform)).toEqual([
       [null, ['/']],
-      ['nav.groupPlatform', ['/platform/tenants', '/platform/settings']],
+      ['nav.groupPlatform', ['/platform/tenants', '/platform/products', '/platform/settings']],
     ])
   })
 })

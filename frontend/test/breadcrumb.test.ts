@@ -41,6 +41,12 @@ describe('breadcrumb', () => {
       ['nav.leads', '/leads'],
       ['breadcrumb.leadDetail', null],
     ])
+    // TENANT-5: a product code keeps its own shape in the path
+    expect(trail('/products/DEMO-ULP-01')).toEqual([
+      ['nav.groupSales', null],
+      ['nav.products', '/products'],
+      ['breadcrumb.productDetail', null],
+    ])
     // Its own sidebar entry wins over "a detail of the lead list"
     expect(trail('/leads/import').at(-1)).toEqual(['nav.leadImport', null])
   })

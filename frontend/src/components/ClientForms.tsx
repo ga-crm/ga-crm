@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
-import { useFieldArray, useForm } from 'react-hook-form'
+import { Controller, useFieldArray, useForm } from 'react-hook-form'
 import type { Control, FieldErrors, UseFormRegister } from 'react-hook-form'
 import { z } from 'zod'
 import { useMe } from '../auth/useMe'
@@ -12,6 +12,7 @@ import { toast } from '../lib/toast'
 import { AGE_BANDS, CLIENT_TIERS, GENDERS, MARITAL_STATUSES, PREMIUM_FREQUENCIES, PRODUCT_ROLES } from '../lib/types'
 import type { ClientDetail, ClientPolicy, PolicyRole } from '../lib/types'
 import { optionalBirthDate, optionalDate, optionalText, requiredText } from '../lib/validation'
+import { ProductPicker } from './ProductPicker'
 import { Button, Field, FormError, IconButton, Input, MODAL_FOOTER, Select, WIDE_FORM_GRID } from './ui'
 
 const money = z.string().trim().regex(/^\d*$/, t('validation.money'))
@@ -24,7 +25,8 @@ const productSchema = z.object({
   insuredName: optionalText(200),
   insuredDob: optionalBirthDate,
   insuredGender: z.string(),
-  programCode: z.string().min(1, t('validation.required')),
+  // TENANT-5: a product of the shared catalogue, by its code
+  productCode: z.string().min(1, t('validation.required')),
   sumAssuredVnd: money,
   termYears: z.string().trim().regex(/^(\d{1,2}|1[01]\d|120)?$/, t('validation.termYears')),
   status: optionalText(100),
@@ -78,7 +80,7 @@ const emptyProduct = (): PolicyValues['products'][number] => ({
   insuredName: '',
   insuredDob: '',
   insuredGender: '',
-  programCode: '',
+  productCode: '',
   sumAssuredVnd: '',
   termYears: '',
   status: '',
@@ -138,7 +140,7 @@ function policyBody(values: PolicyValues) {
       insuredName: text(line.insuredName),
       insuredDob: text(line.insuredDob),
       insuredGender: text(line.insuredGender),
-      programCode: line.programCode,
+      productCode: line.productCode,
       sumAssuredVnd: num(line.sumAssuredVnd),
       termYears: num(line.termYears),
       status: text(line.status),
@@ -222,10 +224,12 @@ function ClientFields({ register, errors, prefix = 'client' }: { register: UseFo
   )
 }
 
-/** POL-2 + PRD-1: one policy and its programme lines. `name` is where the policy sits in the form (`` at the root). */
-function PolicyFields({ control, register, errors, name, showNumber, editableLines = true }: { control: Control<never>; register: UseFormRegister<never>; errors?: FieldErrors<PolicyValues>; name: string; showNumber: boolean; editableLines?: boolean }) {
-  const programs = useQuery(queries.programs())
-  const shown = (programs.data?.items ?? []).filter((program) => program.active)
+/**
+ * POL-2 + PRD-1: one policy and its product lines. `name` is where the policy sits in the form (`` at
+ * the root). `kept` names the products the policy already carries, so a line keeps one the catalogue
+ * now hides or lacks (TENANT-5).
+ */
+function PolicyFields({ control, register, errors, name, showNumber, editableLines = true, kept }: { control: Control<never>; register: UseFormRegister<never>; errors?: FieldErrors<PolicyValues>; name: string; showNumber: boolean; editableLines?: boolean; kept?: ReadonlyMap<string, string> }) {
   const path = (field: string) => (name ? `${name}.${field}` : field) as never
   const reg = (field: string) => (register as unknown as UseFormRegister<Record<string, string>>)(path(field) as string)
   const lines = useFieldArray({ control, name: path('products') as never })
@@ -287,6 +291,27 @@ function PolicyFields({ control, register, errors, name, showNumber, editableLin
             const lineErrors = errors?.products?.[index]
             return (
               <div key={field.id} className="mb-2 grid items-start gap-x-2 rounded-md bg-chrome p-3 sm:grid-cols-2 lg:grid-cols-5">
+                {/* PRD-2 + TENANT-5: chosen from the shared product catalogue, never typed */}
+                <div className="sm:col-span-2 lg:col-span-5">
+                  <Field label={t('clients.product')} htmlFor={id(line('product'))} required error={lineErrors?.productCode?.message}>
+                    <Controller
+                      control={control}
+                      name={path(line('productCode'))}
+                      render={({ field: product, fieldState }) => (
+                        <ProductPicker
+                          ref={product.ref}
+                          id={id(line('product'))}
+                          label={t('clients.product')}
+                          value={(product.value as string | undefined) ?? ''}
+                          onChange={product.onChange}
+                          onBlur={product.onBlur}
+                          invalid={fieldState.invalid}
+                          kept={kept?.has(product.value) ? { code: product.value, name: kept.get(product.value) ?? product.value } : null}
+                        />
+                      )}
+                    />
+                  </Field>
+                </div>
                 <Field label={t('clients.productInsured')} htmlFor={id(`${line('name')}`)}>
                   <Input id={id(`${line('name')}`)} placeholder={t('placeholder.insuredSame')} {...reg(line('insuredName'))} />
                 </Field>
@@ -298,19 +323,6 @@ function PolicyFields({ control, register, errors, name, showNumber, editableLin
                     <option value="">{t('clients.none')}</option>
                     {GENDERS.map((value) => (
                       <option key={value}>{value}</option>
-                    ))}
-                  </Select>
-                </Field>
-                {/* PRD-2: chosen from the GA's catalogue, never typed */}
-                <Field label={t('clients.program')} htmlFor={id(line('program'))} required error={lineErrors?.programCode?.message}>
-                  <Select id={id(line('program'))} defaultValue="" {...reg(line('programCode'))}>
-                    <option value="" disabled>
-                      {t('clients.chooseProgram')}
-                    </option>
-                    {shown.map((program) => (
-                      <option key={program.code} value={program.code}>
-                        {program.label}
-                      </option>
                     ))}
                   </Select>
                 </Field>
@@ -523,11 +535,13 @@ export function EditClientForm({ detail, onClose }: { detail: ClientDetail; onCl
 const numText = (value: number | null) => (value === null ? '' : String(value))
 
 /** POL-1 + POL-4: "Thêm hợp đồng" (with a number) or "Sửa hợp đồng" (lines replaced as a whole). */
-export function PolicyForm({ clientId, policy, programs, onClose }: { clientId: string; policy?: ClientPolicy; programs: Map<string, string>; onClose: () => void }) {
+export function PolicyForm({ clientId, policy, onClose }: { clientId: string; policy?: ClientPolicy; onClose: () => void }) {
   const queryClient = useQueryClient()
   const editing = !!policy
-  // Lines from a Success file are not catalogue programmes, so those are left as they are
+  // Lines from a Success file are left as they are: POL-4 replaces only lines entered by hand
   const editableLines = !policy || policy.manual
+  // TENANT-5: a line keeps its product even if the catalogue hides it now, under the name it had
+  const kept = new Map((policy?.products ?? []).map((product) => [product.productCode, product.catalogueName ?? product.productName ?? product.productCode]))
   const form = useForm<PolicyValues>({
     resolver: zodResolver(editing ? policySchema : policySchema.extend({ policyNo })),
     mode: 'onTouched',
@@ -549,7 +563,7 @@ export function PolicyForm({ clientId, policy, programs, onClose }: { clientId: 
           products: policy.products.map((product) => ({
             ...emptyProduct(),
             insuredName: product.insuredName === policy.insuredName ? '' : (product.insuredName ?? ''),
-            programCode: programs.get(product.productCode) ?? '',
+            productCode: product.productCode,
             sumAssuredVnd: numText(product.sumAssuredVnd),
             termYears: product.termYears === null ? '' : String(product.termYears),
             status: product.status ?? '',
@@ -581,7 +595,7 @@ export function PolicyForm({ clientId, policy, programs, onClose }: { clientId: 
   return (
     <form noValidate onSubmit={form.handleSubmit((values) => save.mutate(values))}>
       {editing && <p className="mb-3 text-caption text-ink-meta">{t('clients.policyEditHint')}</p>}
-      <PolicyFields control={form.control as never} register={form.register as never} errors={form.formState.errors} name="" showNumber={!editing} editableLines={editableLines} />
+      <PolicyFields control={form.control as never} register={form.register as never} errors={form.formState.errors} name="" showNumber={!editing} editableLines={editableLines} kept={kept} />
       <FormError message={save.isError && !shownOnField ? errorMessage(save.error) : undefined} />
       <div className={MODAL_FOOTER}>
         <Button variant="secondary" onClick={onClose}>

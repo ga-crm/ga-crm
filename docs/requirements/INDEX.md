@@ -2,7 +2,7 @@
 
 # Chỉ mục đặc tả
 
-Tổng cộng 317 quy tắc, 266 quy tắc đã được trích dẫn trong code. "Đã trích dẫn" chỉ nghĩa là code hoặc test có nhắc mã quy tắc, không có nghĩa là đã làm đủ. Phần còn thiếu xem `docs/ROADMAP.md` và `docs/decisions.md`.
+Tổng cộng 317 quy tắc, 267 quy tắc đã được trích dẫn trong code. "Đã trích dẫn" chỉ nghĩa là code hoặc test có nhắc mã quy tắc, không có nghĩa là đã làm đủ. Phần còn thiếu xem `docs/ROADMAP.md` và `docs/decisions.md`.
 
 ## Quy tắc theo miền
 
@@ -16,7 +16,7 @@ Tổng cộng 317 quy tắc, 266 quy tắc đã được trích dẫn trong code
 | [UI](rules/UI.md) | Ngôn ngữ và giao diện | 4 | 3 |
 | [ROLE](rules/ROLE.md) | Vai trò | 6 | 5 |
 | [PERM](rules/PERM.md) | Quyền hạn | 4 | 4 |
-| [TENANT](rules/TENANT.md) | Quản lý GA | 6 | 4 |
+| [TENANT](rules/TENANT.md) | Quản lý GA | 6 | 5 |
 | [OPT](rules/OPT.md) | Danh mục lead | 13 | 13 |
 | [PRG](rules/PRG.md) | Danh mục chương trình bảo hiểm | 9 | 8 |
 | [USER](rules/USER.md) | Người dùng, lời mời, xác thực | 18 | 18 |

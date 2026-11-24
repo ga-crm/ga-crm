@@ -8,7 +8,7 @@
 
 Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:49`
 
-Đã trích dẫn trong: `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `frontend/src/lib/types.ts`
+Đã trích dẫn trong: `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`
 
 - **PRG-1** Mỗi chương trình: `code`, `label` (≤ 200), `productRole` (`Chính` / `Bổ trợ`), `productCode` (mã sản phẩm DLVN trên 11_Products, tùy chọn), `active`, `sortOrder`.
 
@@ -16,7 +16,7 @@ Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:49`
 
 Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:50`
 
-Đã trích dẫn trong: `backend/src/modules/clients/programs.service.ts`, `backend/test/manual-clients.e2e-spec.ts`
+Đã trích dẫn trong: `backend/src/modules/clients/programs.service.ts`, `backend/src/seed/demo-data.ts`, `backend/test/manual-clients.e2e-spec.ts`
 
 - **PRG-2** Mọi GA bắt đầu với 3 chương trình: An Tâm Song Hành (`AN_TAM_SONG_HANH`, Chính), BH Chăm Sóc Sức Khoẻ (`BH_CHAM_SOC_SUC_KHOE`, Bổ trợ), BH Tai Nạn Cao Cấp (`BH_TAI_NAN_CAO_CAP`, Bổ trợ).
 
@@ -24,7 +24,7 @@ Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:50`
 
 Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:51`
 
-Đã trích dẫn trong: `backend/src/common/rbac.ts`, `backend/src/modules/clients/programs.controller.ts`, `backend/src/modules/clients/programs.service.ts`, `backend/test/manual-clients.e2e-spec.ts`, `frontend/src/components/ProgramsTab.tsx`, `frontend/src/lib/queries.ts`
+Đã trích dẫn trong: `backend/src/common/rbac.ts`, `backend/src/modules/clients/programs.controller.ts`, `backend/src/modules/clients/programs.service.ts`, `backend/test/manual-clients.e2e-spec.ts`
 
 - **PRG-3** Ai sửa: người có `catalog.manage` (mặc định Admin) và Chủ GA. Mọi người trong GA đọc (mọi form hợp đồng cần).
 
@@ -40,7 +40,7 @@ Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:52`
 
 Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:53`
 
-Đã trích dẫn trong: `backend/src/modules/clients/programs.controller.ts`, `backend/src/modules/clients/programs.service.ts`, `backend/test/manual-clients.e2e-spec.ts`, `frontend/src/components/ProgramsTab.tsx`
+Đã trích dẫn trong: `backend/src/modules/clients/programs.controller.ts`, `backend/src/modules/clients/programs.service.ts`
 
 - **PRG-5** Chương trình có hợp đồng dùng không xóa được, chỉ ẩn → `409 program_in_use`. Chương trình ẩn rời khỏi ô chọn nhưng vẫn hiện trên dòng hợp đồng đang mang nó.
 
@@ -56,7 +56,7 @@ Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:54`
 
 Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:55`
 
-Đã trích dẫn trong: `backend/src/modules/clients/client-rules.spec.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/clients.dto.ts`
+Đã trích dẫn trong: `backend/src/modules/clients/clients.dto.ts`
 
 - **PRG-7** Tên chương trình và vai trò lấy từ danh mục, không gõ trên form (dòng hợp đồng vẫn có thể ghi đè vai trò).
 

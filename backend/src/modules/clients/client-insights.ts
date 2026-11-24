@@ -93,6 +93,8 @@ export interface InsightPolicy {
     insuredClientId?: string | null;
     productName?: string | null;
     productRole: string;
+    /** COV-3: the catalogue's category, when the product is in it (TENANT-5). */
+    category?: string | null;
     sumAssuredVnd?: number | null;
     status?: string | null;
     insuredName?: string | null;

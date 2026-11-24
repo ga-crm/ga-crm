@@ -15,6 +15,7 @@ import { ImportBatches1764000000000 } from './1764000000000-import-batches.js';
 import { PlatformSettings1764086400000 } from './1764086400000-platform-settings.js';
 import { SingleLeadSource1764172800000 } from './1764172800000-single-lead-source.js';
 import { ClientId1764259200000 } from './1764259200000-client-id.js';
+import { Products1764345600000 } from './1764345600000-products.js';
 
 /** In order. Listed rather than globbed, so the ESM build loads them without file scanning. */
 export const MIGRATIONS = [
@@ -35,4 +36,5 @@ export const MIGRATIONS = [
   PlatformSettings1764086400000,
   SingleLeadSource1764172800000,
   ClientId1764259200000,
+  Products1764345600000,
 ];

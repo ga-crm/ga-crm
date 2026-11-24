@@ -4,7 +4,10 @@ import { startApp, stopApp } from './support/app.js';
 import { connection } from './support/collections.js';
 import { ownerDb } from './support/owner-db.js';
 import { clientIdOf } from './support/clients.js';
-import { PERMISSIONS_VERSION, TenantsService } from '../src/modules/tenants/tenants.service.js';
+import {
+  PERMISSIONS_VERSION,
+  TenantsService,
+} from '../src/modules/tenants/tenants.service.js';
 import { demoEmail, seedDemoData } from '../src/seed/demo-data.js';
 
 const API = '/api/v1';
@@ -24,7 +27,7 @@ const policyBody = (policyNo: string, patch: Record<string, unknown> = {}) => ({
   premiumDueDate: '2099-06-01',
   products: [
     {
-      programCode: 'AN_TAM_SONG_HANH',
+      productCode: 'AN_TAM_SONG_HANH',
       sumAssuredVnd: 500_000_000,
       termYears: 20,
     },
@@ -66,9 +69,8 @@ describe('Clients and policies entered by hand (e2e)', () => {
     role: 'PO' | 'LI' | 'BEN',
     body: Record<string, unknown>,
   ) =>
-    (
-      await create(agent, { policyNo, role, ...body }).expect(201)
-    ).body.id as string;
+    (await create(agent, { policyNo, role, ...body }).expect(201)).body
+      .id as string;
   const stored = (id: string) =>
     connection.collection('clients').findOne({ _id: id });
   const { policyNo: _none, ...policyFields } = policyBody('x');
@@ -266,7 +268,9 @@ describe('Clients and policies entered by hand (e2e)', () => {
       });
       expect(client?.successCode).toBeUndefined();
       expect(
-        client?.agentLinks.map((link: { source: string }) => link.source).sort(),
+        client?.agentLinks
+          .map((link: { source: string }) => link.source)
+          .sort(),
       ).toEqual(['MANUAL', 'POLICY_HOLDER']);
       const policy = await policyOf('500000001');
       expect(policy).toMatchObject({
@@ -320,7 +324,9 @@ describe('Clients and policies entered by hand (e2e)', () => {
         name: 'Mẹ Cùng Hợp Đồng',
         dob: '1965-05-05',
       });
-      ids.child = await add(fc, '500000001', 'LI', { name: 'Con Cùng Hợp Đồng' });
+      ids.child = await add(fc, '500000001', 'LI', {
+        name: 'Con Cùng Hợp Đồng',
+      });
       ids.heir = await add(fc, '500000001', 'BEN', { name: 'Em Thụ Hưởng' });
       const policy = await policyOf('500000001');
       // CUS-11: one main insured; anyone else insured is on a product line
@@ -342,7 +348,10 @@ describe('Clients and policies entered by hand (e2e)', () => {
           .get(`${API}/clients`)
           .query({ q: '500000001', pageSize: 50 })
           .expect(200)
-      ).body.items as { id: string; policies: { policyNo: string; roles: string[] }[] }[];
+      ).body.items as {
+        id: string;
+        policies: { policyNo: string; roles: string[] }[];
+      }[];
       expect(found.map((item) => item.id).sort()).toEqual(
         [ids.holder, ids.mother, ids.child, ids.heir].sort(),
       );
@@ -353,10 +362,30 @@ describe('Clients and policies entered by hand (e2e)', () => {
       // The policy card names everyone on it
       const { body } = await fc.get(`${API}/clients/${ids.child}`).expect(200);
       expect(body.policies[0].people).toEqual([
-        { clientId: ids.holder, name: 'Phạm Thị Tay', roles: ['PO'], self: false },
-        { clientId: ids.mother, name: 'Mẹ Cùng Hợp Đồng', roles: ['LI'], self: false },
-        { clientId: ids.child, name: 'Con Cùng Hợp Đồng', roles: ['LI'], self: true },
-        { clientId: ids.heir, name: 'Em Thụ Hưởng', roles: ['BEN'], self: false },
+        {
+          clientId: ids.holder,
+          name: 'Phạm Thị Tay',
+          roles: ['PO'],
+          self: false,
+        },
+        {
+          clientId: ids.mother,
+          name: 'Mẹ Cùng Hợp Đồng',
+          roles: ['LI'],
+          self: false,
+        },
+        {
+          clientId: ids.child,
+          name: 'Con Cùng Hợp Đồng',
+          roles: ['LI'],
+          self: true,
+        },
+        {
+          clientId: ids.heir,
+          name: 'Em Thụ Hưởng',
+          roles: ['BEN'],
+          self: false,
+        },
       ]);
 
       // CUS-11: one holder per policy
@@ -385,7 +414,7 @@ describe('Clients and policies entered by hand (e2e)', () => {
       ).toBe('person_on_policy');
     });
 
-    it('MAN-3 + MAN-4: someone else\'s policy is refused without telling who is on it; a manager adds for the branch; GA_HEAD picks an agent or takes the policy\'s', async () => {
+    it("MAN-3 + MAN-4: someone else's policy is refused without telling who is on it; a manager adds for the branch; GA_HEAD picks an agent or takes the policy's", async () => {
       ids.peer = await add(head, '500000099', 'PO', {
         name: 'Khách Nhánh Khác',
         agentCode: PEER,
@@ -406,9 +435,17 @@ describe('Clients and policies entered by hand (e2e)', () => {
         agentCode: FC,
       });
       expect((await stored(ids.branch))?.ownerAgentCodes).toEqual([FC]);
-      const refusedAgent = async (agent: Agent, body: Record<string, unknown>) =>
-        (await create(agent, { role: 'PO', name: 'Không Được', ...body }).expect(400))
-          .body.error;
+      const refusedAgent = async (
+        agent: Agent,
+        body: Record<string, unknown>,
+      ) =>
+        (
+          await create(agent, {
+            role: 'PO',
+            name: 'Không Được',
+            ...body,
+          }).expect(400)
+        ).body.error;
       expect(
         await refusedAgent(um, { policyNo: '500000011', agentCode: PEER }),
       ).toBe('agent_not_found');
@@ -419,7 +456,9 @@ describe('Clients and policies entered by hand (e2e)', () => {
         'agent_required',
       );
       // On a policy already there, the serving agent is taken when no agent is chosen
-      const spouse = await add(head, '500000099', 'LI', { name: 'Vợ Khách Nhánh Khác' });
+      const spouse = await add(head, '500000099', 'LI', {
+        name: 'Vợ Khách Nhánh Khác',
+      });
       expect((await stored(spouse))?.ownerAgentCodes).toEqual([PEER]);
       for (const agent of [marketing, admin])
         await create(agent, {
@@ -470,7 +509,9 @@ describe('Clients and policies entered by hand (e2e)', () => {
       expect(client?.phone).toBeUndefined();
       expect(client?.tier).toBeUndefined();
       // MAN-6: the policy shows the new name of its holder
-      expect((await policyOf('500000001'))?.holderName).toBe('Phạm Thị Tay Mới');
+      expect((await policyOf('500000001'))?.holderName).toBe(
+        'Phạm Thị Tay Mới',
+      );
       const changes = await connection
         .collection('recordChanges')
         .find({ entity: 'client', entityKey: ids.holder })
@@ -519,19 +560,19 @@ describe('Clients and policies entered by hand (e2e)', () => {
           .expect(403);
     });
 
-    it('test 40 + POL-1 + POL-3: a policy added later is the client\'s, served at 100% by their agent; a line manager may not; one outside scope is 404', async () => {
+    it("test 40 + POL-1 + POL-3: a policy added later is the client's, served at 100% by their agent; a line manager may not; one outside scope is 404", async () => {
       await fc
         .post(`${API}/clients/${ids.second}/policies`)
         .send(
           policyBody('500000020', {
             products: [
               {
-                programCode: 'AN_TAM_SONG_HANH',
+                productCode: 'AN_TAM_SONG_HANH',
                 sumAssuredVnd: 500_000_000,
                 termYears: 20,
               },
               {
-                programCode: 'BH_TAI_NAN_CAO_CAP',
+                productCode: 'BH_TAI_NAN_CAO_CAP',
                 insuredName: 'Bé Con',
                 insuredDob: '2015-04-02',
                 insuredGender: 'Nữ',
@@ -553,7 +594,9 @@ describe('Clients and policies entered by hand (e2e)', () => {
         ],
       });
       // PRD-3: the holder's line is theirs; another person keeps a name only
-      expect(policy?.products[0]).toMatchObject({ insuredClientId: ids.second });
+      expect(policy?.products[0]).toMatchObject({
+        insuredClientId: ids.second,
+      });
       expect(policy?.products[1]).toMatchObject({
         insuredName: 'Bé Con',
         productCode: 'BH_TAI_NAN_CAO_CAP',
@@ -590,9 +633,9 @@ describe('Clients and policies entered by hand (e2e)', () => {
         [policyBody('500000020'), 409, 'policy_exists'],
         [policyBody('12345'), 400, 'invalid_policy_no'],
         [
-          policyBody('500000021', { products: [{ programCode: 'KHONG_CO' }] }),
+          policyBody('500000021', { products: [{ productCode: 'KHONG_CO' }] }),
           400,
-          'unknown_program',
+          'unknown_product',
         ],
         [policyBody('500000023', { agentCode: PEER }), 400, 'agent_not_found'],
       ];
@@ -608,20 +651,20 @@ describe('Clients and policies entered by hand (e2e)', () => {
         .send(
           policyBody('500000024', {
             products: [
-              { programCode: 'AN_TAM_SONG_HANH' },
-              { programCode: 'AN_TAM_SONG_HANH' },
+              { productCode: 'AN_TAM_SONG_HANH' },
+              { productCode: 'AN_TAM_SONG_HANH' },
             ],
           }),
         )
         .expect(409);
       expect(repeated.body.issues).toEqual([
-        { path: 'products.1.programCode', message: 'program_repeated' },
+        { path: 'products.1.productCode', message: 'program_repeated' },
       ]);
       for (const policyNo of ['500000021', '500000023', '500000024'])
         expect(await policyOf(policyNo)).toBeNull();
     });
 
-    it('POL-2 + CUS-6: any other insured is a name only, so nobody takes over another agent\'s client by naming them', async () => {
+    it("POL-2 + CUS-6: any other insured is a name only, so nobody takes over another agent's client by naming them", async () => {
       await fc
         .post(`${API}/clients/${ids.second}/policies`)
         .send(policyBody('500000036', { insuredName: 'Khách Nhánh Khác' }))
@@ -641,7 +684,7 @@ describe('Clients and policies entered by hand (e2e)', () => {
         ...policyFields,
         status: 'Mất hiệu lực',
         products: [
-          { programCode: 'BH_CHAM_SOC_SUC_KHOE', sumAssuredVnd: 200_000_000 },
+          { productCode: 'BH_CHAM_SOC_SUC_KHOE', sumAssuredVnd: 200_000_000 },
         ],
       };
       // The number and the agent are not part of an edit
@@ -666,7 +709,7 @@ describe('Clients and policies entered by hand (e2e)', () => {
       });
       expect(policy?.products).toEqual([
         expect.objectContaining({
-          programCode: 'BH_CHAM_SOC_SUC_KHOE',
+          productCode: 'BH_CHAM_SOC_SUC_KHOE',
           sumAssuredVnd: 200_000_000,
         }),
       ]);
@@ -702,34 +745,44 @@ describe('Clients and policies entered by hand (e2e)', () => {
         .expect(403);
     });
 
-    it('PRG-5: a programme on a policy can only be hidden', async () => {
-      const used = (await programs(head)).find(
-        (item) => item.code === 'BH_CHAM_SOC_SUC_KHOE',
-      )!;
-      expect(
-        (await head.delete(`${API}/programs/${used.id}`).expect(409)).body
-          .error,
-      ).toBe('program_in_use');
-      await head
-        .patch(`${API}/programs/${used.id}`)
-        .send({ active: false })
-        .expect(200);
-      expect(
-        (
-          await fc
-            .post(`${API}/clients/${ids.second}/policies`)
-            .send(
-              policyBody('500000040', {
-                products: [{ programCode: 'BH_CHAM_SOC_SUC_KHOE' }],
-              }),
-            )
-            .expect(400)
-        ).body.error,
-      ).toBe('unknown_program');
-      await head
-        .patch(`${API}/programs/${used.id}`)
-        .send({ active: true })
-        .expect(200);
+    it('TENANT-5: a hidden product is not offered for a new line, but a line that has it may stay', async () => {
+      const owner = ownerDb();
+      await owner.query(
+        `UPDATE products SET active = false WHERE product_code = 'BH_CHAM_SOC_SUC_KHOE'`,
+      );
+      try {
+        const refused = await fc
+          .post(`${API}/clients/${ids.second}/policies`)
+          .send(
+            policyBody('500000040', {
+              products: [{ productCode: 'BH_CHAM_SOC_SUC_KHOE' }],
+            }),
+          )
+          .expect(400);
+        expect(refused.body).toEqual({
+          error: 'unknown_product',
+          issues: [
+            { path: 'products.0.productCode', message: 'unknown_product' },
+          ],
+        });
+        // 500000020 already carries it, so editing that policy keeps working
+        await fc
+          .patch(`${API}/clients/${ids.second}/policies/500000020`)
+          .send({
+            ...policyFields,
+            products: [
+              {
+                productCode: 'BH_CHAM_SOC_SUC_KHOE',
+                sumAssuredVnd: 250_000_000,
+              },
+            ],
+          })
+          .expect(204);
+      } finally {
+        await owner.query(
+          `UPDATE products SET active = true WHERE product_code = 'BH_CHAM_SOC_SUC_KHOE'`,
+        );
+      }
     });
   });
 
@@ -759,7 +812,9 @@ describe('Clients and policies entered by hand (e2e)', () => {
           .expect(200);
       await head.post(`${API}/imports/${start.id}/validate`).expect(200);
       return (await head.post(`${API}/imports/${start.id}/commit`).expect(200))
-        .body as { sheets: { name: string; inserted: number; updated: number }[] };
+        .body as {
+        sheets: { name: string; inserted: number; updated: number }[];
+      };
     };
     const done = await importFile([
       {
@@ -800,7 +855,12 @@ describe('Clients and policies entered by hand (e2e)', () => {
       },
       {
         name: '04_Policy_Products',
-        headers: ['Số HĐBH', 'product_code', 'product_role', 'Số tiền bảo hiểm'],
+        headers: [
+          'Số HĐBH',
+          'product_code',
+          'product_role',
+          'Số tiền bảo hiểm',
+        ],
         rows: [['500000020', 'BH_CHAM_SOC_SUC_KHOE', 'Bổ trợ', '900000000']],
       },
     ]);
@@ -834,7 +894,6 @@ describe('Clients and policies entered by hand (e2e)', () => {
       expect.objectContaining({
         productCode: 'BH_CHAM_SOC_SUC_KHOE',
         sumAssuredVnd: 900_000_000,
-        programCode: 'BH_CHAM_SOC_SUC_KHOE',
       }),
     ]);
   });

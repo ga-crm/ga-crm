@@ -48,6 +48,6 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:73`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:74`
 
-Đã trích dẫn trong: `backend/src/modules/clients/client-rules.spec.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/client.constants.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `backend/src/modules/imports/success-plan.ts`, `frontend/src/lib/types.ts`
+Đã trích dẫn trong: `backend/src/modules/clients/client-rules.spec.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/client.constants.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `backend/src/modules/imports/success-plan.ts`, `frontend/src/lib/products.ts`, `frontend/src/lib/types.ts`
 
 - **PRD-6** Dòng sản phẩm từ file Success: mã sản phẩm, tên, vai trò, mã người được bảo hiểm (trống = người được bảo hiểm chính), số tiền bảo hiểm, phí năm, chương trình (plan), ngày bắt đầu, trạng thái.

@@ -49,6 +49,7 @@ import {
   RecordChange,
 } from './infrastructure/client.entities.js';
 import { LeadLinkService } from './lead-link.service.js';
+import { ProductsService } from '../products/products.service.js';
 
 const onPolicy = (policy: InsightPolicy, code: string) =>
   policy.clients.some((link) => link.clientId === code && !link.endedAt);
@@ -91,6 +92,7 @@ export class ClientCareService {
     private readonly leadLinks: LeadLinkService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly products: ProductsService,
   ) {}
 
   private scopeOf(actor: Actor): Scope {
@@ -276,7 +278,22 @@ export class ClientCareService {
       }
 
       const family = [...entries.values()];
-      const rows = coverage(policies, [
+      // COV-3: the catalogue's category decides the group when the product is in it (TENANT-5)
+      const catalogue = await this.products.byCode(
+        db,
+        policies.flatMap((policy) =>
+          policy.products.map((product) => product.productCode),
+        ),
+      );
+      const rows = coverage(
+        policies.map((policy) => ({
+          ...policy,
+          products: policy.products.map((product) => ({
+            ...product,
+            category: catalogue.get(product.productCode)?.category,
+          })),
+        })),
+        [
         { key: clientId, name: client.name, clientId },
         ...family.map((entry) => ({
           key: entry.key,

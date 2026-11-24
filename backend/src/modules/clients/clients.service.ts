@@ -19,6 +19,8 @@ import { insertRows, updateRows } from '../../core/persistence/upsert.js';
 import { TenantDb } from '../../core/tenancy/tenant-db.js';
 import { AgentsService } from '../agents/agents.service.js';
 import { AuditAction, AuditService } from '../audit/audit.service.js';
+import { ProductsService } from '../products/products.service.js';
+import { toProductView } from '../products/product.entity.js';
 import {
   coverageGroup,
   listFlags,
@@ -87,6 +89,7 @@ export class ClientsService {
     private readonly tenantDb: TenantDb,
     private readonly agents: AgentsService,
     private readonly audit: AuditService,
+    private readonly products: ProductsService,
   ) {}
 
   private scopeOf(actor: Actor): Scope {
@@ -641,6 +644,70 @@ export class ClientsService {
     });
   }
 
+  /**
+   * TENANT-5: a product of the catalogue and, for someone with a client book, the policies in their
+   * scope (CUS-8) that carry it, each with the people on it. Marketing and Admin see the product only.
+   */
+  async product(actor: Actor, code: string) {
+    const scope = this.scopeOf(actor);
+    return this.tenantDb.run(scope, async (db) => {
+      const product = (await this.products.byCode(db, [code])).get(code);
+      if (!product) throw notFound();
+      if (actor.reach === 'NONE')
+        return { product: toProductView(product), policies: null };
+      const reach = await this.reach(actor, db);
+      const policies = await this.policies(
+        db,
+        scope,
+        and(
+          sql`p.products @> ${JSON.stringify([{ productCode: code }])}::jsonb`,
+          policiesSeen(reach),
+        ),
+      )
+        .orderBy('p.effectiveDate', 'DESC', 'NULLS LAST')
+        .addOrderBy('p.policyNo', 'ASC')
+        .take(200)
+        .getMany();
+      const ids = [
+        ...new Set(policies.flatMap((policy) => [...peopleOn(policy).keys()])),
+      ];
+      const people = await rowsOf<{ id: string; name: string; seen: boolean }>(
+        db,
+        ...positional(
+          sql`SELECT c.id, c.name, ${clientsSeen(reach) ?? raw('TRUE')} AS seen FROM clients c
+               WHERE c.tenant_id = ${scope.tenantId} AND c.id = ANY(${ids}::uuid[])`,
+        ),
+      );
+      const personById = new Map(people.map((person) => [person.id, person]));
+      return {
+        product: toProductView(product),
+        policies: policies.map((policy) => ({
+          policyNo: policy.policyNo,
+          status: policy.status,
+          active: isActiveStatus(policy.status),
+          effectiveDate: policy.effectiveDate,
+          people: [...peopleOn(policy)].map(([id, roles]) => ({
+            clientId: personById.get(id)?.seen ? id : null,
+            name: personById.get(id)?.name ?? '',
+            roles: [...roles],
+          })),
+          // The lines of this product: who it insures and for how much
+          lines: policy.products
+            .filter((line) => line.productCode === code)
+            .map((line) => ({
+              insuredName: line.insuredClientId
+                ? (personById.get(line.insuredClientId)?.name ??
+                  line.insuredName ??
+                  null)
+                : (line.insuredName ?? policy.insuredName),
+              sumAssuredVnd: line.sumAssuredVnd ?? null,
+              annualPremiumVnd: line.annualPremiumVnd ?? null,
+            })),
+        })),
+      };
+    });
+  }
+
   /** CUS-8: only policies the viewer may see, with every agent and share on them. */
   visiblePolicies(
     db: EntityManager,
@@ -699,6 +766,13 @@ export class ClientsService {
         [...agentCodes],
         db,
       );
+      // TENANT-5: the catalogue names the products and decides their benefit group (COV-3)
+      const catalogue = await this.products.byCode(db, [
+        ...policies.flatMap((policy) =>
+          policy.products.map((product) => product.productCode),
+        ),
+        ...applications.flatMap((item) => item.productCode ?? []),
+      ]);
       // The people on these policies, and whether the viewer may open each one (CUS-5)
       const people = await rowsOf<{ id: string; name: string; seen: boolean }>(
         db,
@@ -791,8 +865,14 @@ export class ClientsService {
             productCode: product.productCode,
             productName: product.productName ?? null,
             productRole: product.productRole,
-            // COV-3
-            group: coverageGroup(product),
+            // COV-3, with the catalogue's category when the product is in it
+            group: coverageGroup({
+              ...product,
+              category: catalogue.get(product.productCode)?.category,
+            }),
+            // TENANT-5: the catalogue's name, and whether the product page exists
+            catalogueName:
+              catalogue.get(product.productCode)?.productName ?? null,
             // PRD-3: none is the main insured; a GA-entered name wins when there is one
             insuredClientId: product.insuredClientId ?? null,
             insuredName:
@@ -821,6 +901,9 @@ export class ClientsService {
           issuedDate: application.issuedDate,
           status: application.status,
           productCode: application.productCode,
+          productName: application.productCode
+            ? (catalogue.get(application.productCode)?.productName ?? null)
+            : null,
           apeVnd: application.apeVnd,
         })),
         clientNames,

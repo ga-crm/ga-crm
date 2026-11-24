@@ -294,7 +294,7 @@ Lát cắt 4 lớn nên chia 4 phần: **4a** nhập 02-05 + xem khách hàng (x
 |---|---|---|
 | Mã lỗi mã khách hàng sai | `400 invalid_client_code` kèm `issues` chỉ vào ô | MAN-2 ghi `invalid_input` kèm gợi ý; mục 20.4 có mã riêng `invalid_client_code` (NEW). Dùng mã riêng để giao diện hiện đúng câu |
 | Quyền mới `catalog.manage`, `clients.assign` | Thêm vào ma trận. `catalog.manage` mặc định cho Admin; `clients.assign` không cấp ai (dùng ở 4d). GA đã có được cấp `catalog.manage` cho Admin một lần khi backend khởi động (`permissionsVersion`); GA bỏ quyền sau đó thì không bị cấp lại | Test 11: "migration cấp quyền" |
-| Ai mở màn hình Danh mục | Chủ GA, Admin, và người có `catalog.manage` (chỉ thấy thẻ Chương trình) | Bảng 4.3 |
+| Ai mở màn hình Danh mục | Chủ GA, Admin, và người có `catalog.manage` (chỉ thấy thẻ Chương trình). **Từ 25/11/2026** thẻ Chương trình bị ẩn (dòng hợp đồng chọn sản phẩm của danh mục dùng chung), nên chỉ còn Chủ GA và Admin mở Danh mục; quyền `catalog.manage` còn trong ma trận nhưng chưa có màn hình nào dùng | Bảng 4.3 |
 | Danh mục chương trình mặc định | Tạo ở lần đọc đầu tiên của mỗi GA, như Danh mục lead | GA mới và GA cũ dùng chung một đường |
 | Đại lý khi FC thêm khách / hợp đồng | FC chỉ chọn được chính mình; quản lý chọn trong tuyến; Chủ GA chọn bất kỳ đại lý nào của GA | MAN-3, POL-2 |
 | Đại lý mặc định của hợp đồng thêm sau | Người nhập (nếu có mã đại lý), nếu không thì đại lý của liên kết `MANUAL`, rồi đại lý sở hữu đầu tiên của khách | POL-2 "người nhập hoặc đại lý của khách" |
@@ -1105,6 +1105,23 @@ Chủ dự án yêu cầu ngày 25/11/2026: thay "Mã khách hàng" bằng **Mã
 | Lịch sử cũ | Lịch sử khách và dòng sản phẩm đổi khóa sang id; trường `holderClientCode` / `insuredClientCode` thành `holderClient` / `insuredClient` mang **tên**; lịch sử lead `clientCode` thành `client` mang tên; thông báo và khóa nhắc sinh nhật đổi sang id. `audit_events` giữ nguyên (chỉ thêm, có chuỗi băm AUD-1) nên dòng cũ còn mã | Không sửa nhật ký kiểm toán |
 | Không quay lại được | `down()` của migration báo lỗi: dòng khách tạo thêm và lịch sử đổi sang tên không tách ngược được. Phải sao lưu database trước khi deploy | Chạy trên staging (đang trống) không ảnh hưởng |
 | Rủi ro | Tư vấn viên tạo trùng cùng một người ở hai hợp đồng; hai người trùng tên trùng ngày sinh trên một hợp đồng bị chặn nhầm | Theo dõi, cân nhắc chức năng gộp khách |
+
+## 2026-11-25: Danh mục sản phẩm dùng chung (TENANT-5), hợp đồng và lead nối với sản phẩm (thay 12c, PRG-6, PRD-2)
+
+Chủ dự án yêu cầu ngày 25/11/2026: tạo danh sách sản phẩm bảo hiểm để nối với dữ liệu. Đã chọn: dùng chung cho mọi GA, Platform Admin quản lý; nhập bằng form và file 11_Products; nối với hợp đồng của khách và "sản phẩm quan tâm" của lead; form hợp đồng chọn thẳng sản phẩm.
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Bảng | `products` khóa `product_code` (định dạng `PRODUCT_KEY`), các cột của mục 19.9, `active`; không có `tenant_id`. RLS bắt buộc, policy `shared_read ... USING (true)`: mọi GA đọc được, chỉ `crm_platform` ghi. Migration `Products1764345600000`. Bảng đầu tiên mà người dùng GA đọc chung | Dữ liệu tham chiếu của DLVN, giống nhau cho mọi GA; đọc được trong giao dịch của GA nên nối được với hợp đồng và lead. Đã thêm vào danh sách miễn trừ của test TEN-2 |
+| Không xóa | Sản phẩm chỉ ẩn / hiện (`PATCH /platform/products/:code`); sản phẩm ẩn không chọn được cho dòng mới nhưng dòng đã có vẫn giữ | Hợp đồng và lead giữ mã |
+| Nhập | `POST /platform/products {rows}` 1-500 dòng, upsert theo mã, cho cả form và file (trình duyệt đọc Excel, gửi từng lô). Một mã lặp trong cùng lần gửi bị từ chối cả lô. Audit chuỗi nền tảng: `IMPORT products` khi từ file, `CREATE` / `UPDATE products` khi từ form | Đúng mục 17 của đặc tả |
+| GA đọc gì | `GET /products` và `GET /products/:code` không trả `fit_rule`, `trigger_event`, `rule_status` | Quy tắc phù hợp còn là nháp (câu hỏi mở 3), chưa dùng để gợi ý |
+| Trang sản phẩm | Liệt kê hợp đồng có sản phẩm trong phạm vi người xem (CUS-8, tối đa 200) với người tham gia; Marketing / Admin chỉ thấy thông tin sản phẩm (CUS-5); link sang danh sách lead lọc theo sản phẩm | "Link được tới các phần trong data" |
+| Hợp đồng nhập tay | Mỗi dòng chọn **sản phẩm** (`productCode`) thay chương trình của GA; tên và vai trò Chính / Bổ trợ lấy từ sản phẩm; sản phẩm ẩn / không có: `400 unknown_product`. Dòng đã có trên hợp đồng giữ được mã cũ khi sửa (kể cả mã chương trình cũ không có trong danh mục). Thẻ "Chương trình bảo hiểm" ẩn khỏi Danh mục; API `/programs` giữ cho dữ liệu cũ | Thay quyết định 12c (danh mục chỉ để gợi ý), PRG-6 / PRD-2 (dòng lấy từ chương trình); PRG-9 không còn cần |
+| Dòng hợp đồng từ file | Dòng 04 có mã trùng danh mục tự nối (tên danh mục hiện kèm, link sang trang sản phẩm) | Không cần nhập lại |
+| Nhóm quyền lợi (COV-3) | `category` của danh mục quyết định nhóm trước tên sản phẩm, ở trang khách và thẻ quyền lợi | Trước đây không có nguồn `category` nên chỉ đoán theo tên |
+| Lead | Cột `leads.product_code` (khóa ngoại tới `products`) bên cạnh chữ tự do `product_interest`. Form thêm / sửa lead chọn sản phẩm (tùy chọn), danh sách lead lọc `product=`, chi tiết hiện tên sản phẩm. File 13_Leads: ô "SẢN PHẨM" trùng mã hoặc tên sản phẩm (bỏ dấu, không phân biệt hoa thường) thì nối, không thì chỉ giữ chữ. Form công khai giữ ô chữ | Khách điền form không biết tên chính xác của sản phẩm |
+| Dữ liệu mẫu | 3 mã của chương trình mặc định cũ (để dữ liệu cũ nối được) và 4 sản phẩm lấy tên từ ảnh chủ dự án gửi, **mã `DEMO-...` tự đặt**, không phải mã thật của DLVN | Cần danh mục thật từ DLVN (file 11_Products) trước go-live |
 
 ## Not built yet
 

@@ -40,6 +40,7 @@ const TABLES: Record<string, string> = {
   successActivities: 'success_activities',
   aiSettings: 'ai_settings',
   aiProviderKeys: 'ai_provider_keys',
+  products: 'products',
 };
 const ARRAY_COLUMNS = new Set([
   'roles',

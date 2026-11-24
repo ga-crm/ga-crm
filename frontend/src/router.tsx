@@ -6,7 +6,7 @@ import { AppRoot } from './components/AppRoot'
 import { AppShell } from './components/AppShell'
 import { RouteError } from './components/RouteError'
 import { Spinner } from './components/ui'
-import { canImport, canImportLeads, canReadImports, canSeeCatalog, canSeeReports, canUseClients, canUseLeads, inTenant } from './lib/nav'
+import { canImport, canImportLeads, canManageProducts, canReadImports, canSeeCatalog, canSeeReports, canUseClients, canUseLeads, inTenant } from './lib/nav'
 import { pages } from './lib/pages'
 import type { Me } from './lib/types'
 import { NotFoundPage } from './pages/ForbiddenPage'
@@ -65,6 +65,9 @@ export const router = createBrowserRouter([
                   { path: 'campaigns/:id', lazy: screen(pages.campaignDetail, canUseLeads) },
                   { path: 'clients', lazy: screen(pages.clients, canUseClients) },
                   { path: 'clients/:clientId', lazy: screen(pages.clientDetail, canUseClients) },
+                  // TENANT-5: the shared product catalogue, read by everyone in a GA
+                  { path: 'products', lazy: screen(pages.products, inTenant) },
+                  { path: 'products/:code', lazy: screen(pages.productDetail, inTenant) },
                   { path: 'agents', lazy: screen(pages.agents, inTenant) },
                   { path: 'imports', lazy: screen(pages.imports, canReadImports) },
                   { path: 'imports/new', lazy: screen(pages.importNew, canImport) },
@@ -82,6 +85,8 @@ export const router = createBrowserRouter([
                   { path: 'ga-settings', lazy: screen(pages.gaSettings, (me) => hasRole(me, 'GA_HEAD')) },
                   { path: 'audit', lazy: screen(pages.audit, (me) => hasPermission(me, 'audit.view')) },
                   { path: 'platform/tenants', lazy: screen(pages.tenants, (me) => hasRole(me, 'PLATFORM_ADMIN')) },
+                  // TENANT-5: the Platform Admin keeps the product catalogue
+                  { path: 'platform/products', lazy: screen(pages.platformProducts, canManageProducts) },
                   // USER-16: the platform-wide MFA switch
                   { path: 'platform/settings', lazy: screen(pages.platformSettings, (me) => hasRole(me, 'PLATFORM_ADMIN')) },
                   { path: 'settings', lazy: screen(pages.settings) },

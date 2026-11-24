@@ -768,7 +768,7 @@ export async function seedShowcase(
         premiumDueDate: iso(new Date(now + 20 * DAY_MS)),
         products: [
           {
-            programCode: 'AN_TAM_SONG_HANH',
+            productCode: 'AN_TAM_SONG_HANH',
             sumAssuredVnd: 600_000_000,
             termYears: 20,
             annualPremiumVnd: 15_000_000,
@@ -806,18 +806,18 @@ export async function seedShowcase(
       policy({
         products: [
           {
-            programCode: 'AN_TAM_SONG_HANH',
+            productCode: 'AN_TAM_SONG_HANH',
             sumAssuredVnd: 800_000_000,
             termYears: 20,
             annualPremiumVnd: 18_000_000,
           },
           {
-            programCode: 'BH_CHAM_SOC_SUC_KHOE',
+            productCode: 'BH_CHAM_SOC_SUC_KHOE',
             sumAssuredVnd: 200_000_000,
             annualPremiumVnd: 3_000_000,
           },
           {
-            programCode: 'BH_CHAM_SOC_SUC_KHOE',
+            productCode: 'BH_CHAM_SOC_SUC_KHOE',
             insuredName: `Võ Gia Hân ${number}`,
             insuredDob: '2016-08-20',
             insuredGender: 'Nữ',
@@ -852,7 +852,7 @@ export async function seedShowcase(
         unpaidPremiumVnd: 4_500_000,
         products: [
           {
-            programCode: 'BH_TAI_NAN_CAO_CAP',
+            productCode: 'BH_TAI_NAN_CAO_CAP',
             sumAssuredVnd: 300_000_000,
             annualPremiumVnd: 1_200_000,
           },

@@ -32,7 +32,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:62`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:63`
 
-Đã trích dẫn trong: `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/test/manual-clients.e2e-spec.ts`, `frontend/src/components/ClientForms.tsx`, `frontend/src/pages/ClientDetailPage.tsx`
+Đã trích dẫn trong: `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/test/manual-clients.e2e-spec.ts`, `frontend/src/components/ClientForms.tsx`
 
 - **POL-4** "Sửa hợp đồng": sửa các cột của hợp đồng; **các dòng chương trình bị thay toàn bộ** bằng các dòng form đang hiện (đây là cách sửa thẻ "Quyền lợi bảo hiểm", vì thẻ được tính từ số tiền bảo hiểm của các chương trình, không lưu riêng); liên kết PO / LI được ghi lại (phòng khi đổi người được bảo hiểm). **Không sửa được** Số HĐBH (khóa) và đại lý phục vụ (đại lý của hợp đồng do Success quyết). Hợp đồng phải thuộc đúng khách đang xem → nếu không `404`.
 

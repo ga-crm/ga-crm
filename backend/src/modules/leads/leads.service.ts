@@ -20,6 +20,7 @@ import { AgentsService } from '../agents/agents.service.js';
 import { AuditAction, AuditService } from '../audit/audit.service.js';
 import type { NotificationInput } from '../notifications/notifications.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { ProductsService } from '../products/products.service.js';
 import { TenantsService } from '../tenants/tenants.service.js';
 import {
   Campaign,
@@ -103,6 +104,7 @@ export class LeadsService {
     private readonly leadOptions: LeadOptionsService,
     private readonly tenants: TenantsService,
     private readonly notifications: NotificationsService,
+    private readonly products: ProductsService,
   ) {}
 
   private scopeOf(actor: Actor): Scope {
@@ -353,6 +355,11 @@ export class LeadsService {
           dto.source,
           db,
         );
+        // TENANT-5: a shown product of the shared catalogue
+        if (dto.productCode)
+          await this.products.usable(db, [
+            { code: dto.productCode, path: 'productCode' },
+          ]);
         const leads = db.getRepository(Lead);
         const lead = await leads.save(
           leads.create({
@@ -367,6 +374,7 @@ export class LeadsService {
             gender: dto.gender ?? null,
             dob: dto.dob ?? null,
             campaignId: dto.campaignId ?? null,
+            productCode: dto.productCode ?? null,
             leadDate: today(now),
             stage: 'NEW',
             origin: manages ? 'GA' : 'FC_OWN',
@@ -724,6 +732,10 @@ export class LeadsService {
         builder.andWhere('lead.stage = :stage', { stage: query.stage });
       if (query.source)
         builder.andWhere('lead.source = :source', { source: query.source });
+      if (query.product)
+        builder.andWhere('lead.productCode = :product', {
+          product: query.product,
+        });
       if (query.campaignId)
         builder.andWhere('lead.campaignId = :campaignId', {
           campaignId: query.campaignId,
@@ -1108,6 +1120,13 @@ export class LeadsService {
           leadDate: lead.leadDate,
           registeredAt: lead.registeredAt,
           productInterest: lead.productInterest,
+          // TENANT-5: the catalogue product, by code and name
+          productCode: lead.productCode,
+          productName: lead.productCode
+            ? ((await this.products.byCode(db, [lead.productCode])).get(
+                lead.productCode,
+              )?.productName ?? null)
+            : null,
           productSecondary: lead.productSecondary,
           valueVnd: numberOf(lead.valueVnd),
           refLink: lead.refLink,
@@ -1302,6 +1321,16 @@ export class LeadsService {
         }
         for (const field of INFO_FIELDS)
           if (dto[field] !== undefined) change(field, dto[field]);
+        // TENANT-5: the product of interest; the one already set may stay even if hidden since
+        if (dto.productCode !== undefined) {
+          if (dto.productCode)
+            await this.products.usable(
+              db,
+              [{ code: dto.productCode, path: 'productCode' }],
+              new Set(lead.productCode ? [lead.productCode] : []),
+            );
+          change('productCode', dto.productCode || null);
+        }
         if (
           dto.consent !== undefined &&
           dto.consent !== lead.consentMarketing
@@ -2005,6 +2034,18 @@ export class LeadsService {
     for (const write of plan.writes)
       if (write.values.source)
         write.values.source = sourceCode.get(write.values.source)!;
+    // TENANT-5: a "SẢN PHẨM" cell naming a catalogue product (code or name) links the lead to it;
+    // the text stays as written either way
+    const productOf = await this.products.matchText(
+      db,
+      plan.writes.flatMap((write) => write.values.productInterest || []),
+    );
+    for (const write of plan.writes) {
+      const code =
+        write.values.productInterest &&
+        productOf.get(write.values.productInterest);
+      if (code) (write.values as Record<string, unknown>).productCode = code;
+    }
 
     // IMP-28: campaigns named in the file are created when missing
     const campaigns = db.getRepository(Campaign);

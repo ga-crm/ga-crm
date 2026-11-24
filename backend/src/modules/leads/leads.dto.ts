@@ -19,6 +19,7 @@ import {
 } from 'class-validator';
 import { PageQueryDto } from '../../common/pagination.js';
 import { IsBirthDate } from '../../common/validators.js';
+import { PRODUCT_KEY } from '../clients/client.constants.js';
 import { CONTACT_TYPES } from './infrastructure/lead.entities.js';
 import {
   LEAD_CARE_STATUSES,
@@ -68,6 +69,12 @@ export class ListLeadsQueryDto extends PageQueryDto {
   @IsOptional()
   @IsIn(LEAD_STAGES)
   stage?: LeadStage;
+
+  /** TENANT-5: leads interested in this catalogue product. */
+  @ApiPropertyOptional({ example: 'P001' })
+  @IsOptional()
+  @Matches(PRODUCT_KEY)
+  product?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -209,9 +216,21 @@ export class CreateLeadDto {
   @IsOptional()
   @Matches(/^\d{1,20}$/)
   assignedAgentCode?: string;
+
+  /** TENANT-5: a shown product of the catalogue. */
+  @ApiPropertyOptional({ example: 'P001', description: 'Sản phẩm quan tâm' })
+  @IsOptional()
+  @Matches(PRODUCT_KEY)
+  productCode?: string;
 }
 
 export class UpdateLeadDto {
+  /** TENANT-5: null clears it. */
+  @ApiPropertyOptional({ nullable: true, description: 'Sản phẩm quan tâm' })
+  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @Matches(PRODUCT_KEY)
+  productCode?: string | null;
+
   @ApiPropertyOptional()
   @ValidateIf(isSet)
   @Transform(trim)

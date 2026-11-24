@@ -130,9 +130,9 @@ describe('Family, coverage and care opportunities (e2e)', () => {
           maturityDate: addDays(180),
           unpaidPremiumVnd: 2_000_000,
           products: [
-            { programCode: 'AN_TAM_SONG_HANH', sumAssuredVnd: 500_000_000 },
+            { productCode: 'AN_TAM_SONG_HANH', sumAssuredVnd: 500_000_000 },
             {
-              programCode: 'BH_CHAM_SOC_SUC_KHOE',
+              productCode: 'BH_CHAM_SOC_SUC_KHOE',
               sumAssuredVnd: 100_000_000,
               insuredName: 'Trần Bé An',
             },
@@ -149,7 +149,7 @@ describe('Family, coverage and care opportunities (e2e)', () => {
           status: 'Mất hiệu lực',
           insuredName: 'NGUYỄN THỊ MẸ',
           products: [
-            { programCode: 'AN_TAM_SONG_HANH', sumAssuredVnd: 300_000_000 },
+            { productCode: 'AN_TAM_SONG_HANH', sumAssuredVnd: 300_000_000 },
           ],
         }),
       })

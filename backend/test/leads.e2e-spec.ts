@@ -1358,6 +1358,10 @@ describe('Leads (e2e)', () => {
             headers.map((_, index) => row.getCell(index + 1).value ?? null),
           );
       });
+      // TENANT-5: a product cell naming a catalogue product (any case, no marks) links to it
+      const productColumn = headers.indexOf('SẢN PHẨM');
+      expect(productColumn).toBeGreaterThan(-1);
+      rows[0][productColumn] = 'an tam song hanh';
       const other = await as('marketing', 2);
       const { id, sheets } = (
         await other
@@ -1402,6 +1406,13 @@ describe('Leads (e2e)', () => {
         careStatus: 'CARING',
         campaignName: 'Chiến dịch mẫu',
         consentMarketing: true,
+      });
+      const linked = (
+        await other.get(`${API}/leads/${leads[0].id}`).expect(200)
+      ).body.lead;
+      expect(linked).toMatchObject({
+        productInterest: 'an tam song hanh',
+        productCode: 'AN_TAM_SONG_HANH',
       });
     });
 

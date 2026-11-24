@@ -107,6 +107,9 @@ export interface LeadDetail {
     dob: string | null
     province: string | null
     productInterest: string | null
+    /** TENANT-5: the catalogue product the lead is interested in, and its name there. */
+    productCode: string | null
+    productName: string | null
     extraInfo: string | null
     lostReason: string | null
     applicationNo: string | null
@@ -410,6 +413,8 @@ export interface ClientPolicy {
   products: {
     productCode: string
     productName: string | null
+    /** TENANT-5: the catalogue's name when the code is in it; the product page exists then. */
+    catalogueName: string | null
     productRole: string
     insuredClientId: string | null
     insuredName: string | null
@@ -461,6 +466,8 @@ export interface ClientDetail {
     issuedDate: string | null
     status: string
     productCode: string | null
+    /** The catalogue's name for productCode. */
+    productName: string | null
     apeVnd: number | null
   }[]
   clientNames: Record<string, string>
@@ -499,15 +506,67 @@ export const MARITAL_STATUSES = ['Độc thân', 'Đã kết hôn', 'Ly hôn'] a
 export const AGE_BANDS = ['<18', '18-29', '30-39', '40-49', '50-59', '60+'] as const
 export const PREMIUM_FREQUENCIES = ['Năm', 'Nửa năm', 'Quý', 'Tháng'] as const
 
-/** PRG-1 */
-export interface InsuranceProgram {
-  id: string
-  code: string
-  label: string
+/** TENANT-5: a product of the shared catalogue, as everyone in a GA sees it. */
+export interface ProductView {
+  productCode: string
+  productName: string
   productRole: string
-  productCode: string | null
+  /** The benefit group text, e.g. "Sức khỏe". */
+  category: string | null
+  minEntryAge: number | null
+  maxEntryAge: number | null
+  maxCoverAge: number | null
+  gender: string | null
+  waitingPeriod: string | null
+  keyBenefits: string | null
   active: boolean
-  sortOrder: number
+}
+
+export const RULE_STATUSES = ['DRAFT', 'APPROVED'] as const
+export type RuleStatus = (typeof RULE_STATUSES)[number]
+
+/** TENANT-5: the Platform Admin sees every column. */
+export interface Product extends ProductView {
+  fitRule: string | null
+  triggerEvent: string | null
+  ruleStatus: RuleStatus
+  nameNorm: string
+  createdAt: string
+  updatedAt: string
+  updatedBy: string | null
+}
+
+/** One row of the 11_Products file, also what the add / edit form sends. Blank means null. */
+export interface ProductRow {
+  productCode: string
+  productName: string
+  productRole: string
+  category: string | null
+  minEntryAge: number | null
+  maxEntryAge: number | null
+  maxCoverAge: number | null
+  gender: string | null
+  waitingPeriod: string | null
+  keyBenefits: string | null
+  fitRule: string | null
+  triggerEvent: string | null
+  ruleStatus?: RuleStatus
+}
+
+/** A policy in the viewer's scope that carries a product, with that product's lines. */
+export interface ProductPolicy {
+  policyNo: string
+  status: string | null
+  active: boolean
+  effectiveDate: string | null
+  people: { clientId: string | null; name: string; roles: PolicyRole[] }[]
+  lines: { insuredName: string | null; sumAssuredVnd: number | null; annualPremiumVnd: number | null }[]
+}
+
+/** `policies` is null for Marketing and Admin, who have no client book (CUS-5). */
+export interface ProductDetail {
+  product: ProductView
+  policies: ProductPolicy[] | null
 }
 
 /** CMP-1 */

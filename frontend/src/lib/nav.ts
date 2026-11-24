@@ -1,4 +1,4 @@
-import { Activity, BarChart3, MessageCircle, MessagesSquare, Bell, BellRing, Bot, Building2, CalendarDays, ListTodo, ContactRound, Megaphone, IdCard, ListChecks, Settings2, FileInput, FileUp, History, House, KeyRound, Network, Palette, ScrollText, Settings, ShieldCheck, Users } from 'lucide-react'
+import { Activity, BarChart3, MessageCircle, MessagesSquare, Bell, BellRing, Bot, Building2, CalendarDays, ListTodo, ContactRound, Megaphone, IdCard, ListChecks, Package, Settings2, FileInput, FileUp, History, House, KeyRound, Network, Palette, ScrollText, Settings, ShieldCheck, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { hasPermission, hasRole } from '../auth/access'
 import type { MessageKey } from '../i18n'
@@ -45,8 +45,13 @@ export const canImportLeads = (me: Me) => hasPermission(me, 'leads.import')
 export const canAssignLeads = (me: Me) => hasPermission(me, 'leads.manage') || (hasPermission(me, 'leads.assign_line') && me.reach === 'DOWNLINE' && !!me.user.agentCode)
 /** CUS-5: GA_HEAD, managers and agents have a client book; Marketing and Admin do not. */
 export const canUseClients = (me: Me) => !!me.tenant && me.reach !== 'NONE'
-/** Section 16.8 + 4.3: GA_HEAD edits the lead catalogue, Admin reads it. */
-export const canSeeCatalog = (me: Me) => hasRole(me, 'GA_HEAD') || hasRole(me, 'ADMIN') || hasPermission(me, 'catalog.manage')
+/**
+ * Section 16.8 + 4.3: GA_HEAD edits the lead catalogue, Admin reads it. `catalog.manage` alone no
+ * longer opens it: its only tab, the GA's programmes, gave way to the shared products (TENANT-5).
+ */
+export const canSeeCatalog = (me: Me) => hasRole(me, 'GA_HEAD') || hasRole(me, 'ADMIN')
+/** TENANT-5: the shared product catalogue is read by everyone in a GA and kept by the Platform Admin. */
+export const canManageProducts = (me: Me) => hasRole(me, 'PLATFORM_ADMIN')
 
 /**
  * PERM-4: hides entries the user cannot open. The API still checks every permission.
@@ -64,6 +69,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/leads', label: 'nav.leads', icon: ContactRound, group: 'nav.groupSales', visible: canUseLeads, chunk: pages.leads },
   { to: '/campaigns', label: 'nav.campaigns', icon: Megaphone, group: 'nav.groupSales', visible: canUseLeads, chunk: pages.campaigns },
   { to: '/clients', label: 'nav.clients', icon: IdCard, group: 'nav.groupSales', visible: canUseClients, chunk: pages.clients },
+  { to: '/products', label: 'nav.products', icon: Package, group: 'nav.groupSales', visible: inTenant, chunk: pages.products, prefetch: queries.products },
   // Talking to colleagues, and what the system tells you
   { to: '/chat', label: 'nav.chat', icon: MessageCircle, group: 'nav.groupComms', visible: inTenant, chunk: pages.chat, prefetch: queries.chatConversations },
   { to: '/notifications', label: 'nav.notifications', icon: Bell, group: 'nav.groupComms', visible: inTenant, chunk: pages.notifications },
@@ -84,6 +90,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/ai', label: 'nav.ai', icon: Bot, group: 'nav.groupSetup', visible: (me) => !!me.tenant && hasPermission(me, 'ai.manage'), chunk: pages.aiAdmin, prefetch: () => queries.aiSettings() },
   { to: '/ga-settings', label: 'nav.settingsGa', icon: Settings2, group: 'nav.groupSetup', visible: (me) => hasRole(me, 'GA_HEAD'), chunk: pages.gaSettings, prefetch: () => queries.gaSettings() },
   { to: '/platform/tenants', label: 'nav.tenants', icon: Building2, group: 'nav.groupPlatform', visible: (me) => hasRole(me, 'PLATFORM_ADMIN'), chunk: pages.tenants, prefetch: () => queries.tenants(FIRST_PAGE_WITH_FILTERS.tenants) },
+  { to: '/platform/products', label: 'nav.platformProducts', icon: Package, group: 'nav.groupPlatform', visible: canManageProducts, chunk: pages.platformProducts, prefetch: queries.platformProducts },
   { to: '/platform/settings', label: 'nav.platformSettings', icon: Settings2, group: 'nav.groupPlatform', visible: (me) => hasRole(me, 'PLATFORM_ADMIN'), chunk: pages.platformSettings, prefetch: () => queries.platformSettings() },
   { to: '/settings', label: 'nav.settings', icon: Settings, bottom: true, visible: () => true, chunk: pages.settings },
 ]
@@ -143,6 +150,7 @@ const CHILD_SCREENS: { under: string; match: RegExp; label: MessageKey }[] = [
   { under: '/leads', match: /^\/leads\/[^/]+$/, label: 'breadcrumb.leadDetail' },
   { under: '/campaigns', match: /^\/campaigns\/[^/]+$/, label: 'breadcrumb.campaignDetail' },
   { under: '/clients', match: /^\/clients\/[^/]+$/, label: 'breadcrumb.clientDetail' },
+  { under: '/products', match: /^\/products\/[^/]+$/, label: 'breadcrumb.productDetail' },
   { under: '/imports', match: /^\/imports\/[^/]+$/, label: 'breadcrumb.importDetail' },
 ]
 

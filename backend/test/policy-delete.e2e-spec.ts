@@ -15,7 +15,7 @@ const policyBody = (policyNo: string) => ({
   maturityDate: '2044-06-01',
   premiumFrequency: 'Năm',
   basePremiumVnd: 12_000_000,
-  products: [{ programCode: 'AN_TAM_SONG_HANH', sumAssuredVnd: 500_000_000, termYears: 20 }],
+  products: [{ productCode: 'AN_TAM_SONG_HANH', sumAssuredVnd: 500_000_000, termYears: 20 }],
 });
 
 /** POL-7 (open question 12b, decided 14/11/2026): deleting a policy entered by hand by mistake. */
