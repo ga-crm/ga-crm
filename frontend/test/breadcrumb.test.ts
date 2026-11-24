@@ -15,22 +15,24 @@ const trail = (path: string) => breadcrumbTrail(head, path).map((crumb) => [crum
 describe('breadcrumb', () => {
   it('shows the group, then the page; a group is not a link', () => {
     expect(trail('/agents')).toEqual([
-      ['nav.groupAgents', null],
+      ['nav.groupTeam', null],
       ['nav.agents', null],
     ])
+    // A row without a group stands alone
+    expect(trail('/reports')).toEqual([['nav.reports', null]])
   })
 
-  it('a screen opened from another goes under it: Đại lý › Cây đại lý › Nhập dữ liệu', () => {
+  it('a screen opened from another goes under it: Dữ liệu › Lịch sử nhập › Nhập dữ liệu', () => {
     expect(trail('/imports/new')).toEqual([
-      ['nav.groupAgents', null],
-      ['nav.agents', '/agents'],
+      ['nav.groupData', null],
+      ['nav.imports', '/imports'],
       ['nav.importNew', null],
     ])
   })
 
   it('a detail goes under its list, which links back', () => {
     expect(trail('/imports/01a1da14-b150-72ce-b3a1-423117eae06b')).toEqual([
-      ['nav.groupAgents', null],
+      ['nav.groupData', null],
       ['nav.imports', '/imports'],
       ['breadcrumb.importDetail', null],
     ])

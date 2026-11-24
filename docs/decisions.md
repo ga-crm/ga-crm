@@ -798,7 +798,7 @@ Chủ dự án trả lời ngày 14/11/2026: câu A, D, F, I trả lời riêng;
 | 6 | "Hẹn liên hệ tiếp" vẫn tự tạo việc cần làm (LEAD-31) | Không đổi |
 | 8 | GA tự nhập khóa AI (đã làm ở 7a); khóa của nền tảng là dự phòng. Ngân sách mặc định mỗi GA vẫn là "không giới hạn" tới khi có con số | Không đổi |
 | 11 | Zalo OA để sau v2.1 | Không làm |
-| 12a | Nguồn lead tạo tay chỉ chọn từ Danh mục; nguồn mới từ file nhập vào được tự thêm vào Danh mục | Không đổi |
+| 12a | Nguồn lead tạo tay chỉ chọn từ Danh mục; nguồn mới từ file nhập vào được tự thêm vào Danh mục | Không đổi. **Đã thay ngày 24/11/2026:** form cho gõ giá trị mới, xem mục "Một ô Nguồn gốc" |
 | 12b | Cho xóa hợp đồng nhập tay trong 7 ngày sau khi nhập, chỉ hợp đồng nhập tay (không phải từ Success), có ghi audit | Cần làm |
 | 12c | Danh mục chương trình bảo hiểm chỉ gợi ý từ 11_Products, GA tự chọn | Làm cùng lát 8c (nạp 11_Products) |
 | 12d | Quyền "Phân công khách hàng" (`clients.assign`) không cấp mặc định cho vai trò nào ngoài Chủ GA; Chủ GA tự cấp khi cần | Không đổi |
@@ -1052,6 +1052,40 @@ Chủ dự án yêu cầu ngày 20/11/2026: Platform Admin có công tắc để
 | `MFA_ENFORCE` | Giữ nguyên: `false` vẫn tắt ép buộc trên máy dev / test bất kể công tắc, và vẫn bị từ chối trong production. Trên staging / production chỉ còn công tắc này để bỏ ép buộc | Công tắc có kiểm toán và đổi được không cần khởi động lại |
 | Giao diện | Màn `/platform/settings` "Cài đặt nền tảng" (nhóm "Nền tảng"); tắt thì hỏi xác nhận, bật thì lưu ngay | Tắt làm yếu mọi GA cùng lúc |
 | Rủi ro | Khi tắt, tài khoản đặc quyền chưa cài MFA chỉ còn mật khẩu bảo vệ. Nên bật lại trước khi có dữ liệu thật | Cần quyết định của chủ dự án trước go-live |
+
+## 2026-11-24: Một ô "Nguồn gốc" trên màn hình lead, ai tạo lead cũng thêm được giá trị mới
+
+Chủ dự án yêu cầu ngày 24/11/2026: màn hình lead đang có hai ô "Nguồn" (danh mục của GA) và "Nguồn gốc" (`origin` do hệ thống ghi) gây nhầm là hai nguồn gốc; chỉ giữ một, và cho tự thêm giá trị. Thay quyết định 12a ngày 14/11/2026 và trả lời OPT-13.
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Tên gọi | Cột `leads.source` (Danh mục Nguồn) nay hiện là **"Nguồn gốc"** ở mọi nơi: ô lọc, bảng, form, chi tiết, lịch sử, Danh mục, báo cáo, trang Tổng quan | Một khái niệm cho người dùng. Tên cột trong file Excel mẫu không đổi |
+| `origin` (LEAD-2) | Vẫn lưu và vẫn do hệ thống ghi (`GA`, `IMPORT`, `FC_OWN`, `PUBLIC_FORM`, `REFERRAL`), nhưng không còn là ô lọc: bỏ tham số `origin` của `GET /leads` (gửi lên trả `400 invalid_input`) và ô lọc trên giao diện. Nhãn "Lead tự khai thác" giữ nguyên | LEAD-9 (khóa lead tự khai thác), nhập file và form công khai vẫn dựa vào cột này. Mất khả năng lọc theo Nhập từ file / Web form / Lead tự khai thác; chủ dự án đã chọn phương án này |
+| Bộ lọc đã lưu | Migration `SingleLeadSource1764172800000` xóa khóa `origin` khỏi `saved_filters.query` | Không để lại điều kiện lọc không còn hiển thị |
+| Tự thêm giá trị (OPT-13) | Form thêm lead và form sửa lead (người quản lý lead, LEAD-8) dùng ô nhập có gợi ý từ Danh mục: chọn giá trị đang hiện hoặc gõ giá trị mới; giá trị mới tự vào Danh mục của GA, có audit `lead_option`. Ai tạo được lead thì thêm được, kể cả tư vấn viên | API đã nhận nguồn mới từ trước; nay giao diện cho gõ. Danh sách có thể lộn xộn, Chủ GA đổi tên hoặc ẩn ở Danh mục |
+| So khớp | Giá trị gõ tay khớp theo nhãn, nếu không thì theo mã (không phân biệt hoa thường và dấu) | Nguồn đã đổi tên giữ mã cũ (OPT-3); trước đây gửi mã cũ sẽ tạo trùng một giá trị mới |
+| Độ dài | Giá trị mới gõ tay tối đa 60 ký tự (`400 invalid_input`, `issues[].path = source`); file nhập vẫn như cũ (IMP-25) | OPT-3 |
+| Nguồn đã ẩn | Vẫn bị từ chối khi gõ lại (`unknown_option`, hiện ngay dưới ô). Form sửa chỉ gửi `source` khi người dùng đổi ô đó, nên lead đang mang nguồn đã ẩn vẫn sửa được các trường khác | OPT-8 |
+
+## 2026-11-25: Gom lại nhóm trên sidebar theo chức năng
+
+Chủ dự án yêu cầu ngày 25/11/2026 vì sidebar lộn xộn: nhóm "Quản trị" chứa 8 màn hình không liên quan, "Báo cáo" và "Khách hàng" là nhóm chỉ có một dòng, "Lịch sử nhập" nằm dưới "Đại lý" còn "Nhập lead từ Excel" nằm dưới "Lead". Chỉ đổi nhóm và thứ tự; đường dẫn, quyền xem từng dòng và tên dòng giữ nguyên.
+
+| Nhóm | Dòng | Ý nghĩa |
+|---|---|---|
+| (không nhóm) | Trang chủ, Báo cáo | Nhìn tổng quan |
+| Công việc | Việc cần làm, Lịch | Việc trong ngày của mỗi người |
+| Kinh doanh | Danh sách lead, Chiến dịch, Danh sách khách hàng | Vòng bán hàng: lead, chiến dịch sinh ra lead, khách hàng |
+| Trao đổi | Trò chuyện, Thông báo | Liên lạc và tin hệ thống báo |
+| Đội ngũ | Cây đại lý, Người dùng, Người dùng hoạt động, Phân quyền | Con người và quyền của họ |
+| Dữ liệu | Nhập lead từ Excel, Lịch sử nhập | Mọi việc nhập file. "Nhập dữ liệu" (`/imports/new`) vẫn mở từ nút, nay thuộc "Lịch sử nhập" trên breadcrumb |
+| Giám sát | Nhật ký, Tra cứu trò chuyện | Xem lại việc đã xảy ra |
+| Thiết lập | Danh mục, Trợ lý AI, Cài đặt GA | Cấu hình của GA |
+| Nền tảng | Các GA, Cài đặt nền tảng | Chỉ Platform Admin |
+
+Nhóm nào người dùng không có dòng nào thì không hiện. `frontend/test/nav.test.ts` cố định cấu trúc này cho Chủ GA, tư vấn viên và Platform Admin. Trạng thái đóng / mở nhóm lưu trong trình duyệt theo tên nhóm, nên các nhóm mới mặc định mở.
+
+Thanh cuộn của sidebar được ẩn (lớp `scrollbar-none` trong `frontend/src/index.css`), theo yêu cầu của chủ dự án cùng ngày: danh sách vẫn cuộn bằng chuột, chạm và bàn phím khi dài hơn màn hình, chỉ không vẽ thanh. Đây là ngoại lệ duy nhất của quy tắc "thanh cuộn mảnh ở mọi nơi".
 
 ## Not built yet
 

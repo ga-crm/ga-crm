@@ -168,8 +168,12 @@ describe('Demo seed (e2e)', () => {
     ]) {
       expect(await has({ stage }), stage).toBe(true);
     }
+    // LEAD-2: origin is no longer a filter (decided 24/11/2026), but the rules still read it
     for (const origin of ['GA', 'IMPORT', 'FC_OWN']) {
-      expect(await has({ origin }), origin).toBe(true);
+      expect(
+        await connection.collection('leads').countDocuments({ origin }),
+        origin,
+      ).toBeGreaterThan(0);
     }
     const facets = (await marketing.get(`${API}/leads/facets`).expect(200))
       .body;
@@ -179,12 +183,12 @@ describe('Demo seed (e2e)', () => {
 
   it('fills a lead so its detail screen has no empty sections', async () => {
     const marketing = await signIn(demoEmail(1, 'marketing'));
-    const { items } = await leadsOf(marketing, {
-      care: 'CARING',
-      origin: 'GA',
-    });
+    const { items } = await leadsOf(marketing, { care: 'CARING' });
+    const made = (items as { id: string; origin: string }[]).find(
+      (item) => item.origin === 'GA',
+    )!;
     const { lead, interactions, comments, tasks, history, campaign, assignee } =
-      (await marketing.get(`${API}/leads/${items[0].id}`).expect(200)).body;
+      (await marketing.get(`${API}/leads/${made.id}`).expect(200)).body;
     for (const field of [
       'email',
       'dob',

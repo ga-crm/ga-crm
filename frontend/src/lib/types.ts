@@ -50,7 +50,6 @@ export interface LeadOption {
   builtIn: boolean
 }
 export const LEAD_STAGES = ['NEW', 'CONTACTED', 'APPOINTMENT', 'MET', 'PROPOSAL', 'SUBMITTED', 'ISSUED', 'LOST'] as const
-export const LEAD_ORIGINS = ['GA', 'IMPORT', 'FC_OWN', 'PUBLIC_FORM', 'REFERRAL'] as const
 export type LeadStage = (typeof LEAD_STAGES)[number]
 /** LEAD-19: where a lead can be moved by hand. */
 export const LEAD_WORK_STAGES: readonly LeadStage[] = ['CONTACTED', 'APPOINTMENT', 'MET', 'PROPOSAL', 'SUBMITTED', 'LOST']

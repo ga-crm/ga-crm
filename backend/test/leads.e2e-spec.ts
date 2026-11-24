@@ -1170,7 +1170,6 @@ describe('Leads (e2e)', () => {
         { care: 'CARING' },
         { source: 'Nguồn Lọc' },
         { assignee: UM },
-        { origin: 'GA' },
         { stage: 'CONTACTED' },
       ]) {
         expect(await has(query), JSON.stringify(query)).toBe(true);
@@ -1180,7 +1179,6 @@ describe('Leads (e2e)', () => {
         { care: 'NONE' },
         { source: 'Khác' },
         { assignee: 'NONE' },
-        { origin: 'FC_OWN' },
         { stage: 'NEW' },
         { from: '2099-01-01' },
         { to: '2000-01-01' },
@@ -1190,6 +1188,8 @@ describe('Leads (e2e)', () => {
       // OPT-1: the filter takes any catalogue code, so an unknown one simply matches nothing
       expect(await has({ interest: 'BOGUS' })).toBe(false);
       await marketing.get(`${API}/leads`).query({ 'q[$ne]': 'x' }).expect(400);
+      // Decided 24/11/2026: one "Nguồn gốc" (the source); the system origin is not a filter
+      await marketing.get(`${API}/leads`).query({ origin: 'GA' }).expect(400);
 
       const facets = (await marketing.get(`${API}/leads/facets`).expect(200))
         .body;

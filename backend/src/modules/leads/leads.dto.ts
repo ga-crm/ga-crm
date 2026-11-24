@@ -23,11 +23,9 @@ import { CONTACT_TYPES } from './infrastructure/lead.entities.js';
 import {
   LEAD_CARE_STATUSES,
   LEAD_INTERESTS,
-  LEAD_ORIGINS,
   LEAD_STAGES,
   type LeadCareStatus,
   type LeadInterest,
-  type LeadOrigin,
   type LeadStage,
 } from './lead-rules.js';
 
@@ -89,11 +87,6 @@ export class ListLeadsQueryDto extends PageQueryDto {
   @IsString()
   @MaxLength(20)
   assignee?: string;
-
-  @ApiPropertyOptional({ enum: LEAD_ORIGINS })
-  @IsOptional()
-  @IsIn(LEAD_ORIGINS)
-  origin?: LeadOrigin;
 
   @ApiPropertyOptional({ example: '2026-11-01' })
   @IsOptional()

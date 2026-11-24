@@ -49,14 +49,16 @@ const editSchema = z.object({
   province: optionalText(100),
   email: optionalEmail,
   consent: z.enum(['yes', 'no']),
+  // OPT-3: a typed value may become a catalogue label; an older, longer one is only sent back unchanged
   source: requiredText(200),
   campaignId: z.string(),
 })
 type EditValues = z.infer<typeof editSchema>
-const EDIT_ERRORS = { invalid_phone: 'phone', phone_exists: 'phone' } as const
+const EDIT_ERRORS = { invalid_phone: 'phone', phone_exists: 'phone', unknown_option: 'source' } as const
 
 /** LEAD-8: source and campaign are shown for lead managers only. */
 function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => void }) {
+  const queryClient = useQueryClient()
   const refresh = useRefresh(detail.lead.id)
   const { lead, canManage } = detail
   const facets = useQuery(queries.leadFacets())
@@ -72,10 +74,13 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
       province: lead.province ?? '',
       email: lead.email ?? '',
       consent: lead.consentMarketing ? 'yes' : 'no',
-      source: lead.source,
+      // The field shows the GA's label; the API finds the source by label or code
+      source: catalogue.label('source', lead.source),
       campaignId: lead.campaignId ?? '',
     },
   })
+  const { errors, dirtyFields } = form.formState
+  const sourceChanged = !!dirtyFields.source
   const save = useMutation({
     mutationFn: ({ consent, dob, region, province, email, source, campaignId, ...rest }: EditValues) =>
       api.patch(`/leads/${lead.id}`, {
@@ -85,10 +90,12 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
         region: region || null,
         province: province || null,
         email: email || null,
-        ...(canManage && { source, campaignId: campaignId || null }),
+        // An untouched source is left out, so a lead keeps one the GA has since hidden (OPT-8)
+        ...(canManage && { ...(sourceChanged && { source }), campaignId: campaignId || null }),
       }),
     onSuccess: async () => {
-      await refresh()
+      // OPT-13: a typed source has joined the GA's list
+      await Promise.all([refresh(), queryClient.invalidateQueries({ queryKey: keys.leadOptions })])
       toast.success(t('toast.leadUpdated', { name: lead.fullName }))
       onClose()
     },
@@ -97,7 +104,6 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
       if (field) form.setError(field, { message: errorMessage(error) })
     },
   })
-  const { errors } = form.formState
   return (
     <form noValidate onSubmit={form.handleSubmit((values) => save.mutate(values))}>
       <div className={WIDE_FORM_GRID}>
@@ -128,14 +134,9 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
         </Field>
         {canManage && (
           <>
-            <Field label={t('leads.source')} htmlFor="edit-source" required error={errors.source?.message}>
-              <Select id="edit-source" aria-invalid={!!errors.source} {...form.register('source')}>
-                {choicesFor(catalogue, 'source', lead.source).map((option) => (
-                  <option key={option.id} value={option.code}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
+            <Field label={t('leads.source')} htmlFor="edit-source" required error={errors.source?.message} hint={t('leads.sourceHint')}>
+              <Input id="edit-source" list="edit-source-options" maxLength={200} placeholder={t('leads.sourcePlaceholder')} aria-invalid={!!errors.source} {...form.register('source')} />
+              <ListSuggestions id="edit-source-options" kind="source" />
             </Field>
             <Field label={t('leads.campaign')} htmlFor="edit-campaign">
               <Select id="edit-campaign" {...form.register('campaignId')}>

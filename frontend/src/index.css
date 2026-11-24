@@ -372,6 +372,15 @@ body {
   }
 }
 
+/* The sidebar still scrolls (wheel, touch, keyboard) but shows no bar: its rows fill the width, and
+   a bar beside them read as clutter (project owner, 25/11/2026). */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* The header row stays in place, so the vertical scrollbar starts below it (42 px, see .data-table). */
 @media (width >= 48rem) {
   .table-scroll {

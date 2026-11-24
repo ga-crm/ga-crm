@@ -85,7 +85,7 @@ Thiết kế ở [thiet-ke-he-thong.md](thiet-ke-he-thong.md), cách chuyển �
 | Ma trận phân quyền theo GA | Xong | Mục 4.2. Chưa có quyền mới `clients.assign`, `catalog.manage` |
 | Nhật ký kiểm toán: màn hình xem | Một phần | Chưa có xuất file |
 | Cây đại lý: nhập tay, nhập 01_Agents, phạm vi tuyến dưới | Xong | File 07 AGT, SCOPE-2. Chưa có xuất sơ đồ tổ chức, worker cho file 20.000 dòng, lưu file gốc. AGT-9 (ô chọn đại lý theo cây) đi cùng lát cắt 4 |
-| Danh mục lead: Nhu cầu, Trạng thái hiện tại, Nguồn | Xong | OPT-1 đến 10, OPT-12, OPT-13 (tạm, chờ câu 12a), LEAD-14, LEAD-15, DATA-9, màn hình 16.8, API 17.5. OPT-11 (cột báo cáo) chờ R1 |
+| Danh mục lead: Nhu cầu, Trạng thái hiện tại, Nguồn | Xong | OPT-1 đến 10, OPT-12, OPT-13 (24/11/2026: ai tạo lead cũng gõ được nguồn gốc mới; trên giao diện gọi là "Nguồn gốc", xem decisions), LEAD-14, LEAD-15, DATA-9, màn hình 16.8, API 17.5. OPT-11 (cột báo cáo) chờ R1 |
 | Cài đặt GA | Một phần | Mục 5.2, màn hình 16.16: hồ sơ, hạn liên hệ, ngưỡng liên hệ kịp thời, gói (chỉ xem), `409 stale_settings`. Còn danh sách phụ (chờ câu hỏi D), logo, lịch làm việc, giờ yên lặng |
 
 ## Lát cắt 3: chi tiết

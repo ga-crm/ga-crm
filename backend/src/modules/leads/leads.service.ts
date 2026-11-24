@@ -741,8 +741,6 @@ export class LeadsService {
             : 'lead.assignedAgentCode = :assignee',
           { assignee: query.assignee },
         );
-      if (query.origin)
-        builder.andWhere('lead.origin = :origin', { origin: query.origin });
       if (query.from)
         builder.andWhere('lead.leadDate >= :from', { from: query.from });
       if (query.to) builder.andWhere('lead.leadDate <= :to', { to: query.to });
