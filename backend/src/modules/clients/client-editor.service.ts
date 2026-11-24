@@ -1,4 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { In } from 'typeorm';
 import type { EntityManager } from 'typeorm';
 import {
   ApiException,
@@ -11,12 +12,13 @@ import { normalizeName, parsePhone } from '../../common/normalize.js';
 import { Permission, Role } from '../../common/rbac.js';
 import type { Actor, Scope } from '../../common/rbac.js';
 import { and, sql } from '../../core/persistence/fragment.js';
+import { newId } from '../../core/persistence/ids.js';
 import { TenantDb } from '../../core/tenancy/tenant-db.js';
 import { AgentsService } from '../agents/agents.service.js';
 import { AuditAction, AuditService } from '../audit/audit.service.js';
 import { maskPhone } from '../leads/lead-rules.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
-import { CLIENT_CODE, POLICY_NO } from './client.constants.js';
+import { POLICY_NO } from './client.constants.js';
 import {
   ageBandOf,
   birthDayMonthOf,
@@ -34,6 +36,7 @@ import type {
 import {
   clientsSeen,
   ClientsService,
+  peopleOn,
   policiesNaming,
 } from './clients.service.js';
 import {
@@ -41,33 +44,11 @@ import {
   Policy,
   RecordChange,
 } from './infrastructure/client.entities.js';
-import type { PolicyClient } from './infrastructure/client.entities.js';
+import type {
+  PolicyClient,
+  PolicyProduct,
+} from './infrastructure/client.entities.js';
 import { ProgramsService } from './programs.service.js';
-
-/** Runs `work` and puts `prefix` in front of the field paths of an error it throws. */
-async function withPathPrefix<T>(
-  prefix: string,
-  work: () => Promise<T>,
-): Promise<T> {
-  try {
-    return await work();
-  } catch (error) {
-    if (error instanceof ApiException) {
-      const body = error.getResponse() as {
-        error: ErrorCode;
-        issues?: { path: string; message: string }[];
-      };
-      if (body.issues)
-        throw new ApiException(error.getStatus(), body.error, {
-          issues: body.issues.map((issue) => ({
-            ...issue,
-            path: `${prefix}${issue.path}`,
-          })),
-        });
-    }
-    throw error;
-  }
-}
 
 const todayInVietnam = () =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(
@@ -182,7 +163,7 @@ export class ClientEditorService {
   /** CUS-6: owners and GA_HEAD change a client; a line manager only reads (client_not_yours). */
   async ownedClient(
     actor: Actor,
-    clientCode: string,
+    clientId: string,
     outer?: EntityManager,
   ): Promise<Client> {
     const scope = this.scopeOf(actor);
@@ -194,7 +175,7 @@ export class ClientEditorService {
           .clients(
             db,
             scope,
-            and(sql`c.client_code = ${clientCode}`, clientsSeen(reach)),
+            and(sql`c.id = ${clientId}`, clientsSeen(reach)),
           )
           .getOne();
         if (!client) throw notFound();
@@ -291,28 +272,29 @@ export class ClientEditorService {
     );
   }
 
-  /** POL-2 + POL-3: one policy entered by hand: the agent at 100% serving, PO and LI links, its lines. */
+  /**
+   * POL-2 + POL-3: the fields, PO / LI links and lines of a policy entered by hand. `holder` is the
+   * client who pays (the client on screen when the policy is added); `current` is the main insured
+   * already on the policy, kept when the form still names them.
+   */
   private async buildPolicy(
     actor: Actor,
-    client: { clientCode: string; name: string },
+    holder: { id: string; name: string } | null,
     dto: PolicyFieldsDto,
     agentCode: string,
     db: EntityManager,
-    currentInsured?: string | null,
+    current?: { id: string | null; name: string } | null,
   ) {
     const scope = this.scopeOf(actor);
-    const insured = await this.insuredOf(
-      actor,
-      client,
-      dto,
-      db,
-      currentInsured,
-    );
+    const insured = this.insuredOf(holder, dto, current);
     const programs = await this.programsFor(scope, dto.products ?? [], db);
     const lines = buildProductLines({
       lines: dto.products ?? [],
       programs,
-      mainInsured: insured,
+      mainInsured: {
+        clientId: insured?.id ?? undefined,
+        name: insured?.name ?? '',
+      },
     });
     if ('repeated' in lines)
       throw new ApiException(HttpStatus.CONFLICT, ErrorCode.ProgramRepeated, {
@@ -329,16 +311,22 @@ export class ClientEditorService {
     return {
       fields: {
         ...fields,
-        holderClientCode: client.clientCode,
-        holderName: client.name,
-        holderNameNorm: normalizeName(client.name),
-        insuredClientCode: insured.code,
-        insuredName: insured.name,
-        insuredNameNorm: normalizeName(insured.name),
+        ...(holder && {
+          holderClientId: holder.id,
+          holderName: holder.name,
+          holderNameNorm: normalizeName(holder.name),
+        }),
+        insuredClientId: insured?.id ?? null,
+        insuredName: insured?.name ?? null,
+        insuredNameNorm: insured ? normalizeName(insured.name) : null,
       },
       clients: [
-        { clientCode: client.clientCode, role: 'PO', source: 'POLICY' },
-        { clientCode: insured.code, role: 'LI', source: 'POLICY' },
+        ...(holder
+          ? [{ clientId: holder.id, role: 'PO', source: 'POLICY' }]
+          : []),
+        ...(insured?.id
+          ? [{ clientId: insured.id, role: 'LI', source: 'POLICY' }]
+          : []),
       ] as PolicyClient[],
       products: lines.products,
       agentCode,
@@ -346,43 +334,22 @@ export class ClientEditorService {
   }
 
   /**
-   * POL-2: blank means the client is also the main insured.
-   * CUS-4 + CUS-6: the insured link makes the serving agent an owner of that client, so a client
-   * already in the GA can be named only by someone who owns it. Otherwise any agent could take
-   * over another agent's client, and read its name, by typing its code. `current` is the policy's
-   * insured before an edit, which may stay as it is.
+   * POL-2: blank, or the holder's own name, means the holder is also the main insured. The insured
+   * already on the policy stays when the form keeps their name; any other name is a person known
+   * only by that name (PRD-3), never another client: naming someone else's client would make the
+   * serving agent its owner (CUS-4, CUS-6).
    */
-  private async insuredOf(
-    actor: Actor,
-    client: { clientCode: string; name: string },
+  private insuredOf(
+    holder: { id: string; name: string } | null,
     dto: PolicyFieldsDto,
-    db: EntityManager,
-    current?: string | null,
-  ): Promise<{ code: string; name: string }> {
-    const scope = this.scopeOf(actor);
-    const code = dto.insuredClientCode ?? client.clientCode;
-    if (code === client.clientCode)
-      return { code, name: dto.insuredName || client.name };
-    const known = await db
-      .getRepository(Client)
-      .findOneBy({ tenantId: scope.tenantId, clientCode: code });
-    if (
-      known &&
-      code !== current &&
-      !actor.roles.includes(Role.GaHead) &&
-      !(actor.agentCode && known.ownerAgentCodes.includes(actor.agentCode))
-    )
-      throw new ApiException(HttpStatus.FORBIDDEN, ErrorCode.InsuredNotYours, {
-        issues: [
-          { path: 'insuredClientCode', message: ErrorCode.InsuredNotYours },
-        ],
-      });
-    const name = dto.insuredName || known?.name;
-    if (!name)
-      throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.InvalidInput, {
-        issues: [{ path: 'insuredName', message: 'required' }],
-      });
-    return { code, name };
+    current?: { id: string | null; name: string } | null,
+  ): { id: string | null; name: string } | null {
+    const name = dto.insuredName?.trim();
+    const same = (other?: string | null) =>
+      !!other && normalizeName(other) === normalizeName(name ?? '');
+    if (holder && (!name || same(holder.name))) return holder;
+    if (current && (!name || same(current.name))) return current;
+    return name ? { id: null, name } : null;
   }
 
   /** POL-2: 9 digits, not in the GA yet. `path` points the error at the right field of a form. */
@@ -411,7 +378,12 @@ export class ClientEditorService {
     scope: Scope,
     actor: Actor,
     policyNo: string,
-    built: Awaited<ReturnType<ClientEditorService['buildPolicy']>>,
+    built: {
+      fields: Fields;
+      clients: PolicyClient[];
+      products: PolicyProduct[];
+      agentCode: string;
+    },
     now: Date,
     db: EntityManager,
   ): Promise<void> {
@@ -448,7 +420,7 @@ export class ClientEditorService {
         entity: 'policy',
         entityId: policyNo,
         meta: {
-          clientCode: built.fields.holderClientCode,
+          clientId: (built.fields.holderClientId as string | undefined) ?? null,
           agentCode: built.agentCode,
           products: built.products.length,
         },
@@ -480,80 +452,87 @@ export class ClientEditorService {
     );
   }
 
-  /** MAN-1 to MAN-5, MAN-7 */
-  async create(
-    actor: Actor,
-    dto: CreateClientDto,
-  ): Promise<{ clientCode: string }> {
+  /**
+   * MAN-1 to MAN-3 and MAN-7, as decided on 25/11/2026: a client is added on a policy, by its
+   * number and the role they hold. A number not in the GA yet starts a policy holding only that
+   * number (POL-2); a number already there must be a policy the person may work on.
+   */
+  async create(actor: Actor, dto: CreateClientDto): Promise<{ id: string }> {
     const scope = this.scopeOf(actor);
     const reach = await this.reader.reach(actor); // MAN-1: Marketing and Admin are refused here
-    // MAN-2 [QĐ 11/2026]: exactly 10 digits, so a later 02_Clients import updates this record
-    if (!CLIENT_CODE.test(dto.clientCode))
+    if (!POLICY_NO.test(dto.policyNo))
       throw new ApiException(
         HttpStatus.BAD_REQUEST,
-        ErrorCode.InvalidClientCode,
-        {
-          issues: [
-            { path: 'clientCode', message: ErrorCode.InvalidClientCode },
-          ],
-        },
+        ErrorCode.InvalidPolicyNo,
+        { issues: [{ path: 'policyNo', message: ErrorCode.InvalidPolicyNo }] },
       );
+    const id = newId();
     try {
-      // MAN-5: the client and its policies are saved together, or not at all
       await this.tenantDb.run(scope, async (db) => {
-        const agentCode = await this.resolveAgent(
-          actor,
-          dto.agentCode,
-          undefined,
-          db,
-        );
-        const { set } = this.clientValues(dto);
-        // MAN-4: a code in use is refused; it is only named back to someone who already sees that client
-        const existing = await db
-          .getRepository(Client)
-          .findOneBy({ tenantId: scope.tenantId, clientCode: dto.clientCode });
-        if (existing) {
-          const visible =
+        const now = new Date();
+        const policy = await this.reader
+          .policies(db, scope, sql`p.policy_no = ${dto.policyNo}`)
+          .setLock('pessimistic_write')
+          .getOne();
+        const people = policy ? peopleOn(policy) : new Map<string, Set<string>>();
+        if (policy) {
+          // Someone else's policy is refused without telling who is on it (as MAN-4 did for codes)
+          const seen =
             reach.all ||
-            existing.visibleAgentCodes.some((code) =>
-              reach.codes.includes(code),
-            );
-          throw new ApiException(
-            HttpStatus.CONFLICT,
-            ErrorCode.ClientExists,
-            visible ? { clientCode: dto.clientCode } : undefined,
-          );
-        }
-        const policies = dto.policies ?? [];
-        const numbers = new Set<string>();
-        for (const [index, policy] of policies.entries()) {
-          await this.assertNewPolicy(
-            scope,
-            policy.policyNo,
-            `policies.${index}.policyNo`,
-            db,
-          );
-          if (numbers.has(policy.policyNo))
+            policy.currentAgentCodes.some((code) => reach.codes.includes(code));
+          if (!seen)
             throw new ApiException(
-              HttpStatus.CONFLICT,
-              ErrorCode.PolicyExists,
+              HttpStatus.FORBIDDEN,
+              ErrorCode.PolicyNotYours,
               {
                 issues: [
-                  {
-                    path: `policies.${index}.policyNo`,
-                    message: ErrorCode.PolicyExists,
-                  },
+                  { path: 'policyNo', message: ErrorCode.PolicyNotYours },
                 ],
               },
             );
-          numbers.add(policy.policyNo);
+          if (
+            dto.role === 'PO' &&
+            [...people.values()].some((roles) => roles.has('PO'))
+          )
+            throw new ApiException(
+              HttpStatus.CONFLICT,
+              ErrorCode.HolderExists,
+              { issues: [{ path: 'role', message: ErrorCode.HolderExists }] },
+            );
         }
-        const now = new Date();
+        // MAN-3: the policy's serving agent when the person entering it is not an agent
+        const agentCode = await this.resolveAgent(
+          actor,
+          dto.agentCode,
+          policy?.servicingAgentCode ?? undefined,
+          db,
+        );
+        const { set } = this.clientValues(dto);
+        // The same person twice on one policy: same name and, when both are known, birth date
+        const others =
+          people.size > 0
+            ? await db
+                .getRepository(Client)
+                .findBy({ tenantId: scope.tenantId, id: In([...people.keys()]) })
+            : [];
+        if (
+          others.some(
+            (other) =>
+              other.nameNorm === set.nameNorm &&
+              (!other.dob || !set.dob || other.dob === set.dob),
+          )
+        )
+          throw new ApiException(
+            HttpStatus.CONFLICT,
+            ErrorCode.PersonOnPolicy,
+            { issues: [{ path: 'name', message: ErrorCode.PersonOnPolicy }] },
+          );
+
         const clients = db.getRepository(Client);
         await clients.insert(
           clients.create({
+            id,
             tenantId: scope.tenantId,
-            clientCode: dto.clientCode,
             ...set,
             agentLinks: [{ agentCode, source: 'MANUAL', createdAt: now }],
             visibleAgentCodes: [agentCode],
@@ -564,35 +543,61 @@ export class ClientEditorService {
             updatedAt: now,
           }),
         );
-        const touched = new Set([dto.clientCode]);
-        for (const [index, policy] of policies.entries()) {
-          const policyAgent = await this.resolveAgent(
-            actor,
-            policy.agentCode,
-            agentCode,
-            db,
+        const name = set.name as string;
+        const holder = dto.role === 'PO';
+        // CUS-11: one main insured; anyone else insured is on a product line (PRD-3)
+        const mainInsured =
+          dto.role === 'LI' &&
+          !(policy?.clients ?? []).some(
+            (link) =>
+              link.role === 'LI' && link.source === 'POLICY' && !link.endedAt,
           );
-          // A policy's own error paths are relative; the client form needs them under policies.<n>
-          const built = await withPathPrefix(`policies.${index}.`, () =>
-            this.buildPolicy(
-              actor,
-              { clientCode: dto.clientCode, name: set.name as string },
-              policy,
-              policyAgent,
-              db,
-            ),
+        const link: PolicyClient = {
+          clientId: id,
+          role: dto.role,
+          source: dto.role === 'LI' && !mainInsured ? 'PRODUCT' : 'POLICY',
+        };
+        const fields: Fields = {
+          ...(holder && {
+            holderClientId: id,
+            holderName: name,
+            holderNameNorm: set.nameNorm,
+          }),
+          ...(mainInsured && {
+            insuredClientId: id,
+            insuredName: name,
+            insuredNameNorm: set.nameNorm,
+          }),
+        };
+        // PRD-3: a product line that named this insured person only by name is now theirs
+        const products = (policy?.products ?? []).map((line) =>
+          dto.role === 'LI' &&
+          !line.insuredClientId &&
+          line.insuredName &&
+          normalizeName(line.insuredName) === set.nameNorm
+            ? { ...line, insuredClientId: id }
+            : line,
+        );
+        if (policy)
+          await db.getRepository(Policy).update(
+            { id: policy.id },
+            {
+              ...fields,
+              clients: [...policy.clients, link],
+              products,
+              updatedAt: now,
+            },
           );
+        else
           await this.insertPolicy(
             scope,
             actor,
-            policy.policyNo,
-            built,
+            dto.policyNo,
+            { fields, clients: [link], products: [], agentCode },
             now,
             db,
           );
-          touched.add(built.fields.insuredClientCode);
-        }
-        await this.reader.recomputeLinks(scope, [...touched], now, db);
+        await this.reader.recomputeLinks(scope, [id, ...people.keys()], now, db);
         // MAN-7, PDP-9: the phone is masked in the audit log
         await this.audit.record(
           {
@@ -600,10 +605,11 @@ export class ClientEditorService {
             userId: actor.id,
             action: AuditAction.Create,
             entity: 'client',
-            entityId: dto.clientCode,
+            entityId: id,
             meta: {
               agentCode,
-              policies: policies.length,
+              policyNo: dto.policyNo,
+              role: dto.role,
               ...(set.phone ? { phone: maskPhone(set.phone as string) } : {}),
             },
           },
@@ -611,25 +617,26 @@ export class ClientEditorService {
         );
       });
     } catch (error) {
-      if (pgError(error)?.constraint === 'clients_code_key')
-        throw new ApiException(HttpStatus.CONFLICT, ErrorCode.ClientExists);
+      // Two people starting the same new number at once: the second one is told it exists
       if (pgError(error)?.constraint === 'policies_no_key')
-        throw new ApiException(HttpStatus.CONFLICT, ErrorCode.PolicyExists);
+        throw new ApiException(HttpStatus.CONFLICT, ErrorCode.PolicyExists, {
+          issues: [{ path: 'policyNo', message: ErrorCode.PolicyExists }],
+        });
       throw error;
     }
-    return { clientCode: dto.clientCode };
+    return { id };
   }
 
   /** MAN-6 + MAN-7: absent keeps a field, null clears it; the code and the agent never change here. */
   async update(
     actor: Actor,
-    clientCode: string,
+    clientId: string,
     dto: ClientFieldsDto,
   ): Promise<void> {
     const scope = this.scopeOf(actor);
     const now = new Date();
     await this.tenantDb.run(scope, async (db) => {
-      const client = await this.ownedClient(actor, clientCode, db);
+      const client = await this.ownedClient(actor, clientId, db);
       const { set, unset } = this.clientValues(dto, client);
       const record = client as unknown as Fields;
       const changes = [...Object.keys(set), ...unset]
@@ -637,7 +644,7 @@ export class ClientEditorService {
         .filter((field) => !['nameNorm', 'birthMonth'].includes(field))
         .map((field) => ({
           entity: 'client',
-          entityKey: clientCode,
+          entityKey: client.id,
           field,
           // PDP-9: never a phone number in clear in the history either
           oldValue:
@@ -658,15 +665,23 @@ export class ClientEditorService {
           updatedAt: now,
         },
       );
-      // MAN-6: a new name reaches the policies the client holds
-      if (set.name)
+      // MAN-6: a new name reaches the policies the client holds or is the main insured of
+      if (set.name) {
         await db.getRepository(Policy).update(
-          { tenantId: scope.tenantId, holderClientCode: clientCode },
+          { tenantId: scope.tenantId, holderClientId: client.id },
           {
             holderName: set.name as string,
             holderNameNorm: set.nameNorm as string,
           },
         );
+        await db.getRepository(Policy).update(
+          { tenantId: scope.tenantId, insuredClientId: client.id },
+          {
+            insuredName: set.name as string,
+            insuredNameNorm: set.nameNorm as string,
+          },
+        );
+      }
       await this.recordChanges(scope, actor, changes, now, db);
       await this.audit.record(
         {
@@ -674,7 +689,7 @@ export class ClientEditorService {
           userId: actor.id,
           action: AuditAction.Update,
           entity: 'client',
-          entityId: clientCode,
+          entityId: client.id,
           meta: { fields: changes.map((change) => change.field) },
         },
         db,
@@ -685,14 +700,14 @@ export class ClientEditorService {
   /** POL-1 to POL-3, POL-6 */
   async addPolicy(
     actor: Actor,
-    clientCode: string,
+    clientId: string,
     dto: CreatePolicyDto,
   ): Promise<{ policyNo: string }> {
     const scope = this.scopeOf(actor);
     const now = new Date();
     try {
       await this.tenantDb.run(scope, async (db) => {
-        const client = await this.ownedClient(actor, clientCode, db);
+        const client = await this.ownedClient(actor, clientId, db);
         await this.assertNewPolicy(scope, dto.policyNo, 'policyNo', db);
         const fallback =
           client.agentLinks.find((link) => link.source === 'MANUAL')
@@ -707,7 +722,7 @@ export class ClientEditorService {
         await this.insertPolicy(scope, actor, dto.policyNo, built, now, db);
         await this.reader.recomputeLinks(
           scope,
-          [clientCode, built.fields.insuredClientCode],
+          [client.id, ...(built.fields.insuredClientId ? [built.fields.insuredClientId] : [])],
           now,
           db,
         );
@@ -726,48 +741,57 @@ export class ClientEditorService {
    */
   async updatePolicy(
     actor: Actor,
-    clientCode: string,
+    clientId: string,
     policyNo: string,
     dto: PolicyFieldsDto,
   ): Promise<void> {
     const scope = this.scopeOf(actor);
     const now = new Date();
     await this.tenantDb.run(scope, async (db) => {
-      const client = await this.ownedClient(actor, clientCode, db);
+      await this.ownedClient(actor, clientId, db);
       // POL-4: only a policy of the client on screen
       const policy = await this.reader
         .policies(
           db,
           scope,
-          and(sql`p.policy_no = ${policyNo}`, policiesNaming([clientCode])),
+          and(sql`p.policy_no = ${policyNo}`, policiesNaming([clientId])),
         )
         .setLock('pessimistic_write')
         .getOne();
       if (!policy) throw notFound();
       const keepProducts = dto.products === undefined;
+      // The holder stays who they are; the client on screen may be the insured or a beneficiary
       const built = await this.buildPolicy(
         actor,
-        client,
+        policy.holderClientId
+          ? { id: policy.holderClientId, name: policy.holderName ?? '' }
+          : null,
         { ...dto, products: dto.products ?? [] },
         policy.servicingAgentCode ?? policy.currentAgentCodes[0],
         db,
-        policy.insuredClientCode,
+        policy.insuredName
+          ? { id: policy.insuredClientId, name: policy.insuredName }
+          : null,
       );
-      // POL-4: the PO and LI links are written again, in case the insured person changed
+      // POL-4: the PO and LI links are written again, in case the insured person changed; an
+      // insured known only by name ends the old insured's link
       const clients = policy.clients.map((link) => ({ ...link }));
-      for (const wanted of built.clients) {
+      for (const role of ['PO', 'LI'] as const) {
+        const wanted = built.clients.find((link) => link.role === role);
+        if (role === 'PO' && !wanted) continue;
         for (const link of clients)
           if (
-            link.role === wanted.role &&
+            link.role === role &&
             link.source === 'POLICY' &&
             !link.endedAt &&
-            link.clientCode !== wanted.clientCode
+            link.clientId !== wanted?.clientId
           )
             link.endedAt = now;
+        if (!wanted) continue;
         const same = clients.find(
           (link) =>
-            link.clientCode === wanted.clientCode &&
-            link.role === wanted.role &&
+            link.clientId === wanted.clientId &&
+            link.role === role &&
             link.source === 'POLICY',
         );
         if (same) delete same.endedAt;
@@ -804,8 +828,8 @@ export class ClientEditorService {
       await db
         .getRepository(Policy)
         .update({ id: policy.id }, { ...next, updatedAt: now });
-      const touched = new Set(policy.clients.map((link) => link.clientCode));
-      touched.add(built.fields.insuredClientCode);
+      const touched = new Set(policy.clients.map((link) => link.clientId));
+      if (built.fields.insuredClientId) touched.add(built.fields.insuredClientId);
       await this.reader.recomputeLinks(scope, [...touched], now, db);
       await this.recordChanges(scope, actor, changes, now, db);
       await this.audit.record(
@@ -815,7 +839,7 @@ export class ClientEditorService {
           action: AuditAction.Update,
           entity: 'policy',
           entityId: policyNo,
-          meta: { clientCode, fields: changes.map((change) => change.field) },
+          meta: { clientId, fields: changes.map((change) => change.field) },
         },
         db,
       );
@@ -827,13 +851,13 @@ export class ClientEditorService {
    * by whoever may edit the client, while it is at most 7 days old and no Success import has written
    * it. The audit keeps what it was; the client's links are worked out again without it.
    */
-  async deletePolicy(actor: Actor, clientCode: string, policyNo: string): Promise<void> {
+  async deletePolicy(actor: Actor, clientId: string, policyNo: string): Promise<void> {
     const scope = this.scopeOf(actor);
     const now = new Date();
     await this.tenantDb.run(scope, async (db) => {
-      await this.ownedClient(actor, clientCode, db);
+      await this.ownedClient(actor, clientId, db);
       const policy = await this.reader
-        .policies(db, scope, and(sql`p.policy_no = ${policyNo}`, policiesNaming([clientCode])))
+        .policies(db, scope, and(sql`p.policy_no = ${policyNo}`, policiesNaming([clientId])))
         .setLock('pessimistic_write')
         .getOne();
       if (!policy) throw notFound();
@@ -842,7 +866,7 @@ export class ClientEditorService {
       await db.getRepository(Policy).delete({ id: policy.id, tenantId: scope.tenantId });
       await this.reader.recomputeLinks(
         scope,
-        [...new Set(policy.clients.map((link) => link.clientCode))],
+        [...new Set(policy.clients.map((link) => link.clientId))],
         now,
         db,
       );
@@ -854,7 +878,7 @@ export class ClientEditorService {
           entity: 'policy',
           entityId: policyNo,
           meta: {
-            clientCode,
+            clientId,
             agentCode: policy.servicingAgentCode,
             createdAt: policy.createdAt.toISOString(),
             products: policy.products.length,
@@ -880,7 +904,7 @@ export class ClientEditorService {
     )
       throw forbidden();
     const scope = this.scopeOf(actor);
-    const codes = [...new Set(dto.clientCodes)];
+    const ids = [...new Set(dto.clientIds)];
     return this.tenantDb.run(scope, async (db) => {
       // ASG-7: Marketing and Admin have no client book, so reach() refuses them
       const reach = await this.reader.reach(actor, db);
@@ -888,12 +912,12 @@ export class ClientEditorService {
         .clients(
           db,
           scope,
-          and(sql`c.client_code = ANY(${codes}::text[])`, clientsSeen(reach)),
+          and(sql`c.id = ANY(${ids}::uuid[])`, clientsSeen(reach)),
         )
         .setLock('pessimistic_write')
         .getMany();
-      // ASG-4: every code must be a client of the GA (and in the person's scope)
-      if (clients.length !== codes.length) throw notFound();
+      // ASG-4: every client must be of the GA (and in the person's scope)
+      if (clients.length !== ids.length) throw notFound();
       const agentCode = dto.agentCode;
       if (agentCode) {
         const known = await this.agents.namesByCode(scope, [agentCode], db);
@@ -925,13 +949,13 @@ export class ClientEditorService {
           .update({ id: client.id }, { agentLinks, updatedAt: now });
         changes.push({
           entity: 'client',
-          entityKey: client.clientCode,
+          entityKey: client.id,
           field: 'manualAgent',
           oldValue: before,
           newValue: agentCode ?? undefined,
         });
       }
-      await this.reader.recomputeLinks(scope, codes, now, db);
+      await this.reader.recomputeLinks(scope, ids, now, db);
       await this.recordChanges(scope, actor, changes, now, db);
       // ASG-6: one entry for the batch, with the agent and the number of clients
       await this.audit.record(
@@ -943,9 +967,9 @@ export class ClientEditorService {
           entityId: agentCode ?? undefined,
           meta: {
             agentCode,
-            count: codes.length,
+            count: ids.length,
             changed: changes.length,
-            clientCodes: codes,
+            clientIds: ids,
           },
         },
         db,
@@ -958,7 +982,7 @@ export class ClientEditorService {
           changes.length === 1
             ? {
                 type: 'CLIENT_ASSIGNED',
-                data: { count: 1, clientCode: changes[0].entityKey },
+                data: { count: 1, clientId: changes[0].entityKey },
                 link: `/clients/${changes[0].entityKey}`,
               }
             : {
@@ -968,7 +992,7 @@ export class ClientEditorService {
               },
           { except: actor.id, db },
         );
-      return { assigned: codes.length };
+      return { assigned: ids.length };
     });
   }
 }

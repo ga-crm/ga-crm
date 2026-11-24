@@ -8,12 +8,10 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  Matches,
   MaxLength,
   ValidateIf,
 } from 'class-validator';
 import { IsCalendarDate } from '../../common/validators.js';
-import { CLIENT_CODE } from '../clients/client.constants.js';
 import { SIGNAL_CODES } from '../clients/client-insights.js';
 import { TASK_STATUSES } from '../leads/infrastructure/lead.entities.js';
 
@@ -44,10 +42,10 @@ export class ListTasksQueryDto {
   @IsUUID()
   leadId?: string;
 
-  @ApiPropertyOptional({ example: '0000000001' })
+  @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
-  @Matches(CLIENT_CODE)
-  clientCode?: string;
+  @IsUUID()
+  clientId?: string;
 
   /** "quản lý: của đội" */
   @ApiPropertyOptional({ description: '1 = việc của cả tuyến (quản lý)' })
@@ -70,10 +68,10 @@ export class CreateTaskDto {
   @IsDate()
   dueAt: Date;
 
-  @ApiPropertyOptional({ example: '0000000001' })
+  @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
-  @Matches(CLIENT_CODE)
-  clientCode?: string;
+  @IsUUID()
+  clientId?: string;
 }
 
 /** Section 17.8 POST /clients/{code}/tasks, from a care opportunity when `signal` is given (SIG-2). */

@@ -48,28 +48,31 @@ export interface ProductLineInput {
 export function buildProductLines(input: {
   lines: readonly ProductLineInput[];
   programs: ReadonlyMap<string, ProgramRef>;
-  mainInsured: { code?: string; name: string };
+  mainInsured: { clientId?: string; name: string };
 }): { products: PolicyProduct[] } | { repeated: number } {
   const seen = new Set<string>();
   const products: PolicyProduct[] = [];
   for (const [index, line] of input.lines.entries()) {
     const program = input.programs.get(line.programCode)!;
     const name = line.insuredName?.trim() || input.mainInsured.name;
-    // PRD-3: only the main insured has a client code; a name alone never becomes a client link
+    // PRD-3: only the main insured is a client; a name alone never becomes a client link
     const isMain =
       normalizeName(name) === normalizeName(input.mainInsured.name);
     // PRD-6: the DLVN product code when the GA knows it, so a later 04 import matches this line
     const productCode = program.productCode || program.code;
     // PRD-4: one programme once per insured person
     const person = isMain
-      ? `#${input.mainInsured.code ?? ''}`
+      ? `#${input.mainInsured.clientId ?? ''}`
       : normalizeName(name);
     const key = `${productCode}|${person}`;
     if (seen.has(key)) return { repeated: index };
     seen.add(key);
     products.push({
       productCode,
-      insuredCode: isMain ? (input.mainInsured.code ?? '') : '',
+      ...(isMain &&
+        input.mainInsured.clientId && {
+          insuredClientId: input.mainInsured.clientId,
+        }),
       productName: program.label,
       // PRG-7: the catalogue's role unless the line says otherwise
       productRole: line.productRole ?? program.productRole,

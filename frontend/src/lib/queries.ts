@@ -310,7 +310,7 @@ export const queries = {
       gcTime: 0,
     }),
 
-  /** CMT-5: people who see a lead or client, for the @ picker. `path` is `/leads/{id}` or `/clients/{code}`. */
+  /** CMT-5: people who see a lead or client, for the @ picker. `path` is `/leads/{id}` or `/clients/{id}`. */
   mentionable: (path: string, q: string) =>
     queryOptions({
       queryKey: ['mentionable', path, q],
@@ -429,12 +429,12 @@ export const queries = {
     }),
 
   /** CUS-15. Each visit is audited (CUS-9), so it is not served from a long cache. */
-  client: (code: string) =>
+  client: (id: string) =>
     queryOptions({
-      queryKey: [...keys.clients, 'detail', code],
-      queryFn: ({ signal }) => api.get<ClientDetail>(`/clients/${code}`, undefined, { signal }),
+      queryKey: [...keys.clients, 'detail', id],
+      queryFn: ({ signal }) => api.get<ClientDetail>(`/clients/${id}`, undefined, { signal }),
       staleTime: 0,
-      retry: (count, error) => !(error instanceof ApiError && (error.status === 404 || error.status === 403)) && count < 2,
+      retry: (count, error) => !(error instanceof ApiError && [400, 403, 404].includes(error.status)) && count < 2,
     }),
 
   /** USER-16: PLATFORM_ADMIN only; the switches above every GA's own settings. */

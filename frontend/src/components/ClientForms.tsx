@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import type { Control, FieldErrors, UseFormRegister } from 'react-hook-form'
-import { Link } from 'react-router-dom'
 import { z } from 'zod'
 import { useMe } from '../auth/useMe'
 import { t } from '../i18n'
@@ -11,12 +10,14 @@ import { api, ApiError, errorMessage } from '../lib/api'
 import { keys, queries } from '../lib/queries'
 import { toast } from '../lib/toast'
 import { AGE_BANDS, CLIENT_TIERS, GENDERS, MARITAL_STATUSES, PREMIUM_FREQUENCIES, PRODUCT_ROLES } from '../lib/types'
-import type { ClientDetail, ClientPolicy } from '../lib/types'
-import { optionalBirthDate, optionalDate, optionalText, requiredDate, requiredText } from '../lib/validation'
-import { Button, Field, FormError, IconButton, Input, MODAL_FOOTER, Panel, Select, WIDE_FORM_GRID } from './ui'
+import type { ClientDetail, ClientPolicy, PolicyRole } from '../lib/types'
+import { optionalBirthDate, optionalDate, optionalText, requiredText } from '../lib/validation'
+import { Button, Field, FormError, IconButton, Input, MODAL_FOOTER, Select, WIDE_FORM_GRID } from './ui'
 
 const money = z.string().trim().regex(/^\d*$/, t('validation.money'))
-const requiredMoney = money.min(1, t('validation.required'))
+// POL-2: exactly 9 digits, kept as a string so leading zeros stay
+const policyNo = z.string().trim().regex(/^\d{9}$/, t('errors.invalid_policy_no'))
+const POLICY_ROLES = ['PO', 'LI', 'BEN'] as const satisfies readonly PolicyRole[]
 const yesNoUnknown = z.enum(['', 'yes', 'no'])
 
 const productSchema = z.object({
@@ -32,13 +33,14 @@ const productSchema = z.object({
   startDate: optionalDate,
 })
 
+// POL-2 [25/11/2026]: every field but the number may come later, or from Success
 const policySchema = z.object({
   policyNo: z.string().trim(),
-  status: requiredText(100),
-  effectiveDate: requiredDate,
-  maturityDate: requiredDate,
-  premiumFrequency: z.string().min(1, t('validation.required')),
-  basePremiumVnd: requiredMoney,
+  status: optionalText(100),
+  effectiveDate: optionalDate,
+  maturityDate: optionalDate,
+  premiumFrequency: z.string(),
+  basePremiumVnd: money,
   premiumDueDate: optionalDate,
   plannedPremiumVnd: money,
   unpaidPremiumVnd: money,
@@ -64,11 +66,11 @@ const clientSchema = z.object({
 })
 type ClientValues = z.infer<typeof clientSchema>
 
+// MAN-1 [25/11/2026]: a client is added on a policy, by its number and the role they hold there
 const createSchema = clientSchema.extend({
-  // MAN-2 [QĐ 11/2026]: exactly 10 digits, checked here and again by the API
-  clientCode: z.string().trim().regex(/^\d{10}$/, t('errors.invalid_client_code')),
+  policyNo,
+  role: z.string().min(1, t('validation.required')),
   agentCode: z.string(),
-  policies: z.array(policySchema.extend({ policyNo: z.string().trim().regex(/^\d{9}$/, t('errors.invalid_policy_no')) })).max(10),
 })
 type CreateValues = z.infer<typeof createSchema>
 
@@ -86,10 +88,10 @@ const emptyProduct = (): PolicyValues['products'][number] => ({
 })
 const emptyPolicy = (): PolicyValues => ({
   policyNo: '',
-  status: 'Đang hiệu lực',
+  status: '',
   effectiveDate: '',
   maturityDate: '',
-  premiumFrequency: 'Năm',
+  premiumFrequency: '',
   basePremiumVnd: '',
   premiumDueDate: '',
   plannedPremiumVnd: '',
@@ -118,14 +120,14 @@ const bool = (value: string) => (value === '' ? undefined : value === 'yes')
 const text = (value: string) => value.trim() || undefined
 const choice = (value: boolean | null) => (value === null ? '' : value ? 'yes' : 'no')
 
-/** POL-2 + PRD-1: the body the API takes for a policy. */
+/** POL-2 + PRD-1: the body the API takes for a policy; a blank field is left out. */
 function policyBody(values: PolicyValues) {
   return {
-    status: values.status,
-    effectiveDate: values.effectiveDate,
-    maturityDate: values.maturityDate,
-    premiumFrequency: values.premiumFrequency,
-    basePremiumVnd: Number(values.basePremiumVnd),
+    status: text(values.status),
+    effectiveDate: text(values.effectiveDate),
+    maturityDate: text(values.maturityDate),
+    premiumFrequency: text(values.premiumFrequency),
+    basePremiumVnd: num(values.basePremiumVnd),
     premiumDueDate: text(values.premiumDueDate),
     plannedPremiumVnd: num(values.plannedPremiumVnd),
     unpaidPremiumVnd: num(values.unpaidPremiumVnd),
@@ -220,10 +222,7 @@ function ClientFields({ register, errors, prefix = 'client' }: { register: UseFo
   )
 }
 
-/**
- * POL-2 + PRD-1: one policy and its programme lines. `name` is where the policy sits in the form,
- * so the same editor serves the client form (`policies.0`) and the policy dialog (``).
- */
+/** POL-2 + PRD-1: one policy and its programme lines. `name` is where the policy sits in the form (`` at the root). */
 function PolicyFields({ control, register, errors, name, showNumber, editableLines = true }: { control: Control<never>; register: UseFormRegister<never>; errors?: FieldErrors<PolicyValues>; name: string; showNumber: boolean; editableLines?: boolean }) {
   const programs = useQuery(queries.programs())
   const shown = (programs.data?.items ?? []).filter((program) => program.active)
@@ -240,26 +239,27 @@ function PolicyFields({ control, register, errors, name, showNumber, editableLin
             <Input id={id('no')} inputMode="numeric" placeholder={t('placeholder.policyNo')} aria-invalid={!!err('policyNo')} {...reg('policyNo')} />
           </Field>
         )}
-        <Field label={t('clients.policyStatus')} htmlFor={id('status')} required error={err('status')}>
+        <Field label={t('clients.policyStatus')} htmlFor={id('status')} error={err('status')}>
           <Input id={id('status')} placeholder={t('placeholder.policyStatus')} {...reg('status')} />
         </Field>
-        <Field label={t('clients.frequency')} htmlFor={id('frequency')} required>
+        <Field label={t('clients.frequency')} htmlFor={id('frequency')}>
           <Select id={id('frequency')} {...reg('premiumFrequency')}>
+            <option value="">{t('clients.none')}</option>
             {PREMIUM_FREQUENCIES.map((value) => (
               <option key={value}>{value}</option>
             ))}
           </Select>
         </Field>
-        <Field label={t('clients.effective')} htmlFor={id('effective')} required error={err('effectiveDate')}>
+        <Field label={t('clients.effective')} htmlFor={id('effective')} error={err('effectiveDate')}>
           <Input id={id('effective')} type="date" {...reg('effectiveDate')} />
         </Field>
-        <Field label={t('clients.maturity')} htmlFor={id('maturity')} required error={err('maturityDate')}>
+        <Field label={t('clients.maturity')} htmlFor={id('maturity')} error={err('maturityDate')}>
           <Input id={id('maturity')} type="date" {...reg('maturityDate')} />
         </Field>
         <Field label={t('clients.dueDate')} htmlFor={id('due')} error={err('premiumDueDate')}>
           <Input id={id('due')} type="date" {...reg('premiumDueDate')} />
         </Field>
-        <Field label={t('clients.premium')} htmlFor={id('premium')} required error={err('basePremiumVnd')}>
+        <Field label={t('clients.premium')} htmlFor={id('premium')} error={err('basePremiumVnd')}>
           <Input id={id('premium')} inputMode="numeric" placeholder={t('placeholder.money')} {...reg('basePremiumVnd')} />
         </Field>
         <Field label={t('clients.plannedPremium')} htmlFor={id('planned')} error={err('plannedPremiumVnd')}>
@@ -368,10 +368,20 @@ function placeError(error: unknown, setError: (name: never, value: { message: st
   return !!field
 }
 
-const CLIENT_ERRORS = { invalid_client_code: 'clientCode', client_exists: 'clientCode', invalid_phone: 'phone', agent_required: 'agentCode', agent_not_found: 'agentCode' }
+// MAN-1: API errors shown on the field they are about
+const CLIENT_ERRORS = {
+  invalid_policy_no: 'policyNo',
+  policy_not_yours: 'policyNo',
+  policy_exists: 'policyNo',
+  holder_exists: 'role',
+  person_on_policy: 'name',
+  invalid_phone: 'phone',
+  agent_required: 'agentCode',
+  agent_not_found: 'agentCode',
+}
 
-/** MAN-1 to MAN-5 + section 16.6: "Thêm khách hàng", with policies saved in the same request. */
-export function CreateClientForm({ onClose, onCreated }: { onClose: () => void; onCreated: (code: string) => void }) {
+/** MAN-1 to MAN-5 + section 16.6: "Thêm khách hàng", on a policy given by its number; the policy's details come later. */
+export function CreateClientForm({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const { data: me } = useMe()
   const queryClient = useQueryClient()
   // MAN-3: managers and GA_HEAD pick the agent from the tree (AGT-9); a FC's client is theirs
@@ -380,74 +390,57 @@ export function CreateClientForm({ onClose, onCreated }: { onClose: () => void; 
   const form = useForm<CreateValues>({
     resolver: zodResolver(createSchema),
     mode: 'onTouched',
-    defaultValues: { ...emptyClient(), clientCode: '', agentCode: me?.user.agentCode ?? '', policies: [] },
+    defaultValues: { ...emptyClient(), policyNo: '', role: '', agentCode: me?.user.agentCode ?? '' },
   })
-  const policies = useFieldArray({ control: form.control, name: 'policies' })
   const { errors } = form.formState
   const save = useMutation({
     mutationFn: (values: CreateValues) =>
-      api.post<{ clientCode: string }>('/clients', {
-        clientCode: values.clientCode,
+      api.post<{ id: string }>('/clients', {
+        policyNo: values.policyNo,
+        role: values.role as PolicyRole,
         ...clientBody(values, false),
         agentCode: text(values.agentCode),
-        policies: values.policies.map((policy) => ({ policyNo: policy.policyNo, ...policyBody(policy) })),
       }),
-    onSuccess: async ({ clientCode }, values) => {
+    onSuccess: async ({ id }, values) => {
       await queryClient.invalidateQueries({ queryKey: keys.clients })
       toast.success(t('toast.clientCreated', { name: values.name }))
-      onCreated(clientCode)
+      onCreated(id)
     },
     onError: (error) => placeError(error, form.setError as never, CLIENT_ERRORS),
   })
-  const seenClient = save.error instanceof ApiError && save.error.code === 'client_exists' ? (save.error.details.clientCode as string | undefined) : undefined
   const formError = save.isError && !(save.error instanceof ApiError && (save.error.issues?.length || CLIENT_ERRORS[save.error.code as keyof typeof CLIENT_ERRORS])) ? errorMessage(save.error) : undefined
 
   return (
     <form noValidate onSubmit={form.handleSubmit((values) => save.mutate(values))}>
+      <p className="mb-3 text-caption text-ink-meta">{t('clients.policyNoHint')}</p>
       <div className={WIDE_FORM_GRID}>
-        {/* Two columns, so the hint about matching Success stays readable */}
-        <div className="sm:col-span-2">
-          <Field label={t('clients.code')} htmlFor="client-code" required error={errors.clientCode?.message} hint={t('clients.codeHint')}>
-            <Input id="client-code" inputMode="numeric" maxLength={10} placeholder={t('placeholder.clientCode')} aria-invalid={!!errors.clientCode} {...form.register('clientCode')} />
-          </Field>
-        </div>
+        <Field label={t('clients.policyNoLabel')} htmlFor="client-policy-no" required error={errors.policyNo?.message}>
+          <Input id="client-policy-no" inputMode="numeric" maxLength={9} placeholder={t('placeholder.policyNo')} aria-invalid={!!errors.policyNo} {...form.register('policyNo')} />
+        </Field>
+        <Field label={t('clients.policyRole')} htmlFor="client-role" required error={errors.role?.message}>
+          <Select id="client-role" aria-invalid={!!errors.role} {...form.register('role')}>
+            <option value="">{t('clients.chooseRole')}</option>
+            {POLICY_ROLES.map((role) => (
+              <option key={role} value={role}>
+                {t(`clients.roleName${role}`)}
+              </option>
+            ))}
+          </Select>
+        </Field>
         {picksAgent && (
           <Field label={t('clients.belongsTo')} htmlFor="client-agent" required={!me?.user.agentCode} error={errors.agentCode?.message}>
             <Select id="client-agent" aria-invalid={!!errors.agentCode} {...form.register('agentCode')}>
               <option value="">{me?.user.agentCode ? t('clients.belongsToMe') : t('clients.chooseAgent')}</option>
               {(tree.data?.items ?? []).map((agent) => (
                 <option key={agent.agentCode} value={agent.agentCode}>
-                  {`${'  '.repeat(agent.depth)}${agent.name} (${agent.agentCode})`}
+                  {`${'  '.repeat(agent.depth)}${agent.name} (${agent.agentCode})`}
                 </option>
               ))}
             </Select>
           </Field>
         )}
       </div>
-      {seenClient && (
-        <p className="mb-2 text-caption">
-          <Link to={`/clients/${seenClient}`} className="text-primary hover:underline">
-            {t('clients.seeExisting')}
-          </Link>
-        </p>
-      )}
       <ClientFields register={form.register as never} errors={errors as never} />
-      <h3 className="mt-2 mb-1 text-subhead text-ink">{t('clients.policiesSection')}</h3>
-      {policies.fields.map((field, index) => (
-        <Panel key={field.id} className="mb-3 sm:p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <h4 className="text-caption font-medium text-ink">{t('clients.policyIndex', { n: index + 1 })}</h4>
-            <Button variant="ghost" onClick={() => policies.remove(index)}>
-              {t('clients.removePolicy')}
-            </Button>
-          </div>
-          <PolicyFields control={form.control as never} register={form.register as never} errors={errors.policies?.[index] as never} name={`policies.${index}`} showNumber />
-        </Panel>
-      ))}
-      <Button variant="secondary" disabled={policies.fields.length >= 10} onClick={() => policies.append({ ...emptyPolicy(), products: [emptyProduct()] })}>
-        <Plus size={16} aria-hidden />
-        {t('clients.addPolicy')}
-      </Button>
       <FormError message={formError} />
       <div className={MODAL_FOOTER}>
         <Button variant="secondary" onClick={onClose}>
@@ -502,7 +495,7 @@ export function EditClientForm({ detail, onClose }: { detail: ClientDetail; onCl
     },
   })
   const save = useMutation({
-    mutationFn: (values: ClientValues) => api.patch(`/clients/${client.clientCode}`, clientBody(values, true)),
+    mutationFn: (values: ClientValues) => api.patch(`/clients/${client.id}`, clientBody(values, true)),
     onSuccess: async (_, values) => {
       await queryClient.invalidateQueries({ queryKey: keys.clients })
       toast.success(t('toast.clientUpdated', { name: values.name }))
@@ -527,44 +520,45 @@ export function EditClientForm({ detail, onClose }: { detail: ClientDetail; onCl
   )
 }
 
-const singleSchema = policySchema.extend({ policyNo: z.string().trim() })
+const numText = (value: number | null) => (value === null ? '' : String(value))
 
 /** POL-1 + POL-4: "Thêm hợp đồng" (with a number) or "Sửa hợp đồng" (lines replaced as a whole). */
-export function PolicyForm({ clientCode, policy, programs, onClose }: { clientCode: string; policy?: ClientPolicy; programs: Map<string, string>; onClose: () => void }) {
+export function PolicyForm({ clientId, policy, programs, onClose }: { clientId: string; policy?: ClientPolicy; programs: Map<string, string>; onClose: () => void }) {
   const queryClient = useQueryClient()
   const editing = !!policy
   // Lines from a Success file are not catalogue programmes, so those are left as they are
   const editableLines = !policy || policy.manual
   const form = useForm<PolicyValues>({
-    resolver: zodResolver(editing ? singleSchema : singleSchema.extend({ policyNo: z.string().trim().regex(/^\d{9}$/, t('errors.invalid_policy_no')) })),
+    resolver: zodResolver(editing ? policySchema : policySchema.extend({ policyNo })),
     mode: 'onTouched',
     defaultValues: policy
       ? {
           policyNo: policy.policyNo,
-          status: policy.status,
-          effectiveDate: policy.effectiveDate,
-          maturityDate: policy.maturityDate,
-          premiumFrequency: policy.premiumFrequency,
-          basePremiumVnd: String(policy.basePremiumVnd),
+          status: policy.status ?? '',
+          effectiveDate: policy.effectiveDate ?? '',
+          maturityDate: policy.maturityDate ?? '',
+          premiumFrequency: policy.premiumFrequency ?? '',
+          basePremiumVnd: numText(policy.basePremiumVnd),
           premiumDueDate: policy.premiumDueDate ?? '',
-          plannedPremiumVnd: policy.plannedPremiumVnd === null ? '' : String(policy.plannedPremiumVnd),
-          unpaidPremiumVnd: policy.unpaidPremiumVnd === null ? '' : String(policy.unpaidPremiumVnd),
-          aplDebtVnd: policy.aplDebtVnd === null ? '' : String(policy.aplDebtVnd),
+          plannedPremiumVnd: numText(policy.plannedPremiumVnd),
+          unpaidPremiumVnd: numText(policy.unpaidPremiumVnd),
+          aplDebtVnd: numText(policy.aplDebtVnd),
           hasBeneficiary: choice(policy.hasBeneficiary),
-          insuredName: policy.insuredClientCode === clientCode ? '' : policy.insuredName,
+          // POL-2: blank when the holder is also the main insured
+          insuredName: policy.insuredClientId && policy.insuredClientId === policy.holderClientId ? '' : (policy.insuredName ?? ''),
           products: policy.products.map((product) => ({
             ...emptyProduct(),
             insuredName: product.insuredName === policy.insuredName ? '' : (product.insuredName ?? ''),
             programCode: programs.get(product.productCode) ?? '',
-            sumAssuredVnd: product.sumAssuredVnd === null ? '' : String(product.sumAssuredVnd),
+            sumAssuredVnd: numText(product.sumAssuredVnd),
             termYears: product.termYears === null ? '' : String(product.termYears),
             status: product.status ?? '',
-            annualPremiumVnd: product.annualPremiumVnd === null ? '' : String(product.annualPremiumVnd),
+            annualPremiumVnd: numText(product.annualPremiumVnd),
             productRole: product.productRole,
             startDate: product.startDate ?? '',
           })),
         }
-      : { ...emptyPolicy(), products: [emptyProduct()] },
+      : emptyPolicy(),
   })
   const save = useMutation({
     mutationFn: (values: PolicyValues) => {
@@ -572,9 +566,9 @@ export function PolicyForm({ clientCode, policy, programs, onClose }: { clientCo
       if (editing) {
         // Lines from Success stay as they are, so they are not sent (POL-4 replaces only what is sent)
         const fields = { ...body, products: undefined }
-        return api.patch(`/clients/${clientCode}/policies/${policy.policyNo}`, editableLines ? body : fields)
+        return api.patch(`/clients/${clientId}/policies/${policy.policyNo}`, editableLines ? body : fields)
       }
-      return api.post(`/clients/${clientCode}/policies`, { policyNo: values.policyNo, ...body })
+      return api.post(`/clients/${clientId}/policies`, { policyNo: values.policyNo, ...body })
     },
     onSuccess: async (_, values) => {
       await queryClient.invalidateQueries({ queryKey: keys.clients })

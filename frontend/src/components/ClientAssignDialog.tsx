@@ -13,7 +13,7 @@ const NOBODY = ''
  * ASG-1 to ASG-3: "Phân công cho" one agent the person may assign to, or "Bỏ phân công", which only
  * removes the hand-made link. The API checks the same rules (PERM-4).
  */
-export function ClientAssignDialog({ clientCodes, open, onClose, onDone }: { clientCodes: string[]; open: boolean; onClose: () => void; onDone: () => void }) {
+export function ClientAssignDialog({ clientIds, open, onClose, onDone }: { clientIds: string[]; open: boolean; onClose: () => void; onDone: () => void }) {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [chosen, setChosen] = useState<string | null>(null)
@@ -25,7 +25,7 @@ export function ClientAssignDialog({ clientCodes, open, onClose, onDone }: { cli
   }, [tree.data, search])
 
   const assign = useMutation({
-    mutationFn: () => api.post<{ assigned: number }>('/clients/assign', { clientCodes, agentCode: chosen === NOBODY ? null : chosen }),
+    mutationFn: () => api.post<{ assigned: number }>('/clients/assign', { clientIds, agentCode: chosen === NOBODY ? null : chosen }),
     onSuccess: async ({ assigned }) => {
       await queryClient.invalidateQueries({ queryKey: keys.clients })
       const agent = tree.data?.items.find((item) => item.agentCode === chosen)
@@ -43,7 +43,7 @@ export function ClientAssignDialog({ clientCodes, open, onClose, onDone }: { cli
   }
 
   return (
-    <Dialog title={t('clients.assignTitle', { count: clientCodes.length })} open={open} onClose={close}>
+    <Dialog title={t('clients.assignTitle', { count: clientIds.length })} open={open} onClose={close}>
       <p className="mb-3 text-caption text-ink-meta">{t('clients.assignHint')}</p>
       <PickList
         label={t('clients.assignee')}

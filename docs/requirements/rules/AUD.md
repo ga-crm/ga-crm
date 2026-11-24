@@ -8,7 +8,7 @@
 
 Nguồn: `requirement/03-quy-tac-chung.md:39`
 
-Đã trích dẫn trong: `backend/src/migrations/1762876800000-foundation.ts`, `backend/src/migrations/1762963200000-identity-and-agents.ts`, `backend/src/modules/audit/audit.service.ts`, `backend/src/modules/audit/infrastructure/audit-event.entity.ts`, `backend/src/modules/tenants/tenants.service.ts`, `backend/test/auth.e2e-spec.ts`, `backend/test/manual-clients.e2e-spec.ts`
+Đã trích dẫn trong: `backend/src/migrations/1762876800000-foundation.ts`, `backend/src/migrations/1762963200000-identity-and-agents.ts`, `backend/src/migrations/1764259200000-client-id.ts`, `backend/src/modules/audit/audit.service.ts`, `backend/src/modules/audit/infrastructure/audit-event.entity.ts`, `backend/src/modules/tenants/tenants.service.ts`, `backend/test/auth.e2e-spec.ts`, `backend/test/manual-clients.e2e-spec.ts`
 
 - **AUD-1** Collection chỉ-ghi-thêm `auditEvents`: `{ tenantId|null, userId, action, entity, entityId, meta, ip, userAgent, at, prevHash, hash }`. User database của ứng dụng chỉ có quyền insert và find. `hash` = SHA-256 của sự kiện + `prevHash` theo tenant (chống sửa, **NEW**).
 

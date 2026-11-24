@@ -1,6 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { startApp, stopApp } from './support/app.js';
+import { clientIdOf } from './support/clients.js';
 import { connection } from './support/collections.js';
 import { demoEmail, seedDemoData } from '../src/seed/demo-data.js';
 
@@ -11,9 +12,10 @@ const FC = '00100004';
 const FC2 = '00100094';
 /** A FC in another branch. */
 const PEER = '00100095';
-const SAME_NAME = '8000000001';
-const SAME_PHONE = '8000000002';
-const PEERS_TWIN = '8000000003';
+/** The code Success gives the client SAME_NAME, adopted from their policy (MAN-8). */
+const SAME_NAME_CODE = '8000000001';
+const SAME_PHONE_POLICY = '800000012';
+const PEERS_TWIN_POLICY = '800000013';
 const LEAD_PHONE = '0987654321';
 type Agent = ReturnType<typeof request.agent>;
 type Cell = string | number | null;
@@ -30,6 +32,10 @@ describe('Lead - client link (e2e)', () => {
   let head2: Agent;
   let leadId: string;
   let otherLeadId: string;
+  // Client ids, known once the clients are added
+  let SAME_NAME: string;
+  let SAME_PHONE: string;
+  let PEERS_TWIN: string;
 
   const as = async (key: string, ga = 1) => {
     const agent = request.agent(app.getHttpServer());
@@ -39,20 +45,15 @@ describe('Lead - client link (e2e)', () => {
       .expect(200);
     return agent;
   };
-  const clientOf = (clientCode: string) =>
-    connection.collection('clients').findOne({ clientCode });
+  const clientOf = (clientId: string) =>
+    connection.collection('clients').findOne({ _id: clientId });
   const leadOf = async (id: string) =>
     (await fc.get(`${API}/leads/${id}`).expect(200)).body;
-  const importApplications = async (rows: Cell[][]) => {
-    const headers = [
-      'Số HSYCBH',
-      'Mã đại lý',
-      'Mã KH',
-      'Bên mua BH',
-      'Ngày tạo hồ sơ',
-      'Tình trạng',
-      'Số HĐBH',
-    ];
+  const importSheet = async (
+    sheet: string,
+    headers: string[],
+    rows: Cell[][],
+  ) => {
     const { id } = (
       await head
         .post(`${API}/imports`)
@@ -60,14 +61,14 @@ describe('Lead - client link (e2e)', () => {
           fileName: 'success.xlsx',
           snapshotDate: TODAY,
           kind: 'SUCCESS',
-          sheets: [{ name: '05_Applications', headers }],
+          sheets: [{ name: sheet, headers }],
         })
         .expect(201)
     ).body;
     await head
       .post(`${API}/imports/${id}/rows`)
       .send({
-        sheet: '05_Applications',
+        sheet,
         rows: rows.map((c, index) => ({ r: index + 2, c })),
       })
       .expect(200);
@@ -75,6 +76,20 @@ describe('Lead - client link (e2e)', () => {
     await head.post(`${API}/imports/${id}/commit`).expect(200);
     return id as string;
   };
+  const importApplications = (rows: Cell[][]) =>
+    importSheet(
+      '05_Applications',
+      [
+        'Số HSYCBH',
+        'Mã đại lý',
+        'Mã KH',
+        'Bên mua BH',
+        'Ngày tạo hồ sơ',
+        'Tình trạng',
+        'Số HĐBH',
+      ],
+      rows,
+    );
 
   beforeAll(async () => {
     app = await startApp();
@@ -99,26 +114,27 @@ describe('Lead - client link (e2e)', () => {
           managerCode,
         })
         .expect(201);
-    await fc
-      .post(`${API}/clients`)
-      .send({
-        clientCode: SAME_NAME,
-        name: 'Nguyễn Văn An',
-        gender: 'Nam',
-      })
-      .expect(201);
-    await fc
-      .post(`${API}/clients`)
-      .send({
-        clientCode: SAME_PHONE,
-        name: 'Anh An Khác Tên',
-        phone: LEAD_PHONE,
-      })
-      .expect(201);
-    await head
-      .post(`${API}/clients`)
-      .send({ clientCode: PEERS_TWIN, name: 'Nguyễn Văn An', agentCode: PEER })
-      .expect(201);
+    const add = async (agent: Agent, body: Record<string, unknown>) =>
+      (await agent.post(`${API}/clients`).send(body).expect(201)).body
+        .id as string;
+    SAME_NAME = await add(fc, {
+      policyNo: '800000011',
+      role: 'PO',
+      name: 'Nguyễn Văn An',
+      gender: 'Nam',
+    });
+    SAME_PHONE = await add(fc, {
+      policyNo: SAME_PHONE_POLICY,
+      role: 'PO',
+      name: 'Anh An Khác Tên',
+      phone: LEAD_PHONE,
+    });
+    PEERS_TWIN = await add(head, {
+      policyNo: PEERS_TWIN_POLICY,
+      role: 'PO',
+      name: 'Nguyễn Văn An',
+      agentCode: PEER,
+    });
     // A manager's lead given to the FC, so it can later move to someone else (LEAD-9)
     leadId = (
       await head
@@ -157,7 +173,7 @@ describe('Lead - client link (e2e)', () => {
       (
         await fc
           .post(`${API}/leads/${leadId}/link`)
-          .send({ clientCode: SAME_NAME })
+          .send({ clientId: SAME_NAME })
           .expect(409)
       ).body.error,
     ).toBe('lead_not_linkable');
@@ -169,14 +185,14 @@ describe('Lead - client link (e2e)', () => {
     expect((await leadOf(leadId)).canLink).toBe(true);
   });
 
-  it('LEAD-32: suggestions in the FC scope, scored by name, phone, gender; a search finds by code', async () => {
+  it('LEAD-32: suggestions in the FC scope, scored by name, phone, gender; a search finds by policy number', async () => {
     const { items } = (
       await fc.get(`${API}/leads/${leadId}/link-suggestions`).expect(200)
-    ).body as { clientCode: string; score: number; reasons: string[] }[] & {
-      items: { clientCode: string; score: number; reasons: string[] }[];
+    ).body as {
+      items: { clientId: string; score: number; reasons: string[] }[];
     };
     expect(
-      items.map((item) => [item.clientCode, item.score, item.reasons]),
+      items.map((item) => [item.clientId, item.score, item.reasons]),
     ).toEqual([
       [SAME_NAME, 0.7, ['NAME', 'GENDER']],
       [SAME_PHONE, 0.4, ['PHONE']],
@@ -185,44 +201,44 @@ describe('Lead - client link (e2e)', () => {
     const found = (
       await head
         .get(`${API}/leads/${leadId}/link-suggestions`)
-        .query({ q: PEERS_TWIN })
+        .query({ q: PEERS_TWIN_POLICY })
         .expect(200)
     ).body.items;
     expect(found).toEqual([]);
-    const byCode = (
+    const byPolicy = (
       await fc
         .get(`${API}/leads/${leadId}/link-suggestions`)
-        .query({ q: SAME_PHONE })
+        .query({ q: SAME_PHONE_POLICY })
         .expect(200)
     ).body.items;
-    expect(
-      byCode.map((item: { clientCode: string }) => item.clientCode),
-    ).toEqual([SAME_PHONE]);
+    expect(byPolicy.map((item: { clientId: string }) => item.clientId)).toEqual(
+      [SAME_PHONE],
+    );
     await fc
       .post(`${API}/leads/${leadId}/link`)
-      .send({ clientCode: PEERS_TWIN })
+      .send({ clientId: PEERS_TWIN })
       .expect(404);
   });
 
   it('LEAD-32 + CUS-4: a link is audited, one lead per client, and the client follows the lead to its new agent', async () => {
     await fc
       .post(`${API}/leads/${leadId}/link`)
-      .send({ clientCode: SAME_NAME })
+      .send({ clientId: SAME_NAME })
       .expect(204);
     expect((await leadOf(leadId)).link).toMatchObject({
-      clientCode: SAME_NAME,
+      clientId: SAME_NAME,
       clientName: 'Nguyễn Văn An',
     });
     expect(
       await connection
         .collection('auditEvents')
         .findOne({ action: 'LINK', entityId: leadId }),
-    ).toMatchObject({ meta: { clientCode: SAME_NAME } });
+    ).toMatchObject({ meta: { clientId: SAME_NAME } });
     expect(
       (
         await fc
           .post(`${API}/leads/${otherLeadId}/link`)
-          .send({ clientCode: SAME_NAME })
+          .send({ clientId: SAME_NAME })
           .expect(409)
       ).body.error,
     ).toBe('client_already_linked');
@@ -257,7 +273,7 @@ describe('Lead - client link (e2e)', () => {
       const agent = await as(key);
       const { body } = await agent.get(`${API}/leads/${leadId}`).expect(200);
       expect(body.link, key).toMatchObject({
-        clientCode: null,
+        clientId: null,
         clientName: null,
       });
       expect(JSON.stringify(body), key).not.toContain(SAME_NAME);
@@ -280,11 +296,44 @@ describe('Lead - client link (e2e)', () => {
   });
 
   it('LEAD-33: a Success import moves the linked lead to SUBMITTED, then ISSUED, never back', async () => {
+    // The file names the holder of their policy by a code, which the hand-added client adopts
+    // (MAN-8); a policy that started before the lead moves nothing
+    await importSheet(
+      '03_Policies',
+      [
+        'Số HĐBH',
+        'Mã KH BMBH',
+        'Mã đại lý',
+        'Bên mua BH',
+        'NĐBH chính',
+        'Tình trạng',
+        'Ngày hiệu lực',
+        'Ngày đáo hạn',
+        'Định kỳ đóng phí',
+        'Phí định kỳ/cơ bản định kỳ',
+      ],
+      [
+        [
+          '800000011',
+          SAME_NAME_CODE,
+          FC,
+          'Nguyễn Văn An',
+          'Nguyễn Văn An',
+          'Đang hiệu lực',
+          '01/06/2024',
+          '01/06/2044',
+          'Năm',
+          '12000000',
+        ],
+      ],
+    );
+    expect(await clientIdOf(SAME_NAME_CODE)).toBe(SAME_NAME);
+    expect((await leadOf(leadId)).lead.stage).toBe('PROPOSAL');
     const first = await importApplications([
       [
         'A8001',
         FC,
-        SAME_NAME,
+        SAME_NAME_CODE,
         'Nguyễn Văn An',
         TODAY_VN,
         'Đang chờ NB xử lý',
@@ -307,7 +356,7 @@ describe('Lead - client link (e2e)', () => {
       [
         'A8001',
         FC,
-        SAME_NAME,
+        SAME_NAME_CODE,
         'Nguyễn Văn An',
         TODAY_VN,
         'Đã phát hành hợp đồng',
@@ -322,7 +371,7 @@ describe('Lead - client link (e2e)', () => {
       [
         'A8001',
         FC,
-        SAME_NAME,
+        SAME_NAME_CODE,
         'Nguyễn Văn An',
         TODAY_VN,
         'Đang chờ NB xử lý',
@@ -360,7 +409,7 @@ describe('Lead - client link (e2e)', () => {
     await head2.get(`${API}/leads/${leadId}/link-suggestions`).expect(404);
     await head2
       .post(`${API}/leads/${leadId}/link`)
-      .send({ clientCode: SAME_NAME })
+      .send({ clientId: SAME_NAME })
       .expect(404);
   });
 });

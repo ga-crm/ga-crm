@@ -19,18 +19,15 @@ const addDays = (days: number) =>
 const MONTH = TODAY.slice(5, 7);
 const OTHER_MONTH = String(((Number(MONTH) + 5) % 12) + 1).padStart(2, '0');
 
-const HOLDER = '6000000001';
-const SPOUSE = '6000000002';
-const CHILD = '6000000004';
-const OUT_OF_SCOPE = '6000000003';
-const MOTHER = '6000000009'; // On a policy only, no client record (FAM-5)
+// FAM-5: the main insured of a policy, known only by the name the policy writes (no client record)
+const MOTHER = 'name:NGUYEN THI ME';
 
 interface FamilyRow {
   key: string;
   linkId: string | null;
   relation: string | null;
   name: string;
-  code: string | null;
+  clientId: string | null;
   isClient: boolean;
   canOpen: boolean;
   birth: {
@@ -49,6 +46,11 @@ describe('Family, coverage and care opportunities (e2e)', () => {
   let fc: Agent;
   let um: Agent;
   let head2: Agent;
+  // Client ids, known once the clients are added
+  let HOLDER: string;
+  let SPOUSE: string;
+  let CHILD: string;
+  let OUT_OF_SCOPE: string;
 
   const as = async (key: string, ga = 1) => {
     const agent = request.agent(app.getHttpServer());
@@ -58,8 +60,8 @@ describe('Family, coverage and care opportunities (e2e)', () => {
       .expect(200);
     return agent;
   };
-  const detail = async (agent: Agent, code: string) =>
-    (await agent.get(`${API}/clients/${code}`).expect(200)).body as {
+  const detail = async (agent: Agent, clientId: string) =>
+    (await agent.get(`${API}/clients/${clientId}`).expect(200)).body as {
       family: FamilyRow[];
       coverage: {
         key: string;
@@ -73,10 +75,16 @@ describe('Family, coverage and care opportunities (e2e)', () => {
       userNames: Record<string, string>;
       policies: { products: { group: string }[] }[];
     };
-  const family = (agent: Agent, code: string, body: Record<string, unknown>) =>
-    agent.post(`${API}/clients/${code}/family`).send(body);
-  const entry = async (code: string, key: string) =>
-    (await detail(fc, code)).family.find((row) => row.key === key);
+  const family = (
+    agent: Agent,
+    clientId: string,
+    body: Record<string, unknown>,
+  ) => agent.post(`${API}/clients/${clientId}/family`).send(body);
+  const entry = async (clientId: string, key: string) =>
+    (await detail(fc, clientId)).family.find((row) => row.key === key);
+  const add = async (agent: Agent, body: Record<string, unknown>) =>
+    (await agent.post(`${API}/clients`).send(body).expect(201)).body
+      .id as string;
 
   beforeAll(async () => {
     app = await startApp();
@@ -99,8 +107,7 @@ describe('Family, coverage and care opportunities (e2e)', () => {
       })
       .expect(201);
 
-    const policy = (policyNo: string, patch: Record<string, unknown>) => ({
-      policyNo,
+    const policy = (patch: Record<string, unknown>) => ({
       status: 'Đang hiệu lực',
       effectiveDate: '2024-06-01',
       maturityDate: '2044-06-01',
@@ -108,57 +115,63 @@ describe('Family, coverage and care opportunities (e2e)', () => {
       basePremiumVnd: 12_000_000,
       ...patch,
     });
+    // Added on the policy as its holder, then the policy is filled in; the holder is its main insured
+    HOLDER = await add(fc, {
+      policyNo: '600000001',
+      role: 'PO',
+      name: 'Trần Văn Bố',
+      dob: `1980-${MONTH}-05`,
+    });
     await fc
-      .post(`${API}/clients`)
+      .patch(`${API}/clients/${HOLDER}/policies/600000001`)
+      .send(
+        policy({
+          premiumDueDate: addDays(10),
+          maturityDate: addDays(180),
+          unpaidPremiumVnd: 2_000_000,
+          products: [
+            { programCode: 'AN_TAM_SONG_HANH', sumAssuredVnd: 500_000_000 },
+            {
+              programCode: 'BH_CHAM_SOC_SUC_KHOE',
+              sumAssuredVnd: 100_000_000,
+              insuredName: 'Trần Bé An',
+            },
+          ],
+        }),
+      )
+      .expect(204);
+    // FAM-5: the insured of this policy is a name only, not a client
+    await fc
+      .post(`${API}/clients/${HOLDER}/policies`)
       .send({
-        clientCode: HOLDER,
-        name: 'Trần Văn Bố',
-        dob: `1980-${MONTH}-05`,
-        policies: [
-          policy('600000001', {
-            premiumDueDate: addDays(10),
-            maturityDate: addDays(180),
-            unpaidPremiumVnd: 2_000_000,
-            products: [
-              { programCode: 'AN_TAM_SONG_HANH', sumAssuredVnd: 500_000_000 },
-              {
-                programCode: 'BH_CHAM_SOC_SUC_KHOE',
-                sumAssuredVnd: 100_000_000,
-                insuredName: 'Trần Bé An',
-              },
-            ],
-          }),
-          policy('600000002', {
-            status: 'Mất hiệu lực',
-            insuredClientCode: MOTHER,
-            insuredName: 'NGUYỄN THỊ MẸ',
-            products: [
-              { programCode: 'AN_TAM_SONG_HANH', sumAssuredVnd: 300_000_000 },
-            ],
-          }),
-        ],
+        policyNo: '600000002',
+        ...policy({
+          status: 'Mất hiệu lực',
+          insuredName: 'NGUYỄN THỊ MẸ',
+          products: [
+            { programCode: 'AN_TAM_SONG_HANH', sumAssuredVnd: 300_000_000 },
+          ],
+        }),
       })
       .expect(201);
-    await fc
-      .post(`${API}/clients`)
-      .send({
-        clientCode: SPOUSE,
-        name: 'Lê Thị Vợ',
-        dob: `1985-${OTHER_MONTH}-04`,
-      })
-      .expect(201);
-    await fc
-      .post(`${API}/clients`)
-      .send({ clientCode: CHILD, name: 'Trần Con Lớn' })
-      .expect(201);
-    await head
-      .post(`${API}/clients`)
-      .send({
-        clientCode: OUT_OF_SCOPE,
-        name: 'Khách Nhánh Khác',
-        agentCode: PEER,
-      })
-      .expect(201);
+    // Each on a policy known only by its number: nothing about their cover is known (COV-4)
+    SPOUSE = await add(fc, {
+      policyNo: '600000003',
+      role: 'PO',
+      name: 'Lê Thị Vợ',
+      dob: `1985-${OTHER_MONTH}-04`,
+    });
+    CHILD = await add(fc, {
+      policyNo: '600000004',
+      role: 'PO',
+      name: 'Trần Con Lớn',
+    });
+    OUT_OF_SCOPE = await add(head, {
+      policyNo: '600000005',
+      role: 'PO',
+      name: 'Khách Nhánh Khác',
+      agentCode: PEER,
+    });
   });
 
   afterAll(async () => {
@@ -169,11 +182,11 @@ describe('Family, coverage and care opportunities (e2e)', () => {
     it('test 44 + FAM-2: one record per pair; the other side sees the relation the other way round', async () => {
       await family(fc, HOLDER, {
         relation: 'SPOUSE',
-        relatedClientCode: SPOUSE,
+        relatedClientId: SPOUSE,
       }).expect(201);
       const child = await family(fc, HOLDER, {
         relation: 'CHILD',
-        relatedClientCode: CHILD,
+        relatedClientId: CHILD,
       }).expect(201);
       expect(await entry(HOLDER, CHILD)).toMatchObject({
         relation: 'CHILD',
@@ -187,14 +200,14 @@ describe('Family, coverage and care opportunities (e2e)', () => {
       // Recorded again from the other side: the same record, stored from the first side
       const again = await family(fc, CHILD, {
         relation: 'PARENT',
-        relatedClientCode: HOLDER,
+        relatedClientId: HOLDER,
         note: 'Bố của khách',
       }).expect(201);
       expect(again.body.id).toBe(child.body.id);
       expect(
         await connection.collection('familyLinks').countDocuments({
-          clientCode: { $in: [HOLDER, CHILD] },
-          relatedClientCode: { $in: [HOLDER, CHILD] },
+          clientId: { $in: [HOLDER, CHILD] },
+          relatedClientId: { $in: [HOLDER, CHILD] },
         }),
       ).toBe(1);
       // Edited from the other side: the stored relation is the inverse
@@ -210,7 +223,7 @@ describe('Family, coverage and care opportunities (e2e)', () => {
         (
           await connection
             .collection('familyLinks')
-            .findOne({ clientCode: HOLDER, relatedClientCode: CHILD })
+            .findOne({ clientId: HOLDER, relatedClientId: CHILD })
         )?.relation,
       ).toBe('CHILD');
     });
@@ -220,13 +233,13 @@ describe('Family, coverage and care opportunities (e2e)', () => {
         (
           await family(fc, HOLDER, {
             relation: 'OTHER',
-            relatedClientCode: HOLDER,
+            relatedClientId: HOLDER,
           }).expect(400)
         ).body.error,
       ).toBe('same_client');
       await family(fc, HOLDER, {
         relation: 'SPOUSE',
-        relatedClientCode: OUT_OF_SCOPE,
+        relatedClientId: OUT_OF_SCOPE,
       }).expect(404);
 
       // FAM-5: found on the policy, named as the policy writes it, with capitals on each word
@@ -238,9 +251,10 @@ describe('Family, coverage and care opportunities (e2e)', () => {
         canOpen: false,
         sharedPolicies: [{ policyNo: '600000002', roles: ['LI'] }],
       });
+      // Not a client, so labelled by the name the policy gives; it joins the person on the policy
       await family(fc, HOLDER, {
         relation: 'PARENT',
-        relatedClientCode: MOTHER,
+        fullName: 'Nguyễn Thị Mẹ',
       }).expect(201);
       expect(await entry(HOLDER, MOTHER)).toMatchObject({
         relation: 'PARENT',
@@ -263,7 +277,7 @@ describe('Family, coverage and care opportunities (e2e)', () => {
         expect.objectContaining({
           linkId: created.body.id,
           relation: 'CHILD',
-          code: null,
+          clientId: null,
           birth: { day: null, month: null, year: 2018 },
           sharedPolicies: [{ policyNo: '600000001', roles: ['LI'] }],
         }),
@@ -279,11 +293,11 @@ describe('Family, coverage and care opportunities (e2e)', () => {
           }).expect(409)
         ).body.error,
       ).toBe('already_client');
-      // A name, or a client code, never both
+      // A name, or a client, never both
       await family(fc, HOLDER, {
         relation: 'SPOUSE',
         fullName: 'Ai Đó',
-        relatedClientCode: SPOUSE,
+        relatedClientId: SPOUSE,
       }).expect(400);
       await fc
         .patch(`${API}/clients/${HOLDER}/family/${created.body.id}`)
@@ -433,9 +447,9 @@ describe('Family, coverage and care opportunities (e2e)', () => {
         lapsed: 1,
       });
       const { body } = await fc.get(`${API}/clients?signal=due`).expect(200);
-      expect(
-        body.items.map((item: { clientCode: string }) => item.clientCode),
-      ).toEqual([HOLDER]);
+      expect(body.items.map((item: { id: string }) => item.id)).toEqual([
+        HOLDER,
+      ]);
       expect(body.items[0]).toMatchObject({
         due: true,
         debt: true,
@@ -445,7 +459,7 @@ describe('Family, coverage and care opportunities (e2e)', () => {
       });
       const all = (await fc.get(`${API}/clients`).expect(200)).body
         .items as Record<string, unknown>[];
-      expect(all.find((item) => item.clientCode === SPOUSE)).toMatchObject({
+      expect(all.find((item) => item.id === SPOUSE)).toMatchObject({
         due: false,
         debt: false,
         maturity: false,
@@ -502,7 +516,7 @@ describe('Family, coverage and care opportunities (e2e)', () => {
       expect(
         await connection
           .collection('auditEvents')
-          .countDocuments({ entity: 'client_note', 'meta.clientCode': HOLDER }),
+          .countDocuments({ entity: 'client_note', 'meta.clientId': HOLDER }),
       ).toBe(2);
     });
   });

@@ -295,12 +295,25 @@ describe('Deleting and merging leads (e2e)', () => {
   it('LEAD-41: two leads linked to different clients are not merged', async () => {
     const a = await create('Lead Khách A', '0936000007');
     const b = await create('Lead Khách B', '0936000008');
+    const client = async (policyNo: string, name: string) =>
+      (
+        await fc
+          .post(`${API}/clients`)
+          .send({ policyNo, role: 'PO', name })
+          .expect(201)
+      ).body.id as string;
     await connection
       .collection('leads')
-      .updateOne({ _id: a }, { $set: { clientCode: '9600000001' } });
+      .updateOne(
+        { _id: a },
+        { $set: { clientId: await client('960000001', 'Khách A') } },
+      );
     await connection
       .collection('leads')
-      .updateOne({ _id: b }, { $set: { clientCode: '9600000002' } });
+      .updateOne(
+        { _id: b },
+        { $set: { clientId: await client('960000002', 'Khách B') } },
+      );
     const { body } = await head
       .post(`${API}/leads/merge`)
       .send({ keepId: a, mergeId: b })

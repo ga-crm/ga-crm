@@ -19,7 +19,7 @@ function SuggestionCard({ leadId, item, onLinked }: { leadId: string; item: Link
   const refresh = useRefresh()
   const [applicationNo, setApplicationNo] = useState('')
   const link = useMutation({
-    mutationFn: () => api.post(`/leads/${leadId}/link`, { clientCode: item.clientCode, ...(applicationNo && { applicationNo }) }),
+    mutationFn: () => api.post(`/leads/${leadId}/link`, { clientId: item.clientId, ...(applicationNo && { applicationNo }) }),
     onSuccess: async () => {
       await refresh()
       toast.success(t('toast.leadLinked', { name: item.name }), t('toast.leadLinkedDetail'))
@@ -31,14 +31,14 @@ function SuggestionCard({ leadId, item, onLinked }: { leadId: string; item: Link
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-medium text-ink-body">{item.name}</p>
-          <p className="text-caption text-ink-meta tabular-nums">{[item.clientCode, item.ageBand, item.gender].filter(Boolean).join(' · ')}</p>
+          <p className="text-caption text-ink-meta tabular-nums">{[item.ageBand, item.gender].filter(Boolean).join(' · ') || '-'}</p>
         </div>
         <Badge tone={item.score >= 0.6 ? 'success' : 'muted'}>{t('link.score', { score: Math.round(item.score * 100) })}</Badge>
       </div>
       {item.reasons.length > 0 && <p className="mt-2 text-caption text-ink-body">{item.reasons.map((reason) => tDynamic(`link.reason.${reason}`, reason)).join(' · ')}</p>}
       <dl className="mt-2 grid gap-1 text-caption sm:grid-cols-[8rem_1fr]">
         <dt className="text-ink-meta">{t('link.policies')}</dt>
-        <dd className="text-ink-body tabular-nums">{item.policies.map((policy) => `${policy.policyNo} (${policy.status})`).join(', ') || t('link.none')}</dd>
+        <dd className="text-ink-body tabular-nums">{item.policies.map((policy) => (policy.status ? `${policy.policyNo} (${policy.status})` : policy.policyNo)).join(', ') || t('link.none')}</dd>
         <dt className="text-ink-meta">{t('link.applications')}</dt>
         <dd className="text-ink-body tabular-nums">{item.applications.map((application) => `${application.applicationNo} (${application.status}, ${showDate(application.createdDate)})`).join(', ') || t('link.none')}</dd>
       </dl>
@@ -67,8 +67,8 @@ function SuggestionCard({ leadId, item, onLinked }: { leadId: string; item: Link
 function UnlinkDialog({ detail, open, onClose }: { detail: LeadDetail; open: boolean; onClose: () => void }) {
   const refresh = useRefresh()
   const [reason, setReason] = useState('')
-  // CUS-5 + PDP-4: without the code the client is not named
-  const name = detail.link?.clientName ?? detail.link?.clientCode
+  // CUS-5 + PDP-4: someone who may not open the client does not get its name
+  const name = detail.link?.clientName
   const unlink = useMutation({
     mutationFn: () => api.delete(`/leads/${detail.lead.id}/link`, { reason: reason.trim() }),
     onSuccess: async () => {
@@ -123,12 +123,11 @@ export function LeadLinkTab({ detail }: { detail: LeadDetail }) {
       {detail.link ? (
         <section className="max-w-3xl rounded-lg bg-chrome p-5">
           <p className="text-caption text-ink-meta">{t('link.linkedTo')}</p>
-          {detail.link.clientCode ? (
-            <p className="mt-1 flex flex-wrap items-center gap-2">
-              <Link to={`/clients/${detail.link.clientCode}`} className="text-subhead text-primary hover:underline">
-                {detail.link.clientName ?? detail.link.clientCode}
+          {detail.link.clientId ? (
+            <p className="mt-1">
+              <Link to={`/clients/${detail.link.clientId}`} className="text-subhead text-primary hover:underline">
+                {detail.link.clientName ?? t('clients.client')}
               </Link>
-              <span className="text-caption text-ink-meta tabular-nums">{detail.link.clientCode}</span>
             </p>
           ) : (
             // CUS-5 + PDP-4: the person does not see client pages, so only the fact of the link
@@ -156,7 +155,7 @@ export function LeadLinkTab({ detail }: { detail: LeadDetail }) {
           {suggestions.data && items.length === 0 && <EmptyState>{q ? t('link.noMatch') : t('link.noSuggestions')}</EmptyState>}
           <ul className="space-y-3">
             {items.map((item) => (
-              <SuggestionCard key={item.clientCode} leadId={detail.lead.id} item={item} onLinked={() => setInput('')} />
+              <SuggestionCard key={item.clientId} leadId={detail.lead.id} item={item} onLinked={() => setInput('')} />
             ))}
           </ul>
         </section>

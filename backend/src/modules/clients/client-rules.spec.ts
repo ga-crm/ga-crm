@@ -22,7 +22,7 @@ const programs = new Map([
     },
   ],
 ]);
-const main = { code: '0000000001', name: 'Nguyễn Văn Khách' };
+const main = { clientId: 'client-1', name: 'Nguyễn Văn Khách' };
 
 describe('client rules', () => {
   it('MAN-2: the age band and birthday follow the birth date', () => {
@@ -54,7 +54,7 @@ describe('client rules', () => {
           programCode: 'AN_TAM_SONG_HANH',
           productName: 'An Tâm Song Hành',
           productRole: 'Chính',
-          insuredCode: '0000000001',
+          insuredClientId: 'client-1',
           insuredName: 'Nguyễn Văn Khách',
           termYears: 20,
         }),
@@ -80,8 +80,10 @@ describe('client rules', () => {
       programs,
       mainInsured: main,
     });
+    expect('products' in ok && ok.products[1]).not.toHaveProperty(
+      'insuredClientId',
+    );
     expect('products' in ok && ok.products[1]).toMatchObject({
-      insuredCode: '',
       insuredName: 'Nguyễn Bé An',
       insuredGender: 'Nữ',
     });

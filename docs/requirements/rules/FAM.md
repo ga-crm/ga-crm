@@ -16,7 +16,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:83`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:84`
 
-Đã trích dẫn trong: `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/client-care.service.ts`, `backend/src/modules/clients/client-insights.spec.ts`, `backend/src/modules/clients/client-insights.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/src/modules/clients/clients.dto.ts`, `backend/test/client-care.e2e-spec.ts`, `frontend/src/components/ClientFamily.tsx`, `frontend/src/lib/types.ts`
+Đã trích dẫn trong: `backend/src/migrations/1763136000000-clients.ts`, `backend/src/migrations/1764259200000-client-id.ts`, `backend/src/modules/clients/client-care.service.ts`, `backend/src/modules/clients/client-insights.spec.ts`, `backend/src/modules/clients/client-insights.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/src/modules/clients/clients.dto.ts`, `backend/test/client-care.e2e-spec.ts`, `frontend/src/components/ClientFamily.tsx`, `frontend/src/lib/types.ts`
 
 - **FAM-2** Một bản ghi cho mỗi cặp `(clientCode, relatedClientCode)`, duy nhất trong tenant, `relation` theo phía khách: `SPOUSE` Vợ / Chồng, `CHILD` Con, `PARENT` Bố / Mẹ, `SIBLING` Anh / Chị / Em, `OTHER` Khác. Khách bên kia thấy quan hệ ngược (CHILD ↔ PARENT; còn lại đối xứng). Sửa từ phía bên kia thì lưu quan hệ ngược.
 
@@ -40,7 +40,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:86`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:87`
 
-Đã trích dẫn trong: `backend/src/modules/clients/client-care.service.ts`, `backend/src/modules/clients/client-insights.spec.ts`, `backend/src/modules/clients/client-insights.ts`, `backend/test/client-care.e2e-spec.ts`, `frontend/src/components/ClientFamily.tsx`
+Đã trích dẫn trong: `backend/src/migrations/1764259200000-client-id.ts`, `backend/src/modules/clients/client-care.service.ts`, `backend/src/modules/clients/client-insights.spec.ts`, `backend/src/modules/clients/client-insights.ts`, `backend/test/client-care.e2e-spec.ts`, `frontend/src/components/ClientFamily.tsx`
 
 - **FAM-5** 02_Clients chỉ liệt kê PO, nên con / vợ / chồng được bảo hiểm thường không có bản ghi khách: hiện từ hợp đồng (tên viết hoa chữ đầu từ tên LI / PO trên hợp đồng), có quyền lợi, gắn nhãn được, không có trang khách hàng.
 

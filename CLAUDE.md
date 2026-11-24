@@ -9,7 +9,7 @@ Non-negotiable:
 3. Marketing sees Success data masked only. Line managers see lead phones masked only.
 4. Audit every create, update, assign, import, export, client view and AI read, in the same transaction as the change. `meta` never holds secrets.
 5. PDP: never store ID card numbers, bank account numbers or health data from Success imports. AI never receives real identities.
-6. Natural keys are strings: client code, policy number, application number and agent code keep leading zeros.
+6. Natural keys are strings: policy number, application number, agent code and the hidden Success client code keep leading zeros. A client is addressed by its id; people work with the policy number ("Mã hợp đồng"). The Success client code is only `clients.success_code`, read by the Success import, never returned by the API or shown (`docs/decisions.md`, 25/11/2026).
 7. All UI text lives in `frontend/src/i18n/vi.json`. Code, comments, skills, this file and commit messages are in English. Project records in `docs/` are in Vietnamese because the project owner reads them.
 8. Errors leave the API as `{ error: <code>, issues?: [...] }`. Every code in `backend/src/common/errors.ts` needs a message in `vi.json`; a test enforces this.
 9. Every route is private unless marked `@Public()`. Permissions are checked by the API even when the UI hides the action.

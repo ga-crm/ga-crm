@@ -28,7 +28,7 @@ function CommentBody({ comment, userNames }: { comment: ThreadComment; userNames
 
 /**
  * CMT-1 + CMT-5: a thread of comments, oldest first, and a box to add one. Typing "@" offers the
- * people who see the lead or client (`path` is `/leads/{id}` or `/clients/{code}`).
+ * people who see the lead or client (`path` is `/leads/{id}` or `/clients/{id}`).
  */
 export function CommentThread({
   comments,

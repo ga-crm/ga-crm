@@ -117,7 +117,7 @@ export function SignalsCard({ detail }: { detail: ClientDetail }) {
         </ul>
       )}
       <Dialog title={t('tasks.signalTitle', { name: detail.client.name })} open={picked !== undefined} onClose={close}>
-        {picked && <TaskForm key={url.get('signalTask')} clientCode={detail.client.clientCode} signal={picked.code} defaults={signalTaskDefaults(picked)} onClose={close} />}
+        {picked && <TaskForm key={url.get('signalTask')} clientId={detail.client.id} signal={picked.code} defaults={signalTaskDefaults(picked)} onClose={close} />}
       </Dialog>
     </Panel>
   )
@@ -133,7 +133,7 @@ export function CommentsCard({ detail }: { detail: ClientDetail }) {
       <CommentThread
         comments={detail.comments}
         userNames={detail.userNames}
-        path={`/clients/${detail.client.clientCode}`}
+        path={`/clients/${detail.client.id}`}
         sentDetail={t('toast.clientCommentSentDetail')}
         onSaved={() => queryClient.invalidateQueries({ queryKey: keys.clients })}
       />
@@ -144,11 +144,11 @@ export function CommentsCard({ detail }: { detail: ClientDetail }) {
 /** NOTE-1 + NOTE-5: notes and contacts on the client, newest first. Owners write, others read. */
 export function NotesCard({ detail }: { detail: ClientDetail }) {
   const queryClient = useQueryClient()
-  const code = detail.client.clientCode
+  const clientId = detail.client.id
   return (
     <Panel className="p-5">
       <h2 className="text-subhead text-ink">{t('clients.notes')}</h2>
-      {detail.canEdit ? <NoteComposer path={`/clients/${code}`} onSaved={() => queryClient.invalidateQueries({ queryKey: keys.clients })} /> : <p className="mt-2 text-caption text-ink-meta">{t('clients.notesReadOnly')}</p>}
+      {detail.canEdit ? <NoteComposer path={`/clients/${clientId}`} onSaved={() => queryClient.invalidateQueries({ queryKey: keys.clients })} /> : <p className="mt-2 text-caption text-ink-meta">{t('clients.notesReadOnly')}</p>}
       {detail.notes.length === 0 ? (
         <p className="mt-3 text-caption text-ink-meta">{t('clients.noNotes')}</p>
       ) : (

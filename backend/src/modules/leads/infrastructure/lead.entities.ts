@@ -132,7 +132,7 @@ export class Lead {
   @text() applicationNo: string | null;
   @text() policyNo: string | null;
   /** LEAD-32 */
-  @text() clientCode: string | null;
+  @Column({ type: 'uuid', nullable: true }) clientId: string | null;
   @text() linkStatus: 'NONE' | 'CONFIRMED' | null;
   @ref() linkedBy: string | null;
   @time() linkedAt: Date | null;
@@ -184,7 +184,7 @@ export class Interaction {
   @Column({ type: 'uuid' }) tenantId: string;
   @text() agentCode: string | null;
   @ref() leadId: string | null;
-  @text() clientCode: string | null;
+  @Column({ type: 'uuid', nullable: true }) clientId: string | null;
   @Column({ type: 'text' }) type: string;
   @text() outcome: string | null;
   @Column({ type: 'text' }) note: string;
@@ -202,7 +202,7 @@ export class Comment {
   @id() id: string;
   @Column({ type: 'uuid' }) tenantId: string;
   @ref() leadId: string | null;
-  @text() clientCode: string | null;
+  @Column({ type: 'uuid', nullable: true }) clientId: string | null;
   @Column({ type: 'uuid' }) authorUserId: string;
   @Column({ type: 'text' }) body: string;
   /** CMT-5: the users the comment names with @. */
@@ -226,7 +226,7 @@ export class Task {
   @id() id: string;
   @Column({ type: 'uuid' }) tenantId: string;
   @ref() leadId: string | null;
-  @text() clientCode: string | null;
+  @Column({ type: 'uuid', nullable: true }) clientId: string | null;
   @text() signal: string | null;
   @text() agentCode: string | null;
   @Column({ type: 'text' }) title: string;

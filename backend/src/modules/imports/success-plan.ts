@@ -88,6 +88,19 @@ export interface ParsedApplicationRow {
 }
 
 type Row<T> = { rowNo: number; data: T };
+
+/**
+ * The planner works with the client codes of the file (DATA-1): they are what joins its sheets and
+ * what finds a person again (`clients.success_code`). `imports.service.ts` turns stored ids into
+ * codes before planning and the codes back into ids before writing (decided 25/11/2026).
+ */
+export type CodedPolicyClient = Omit<PolicyClient, 'clientId'> & {
+  clientCode: string;
+};
+/** PRD-3: `insuredCode` "" = the main insured, or a person known only by name. */
+export type CodedPolicyProduct = Omit<PolicyProduct, 'insuredClientId'> & {
+  insuredCode: string;
+};
 type Fields = Record<string, unknown>;
 
 export interface ExistingClient extends Fields {
@@ -99,8 +112,8 @@ export interface ExistingPolicy extends Fields {
   policyNo: string;
   servicingAgentCode?: string;
   agents: PolicyAgent[];
-  clients: PolicyClient[];
-  products: PolicyProduct[];
+  clients: CodedPolicyClient[];
+  products: CodedPolicyProduct[];
   currentAgentCodes: string[];
 }
 
@@ -160,8 +173,8 @@ export interface PolicyState extends Fields {
   servicingAgentCode?: string;
   agents: PolicyAgent[];
   currentAgentCodes: string[];
-  clients: PolicyClient[];
-  products: PolicyProduct[];
+  clients: CodedPolicyClient[];
+  products: CodedPolicyProduct[];
 }
 
 export interface SuccessPlan {
@@ -179,7 +192,19 @@ export interface SuccessPlan {
   changes: FieldChange[];
   /** Clients whose agent links must be worked out again after the write. */
   touchedClients: string[];
+  /**
+   * Decided 25/11/2026: a client added by hand has no Success code. When the file names a new code
+   * as the holder or main insured of a policy that person is on, the code becomes theirs, so the
+   * file updates them instead of making a second client (MAN-8). Filled in by `imports.service.ts`.
+   */
+  adoptions: { clientCode: string; clientId: string }[];
 }
+
+/** A stored person without a Success code, as the planner sees them: `id:<client id>`. */
+export const storedRef = (clientId: string) => `id:${clientId}`;
+/** The client id behind `storedRef`, or null for a real Success code. */
+export const refId = (code: string): string | null =>
+  code.startsWith('id:') ? code.slice(3) : null;
 
 const POLICY_FIELDS = [
   'holderClientCode',
@@ -262,6 +287,7 @@ export function planSuccess(input: SuccessPlanInput): SuccessPlan {
     applications: [],
     changes: [],
     touchedClients: [],
+    adoptions: [],
   };
   const touched = new Set<string>();
   const inScope = (agentCode: string) =>
@@ -541,7 +567,7 @@ export function planSuccess(input: SuccessPlanInput): SuccessPlan {
           item.productCode === productCode && samePerson(item.insuredCode),
       );
       if (!product) {
-        const fresh: PolicyProduct = {
+        const fresh: CodedPolicyProduct = {
           productCode,
           insuredCode,
           productRole: row.data.productRole,

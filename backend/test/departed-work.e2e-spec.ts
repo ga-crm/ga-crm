@@ -44,7 +44,10 @@ describe('Work left by people who have gone (e2e)', () => {
     await seedDemoData(app, PASSWORD);
     [head, admin, fc, um, head2] = await Promise.all([as('head'), as('admin'), as('fc'), as('um'), as('head', 2)]);
     for (let index = 0; index < 3; index++) leadIds.push(await lead(FC));
-    await fc.post(`${API}/clients`).send({ clientCode: '7000000001', name: 'Khách Của FC', dob: '1980-01-01' }).expect(201);
+    await fc
+      .post(`${API}/clients`)
+      .send({ policyNo: '700000001', role: 'PO', name: 'Khách Của FC', dob: '1980-01-01' })
+      .expect(201);
     const { rows } = await ownerDb().query<{ id: string }>(`SELECT id FROM users WHERE email = $1`, [demoEmail(1, 'fc')]);
     fcId = rows[0].id;
   });

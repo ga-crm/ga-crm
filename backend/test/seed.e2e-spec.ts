@@ -72,14 +72,39 @@ describe('Demo seed (e2e)', () => {
 
   it('slice 4b: each demo GA has clients with policies, owned by its agents', async () => {
     const fc = await signIn(demoEmail(1, 'fc'));
-    const { items } = (await fc.get(`${API}/clients`).expect(200)).body;
-    expect(
-      items.map((item: { clientCode: string }) => item.clientCode),
-    ).toEqual(
-      expect.arrayContaining(['0100000001', '0100000002', '0100000003']),
+    const { items } = (await fc.get(`${API}/clients`).expect(200)).body as {
+      items: {
+        id: string;
+        name: string;
+        policies: { policyNo: string; roles: string[] }[];
+      }[];
+    };
+    // Added on policies by number and role (decided 25/11/2026): the holders, and the mother and
+    // daughter insured on the family policy
+    expect(items.map((item) => item.name)).toEqual(
+      expect.arrayContaining([
+        'Võ Thành Đạt 1',
+        'Phan Thị Lan 1',
+        'Võ Gia Hân 1',
+        'Đinh Thị Mai 1',
+        'Lý Quốc Huy 1',
+      ]),
     );
-    const { body } = await fc.get(`${API}/clients/0100000001`).expect(200);
+    const father = items.find((item) => item.name === 'Võ Thành Đạt 1')!;
+    expect(father.policies).toEqual([
+      { policyNo: '010000001', roles: expect.arrayContaining(['PO', 'LI']) },
+    ]);
+    const { body } = await fc.get(`${API}/clients/${father.id}`).expect(200);
     expect(body.policies[0].products).toHaveLength(3);
+    expect(
+      body.policies[0].people.map((person: { name: string }) => person.name),
+    ).toEqual(
+      expect.arrayContaining([
+        'Võ Thành Đạt 1',
+        'Phan Thị Lan 1',
+        'Võ Gia Hân 1',
+      ]),
+    );
     expect(body.canEdit).toBe(true);
   });
 

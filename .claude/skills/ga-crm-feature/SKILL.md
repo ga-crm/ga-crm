@@ -28,7 +28,7 @@ CREATE POLICY tenant_isolation ON things
 GRANT SELECT, INSERT, UPDATE, DELETE ON things TO crm_app, crm_platform;
 ```
 
-Natural keys from DLVN are `text` and keep leading zeros (DATA-1). A table without `tenant_id` needs a reason in the exempt list of the TEN-2 test in `test/auth.e2e-spec.ts`, and forced RLS with no policy so only `crm_platform` reaches it. Add an entity to `core/db/entities.ts` only when the repository API helps; raw SQL through `rowsOf` is fine. Run `npm run db:migrate` for the dev database.
+Natural keys from DLVN are `text` and keep leading zeros (DATA-1). A client is addressed by its id; the Success client code lives only in `clients.success_code` for the import and never leaves the API (decided 25/11/2026). A table without `tenant_id` needs a reason in the exempt list of the TEN-2 test in `test/auth.e2e-spec.ts`, and forced RLS with no policy so only `crm_platform` reaches it. Add an entity to `core/db/entities.ts` only when the repository API helps; raw SQL through `rowsOf` is fine. Run `npm run db:migrate` for the dev database.
 
 **Service.** Take a `Scope`, never a tenant from the client, and do all reads and writes of one operation in one `TenantDb.run`, which opens a transaction pinned to the tenant:
 

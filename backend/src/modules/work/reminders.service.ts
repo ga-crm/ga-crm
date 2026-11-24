@@ -33,20 +33,20 @@ interface TaskRow {
   id: string;
   agentCode: string | null;
   leadId: string | null;
-  clientCode: string | null;
+  clientId: string | null;
   createdBy: string;
   dueAt: Date;
 }
 
-const TASK_ROW = `id, agent_code AS "agentCode", lead_id AS "leadId", client_code AS "clientCode",
+const TASK_ROW = `id, agent_code AS "agentCode", lead_id AS "leadId", client_id AS "clientId",
   created_by AS "createdBy", due_at AS "dueAt"`;
 
 /** TASK-7: where a task reminder leads. */
 const taskLink = (task: TaskRow): string =>
   task.leadId
     ? `/leads/${task.leadId}?tab=tasks`
-    : task.clientCode
-      ? `/clients/${task.clientCode}`
+    : task.clientId
+      ? `/clients/${task.clientId}`
       : '/tasks';
 
 /**
@@ -310,12 +310,12 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
     const { due, clients } = await this.tenantDb.run(scope, async (db) => {
       const policies = await rowsOf<{
         policyNo: string;
-        holderClientCode: string;
+        holderClientId: string | null;
         premiumDueDate: string;
         status: string | null;
       }>(
         db,
-        `SELECT policy_no AS "policyNo", holder_client_code AS "holderClientCode",
+        `SELECT policy_no AS "policyNo", holder_client_id AS "holderClientId",
                 premium_due_date::text AS "premiumDueDate", status
            FROM policies
           WHERE tenant_id = $1 AND premium_due_date BETWEEN $2 AND $3`,
@@ -323,22 +323,26 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
       );
       const due = policies.filter((policy) => isActiveStatus(policy.status));
       const clients = await rowsOf<{
-        clientCode: string;
+        id: string;
         birthDayMonth: string | null;
         ownerAgentCodes: string[];
       }>(
         db,
-        `SELECT client_code AS "clientCode", birth_day_month AS "birthDayMonth",
+        `SELECT id, birth_day_month AS "birthDayMonth",
                 owner_agent_codes AS "ownerAgentCodes"
            FROM clients
           WHERE tenant_id = $1
-            AND (client_code = ANY($2::text[]) OR birth_day_month = ANY($3::text[]))`,
-        [scope.tenantId, due.map((policy) => policy.holderClientCode), days],
+            AND (id = ANY($2::uuid[]) OR birth_day_month = ANY($3::text[]))`,
+        [
+          scope.tenantId,
+          due.flatMap((policy) => policy.holderClientId ?? []),
+          days,
+        ],
       );
       return { due, clients };
     });
     const owners = new Map(
-      clients.map((client) => [client.clientCode, client.ownerAgentCodes]),
+      clients.map((client) => [client.id, client.ownerAgentCodes]),
     );
     const year = today.slice(0, 4);
     const items: {
@@ -347,7 +351,7 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
       key: string;
     }[] = [];
     for (const policy of due)
-      for (const agent of owners.get(policy.holderClientCode) ?? [])
+      for (const agent of owners.get(policy.holderClientId ?? '') ?? [])
         items.push({
           agent,
           kind: 'premium',
@@ -359,7 +363,7 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
           items.push({
             agent,
             kind: 'birthday',
-            key: `bday:${agent}:${client.clientCode}:${year}`,
+            key: `bday:${agent}:${client.id}:${year}`,
           });
     if (items.length === 0) return;
     const fresh = await this.notifications.claim(

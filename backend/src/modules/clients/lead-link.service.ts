@@ -44,15 +44,15 @@ export class LeadLinkService implements OnModuleInit {
   onModuleInit(): void {
     // CUS-4: when a linked lead changes hands, the client follows it
     this.leads.onReassign(async (scope, leadIds, now, db) => {
-      const linked = await rowsOf<{ client_code: string }>(
+      const linked = await rowsOf<{ client_id: string }>(
         db,
-        `SELECT client_code FROM leads
+        `SELECT client_id FROM leads
           WHERE tenant_id = $1 AND id = ANY($2::uuid[]) AND link_status = 'CONFIRMED'`,
         [scope.tenantId, leadIds],
       );
       await this.reader.recomputeLinks(
         scope,
-        linked.map((lead) => lead.client_code),
+        linked.map((lead) => lead.client_id),
         now,
         db,
       );
@@ -95,7 +95,10 @@ export class LeadLinkService implements OnModuleInit {
           digits.length >= 3
             ? or(
                 name,
-                sql`c.client_code LIKE ${`${digits}%`}`,
+                // A policy number finds everyone on it (decided 25/11/2026)
+                sql`EXISTS (SELECT 1 FROM policies p
+                             WHERE p.tenant_id = c.tenant_id AND p.client_ids @> ARRAY[c.id]
+                               AND p.policy_no LIKE ${`${digits}%`})`,
                 sql`c.phone LIKE ${`%${digits}%`}`,
               )
             : name;
@@ -112,36 +115,34 @@ export class LeadLinkService implements OnModuleInit {
             this.scopeClause(reach, lead),
             // A client already linked to another lead is not offered
             sql`NOT EXISTS (SELECT 1 FROM leads other
-                             WHERE other.tenant_id = c.tenant_id AND other.client_code = c.client_code
+                             WHERE other.tenant_id = c.tenant_id AND other.client_id = c.id
                                AND other.link_status = 'CONFIRMED' AND other.id <> ${lead.id}::uuid)`,
             match,
           ),
         )
         .limit(50)
         .getMany();
-      const codes = candidates.map((client) => client.clientCode);
+      const ids = candidates.map((client) => client.id);
       const applications = await this.reader
         .applications(
           db,
           scope,
           and(
-            sql`a.client_code = ANY(${codes}::text[])`,
+            sql`a.client_id = ANY(${ids}::uuid[])`,
             !reach.all && sql`a.agent_code = ANY(${reach.codes}::text[])`,
           ),
         )
         .getMany();
       const policies = await this.reader
-        .policies(db, scope, and(policiesNaming(codes), policiesSeen(reach)))
+        .policies(db, scope, and(policiesNaming(ids), policiesSeen(reach)))
         .getMany();
       const today = todayInVietnam();
       const items = candidates
         .map((client) => {
-          const own = applications.filter(
-            (item) => item.clientCode === client.clientCode,
-          );
+          const own = applications.filter((item) => item.clientId === client.id);
           const { score, reasons } = linkScore(lead, client, own, today);
           return {
-            clientCode: client.clientCode,
+            clientId: client.id,
             name: client.name,
             gender: client.gender,
             ageBand: client.ageBand,
@@ -150,8 +151,7 @@ export class LeadLinkService implements OnModuleInit {
             policies: policies
               .filter((policy) =>
                 policy.clients.some(
-                  (link) =>
-                    link.clientCode === client.clientCode && !link.endedAt,
+                  (link) => link.clientId === client.id && !link.endedAt,
                 ),
               )
               .map((policy) => ({
@@ -190,7 +190,7 @@ export class LeadLinkService implements OnModuleInit {
             scope,
             and(
               this.scopeClause(reach, lead),
-              sql`c.client_code = ${dto.clientCode}`,
+              sql`c.id = ${dto.clientId}`,
             ),
           )
           .getOne();
@@ -200,27 +200,34 @@ export class LeadLinkService implements OnModuleInit {
             .applications(
               db,
               scope,
-              sql`a.application_no = ${dto.applicationNo} AND a.client_code = ${dto.clientCode}`,
+              sql`a.application_no = ${dto.applicationNo} AND a.client_id = ${dto.clientId}`,
             )
             .getCount();
           if (!found) throw notFound();
         }
         const [other] = await rowsOf<{ id: string }>(
           db,
-          `SELECT id FROM leads WHERE tenant_id = $1 AND client_code = $2
+          `SELECT id FROM leads WHERE tenant_id = $1 AND client_id = $2
               AND link_status = 'CONFIRMED' AND id <> $3`,
-          [scope.tenantId, dto.clientCode, lead.id],
+          [scope.tenantId, dto.clientId, lead.id],
         );
         if (other)
           throw new ApiException(
             HttpStatus.CONFLICT,
             ErrorCode.ClientAlreadyLinked,
           );
-        const before = lead.linkStatus === 'CONFIRMED' ? lead.clientCode : null;
+        const before = lead.linkStatus === 'CONFIRMED' ? lead.clientId : null;
+        const [replaced] = before
+          ? await rowsOf<{ name: string }>(
+              db,
+              `SELECT name FROM clients WHERE tenant_id = $1 AND id = $2`,
+              [scope.tenantId, before],
+            )
+          : [];
         await db.getRepository(Lead).update(
           { id: lead.id, tenantId: scope.tenantId },
           {
-            clientCode: dto.clientCode,
+            clientId: dto.clientId,
             linkStatus: 'CONFIRMED',
             linkedBy: actor.id,
             linkedAt: now,
@@ -231,9 +238,10 @@ export class LeadLinkService implements OnModuleInit {
         await db.getRepository(LeadHistory).insert({
           tenantId: scope.tenantId,
           leadId: lead.id,
-          field: 'clientCode',
-          oldValue: before,
-          newValue: dto.clientCode,
+          // The lead history names the client (decided 25/11/2026)
+          field: 'client',
+          oldValue: replaced?.name ?? null,
+          newValue: client.name,
           changedBy: actor.id,
           changedAt: now,
         });
@@ -245,7 +253,7 @@ export class LeadLinkService implements OnModuleInit {
             entity: 'lead',
             entityId: lead.id,
             meta: {
-              clientCode: dto.clientCode,
+              clientId: dto.clientId,
               applicationNo: dto.applicationNo,
               ...(before && { replaced: before }),
             },
@@ -255,7 +263,7 @@ export class LeadLinkService implements OnModuleInit {
         // CUS-4: the lead's assignee now sees and owns the client
         await this.reader.recomputeLinks(
           scope,
-          [dto.clientCode, ...(before ? [before] : [])],
+          [dto.clientId, ...(before ? [before] : [])],
           now,
           db,
         );
@@ -277,14 +285,19 @@ export class LeadLinkService implements OnModuleInit {
     const now = new Date();
     await this.tenantDb.run(scope, async (db) => {
       const lead = await this.leads.workable(actor, id, db);
-      if (lead.linkStatus !== 'CONFIRMED' || !lead.clientCode) throw notFound();
-      const clientCode = lead.clientCode;
+      if (lead.linkStatus !== 'CONFIRMED' || !lead.clientId) throw notFound();
+      const clientId = lead.clientId;
+      const [client] = await rowsOf<{ name: string }>(
+        db,
+        `SELECT name FROM clients WHERE tenant_id = $1 AND id = $2`,
+        [scope.tenantId, clientId],
+      );
       await db.getRepository(Lead).update(
         { id: lead.id, tenantId: scope.tenantId },
         {
           linkStatus: 'NONE',
           updatedAt: now,
-          clientCode: null,
+          clientId: null,
           linkedBy: null,
           linkedAt: null,
         },
@@ -292,8 +305,8 @@ export class LeadLinkService implements OnModuleInit {
       await db.getRepository(LeadHistory).insert({
         tenantId: scope.tenantId,
         leadId: lead.id,
-        field: 'clientCode',
-        oldValue: clientCode,
+        field: 'client',
+        oldValue: client?.name ?? null,
         note: dto.reason,
         changedBy: actor.id,
         changedAt: now,
@@ -305,11 +318,11 @@ export class LeadLinkService implements OnModuleInit {
           action: AuditAction.Unlink,
           entity: 'lead',
           entityId: lead.id,
-          meta: { clientCode, reason: dto.reason },
+          meta: { clientId, reason: dto.reason },
         },
         db,
       );
-      await this.reader.recomputeLinks(scope, [clientCode], now, db);
+      await this.reader.recomputeLinks(scope, [clientId], now, db);
     });
   }
 
@@ -333,24 +346,24 @@ export class LeadLinkService implements OnModuleInit {
       )
       .getMany();
     if (leads.length === 0) return 0;
-    const codes = leads.flatMap((lead) => lead.clientCode ?? []);
+    const ids = leads.flatMap((lead) => lead.clientId ?? []);
     const applications = await this.reader
-      .applications(db, scope, sql`a.client_code = ANY(${codes}::text[])`)
+      .applications(db, scope, sql`a.client_id = ANY(${ids}::uuid[])`)
       .getMany();
     const policies = await this.reader
-      .policies(db, scope, policiesNaming(codes))
+      .policies(db, scope, policiesNaming(ids))
       .getMany();
     const rows: Partial<LeadHistory>[] = [];
     let moved = 0;
     for (const lead of leads) {
       const next = stageFromSuccess(lead, {
         applications: applications.filter(
-          (item) => item.clientCode === lead.clientCode,
+          (item) => item.clientId === lead.clientId,
         ),
         policies: policies.filter((policy) =>
           policy.clients.some(
             (link) =>
-              link.clientCode === lead.clientCode &&
+              link.clientId === lead.clientId &&
               link.role === 'PO' &&
               !link.endedAt,
           ),
@@ -392,14 +405,14 @@ export class LeadLinkService implements OnModuleInit {
   }
 
   /** LEAD-34: the lead a client came from, for the client page. */
-  async linkedLead(actor: Actor, clientCode: string, outer?: EntityManager) {
+  async linkedLead(actor: Actor, clientId: string, outer?: EntityManager) {
     const scope = this.scopeOf(actor);
     return this.tenantDb.run(
       scope,
       async (db) => {
         const lead = await db.getRepository(Lead).findOneBy({
           tenantId: scope.tenantId,
-          clientCode,
+          clientId,
           linkStatus: 'CONFIRMED',
         });
         if (!lead) return null;

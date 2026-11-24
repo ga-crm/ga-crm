@@ -64,7 +64,7 @@ export const router = createBrowserRouter([
                   { path: 'campaigns', lazy: screen(pages.campaigns, canUseLeads) },
                   { path: 'campaigns/:id', lazy: screen(pages.campaignDetail, canUseLeads) },
                   { path: 'clients', lazy: screen(pages.clients, canUseClients) },
-                  { path: 'clients/:code', lazy: screen(pages.clientDetail, canUseClients) },
+                  { path: 'clients/:clientId', lazy: screen(pages.clientDetail, canUseClients) },
                   { path: 'agents', lazy: screen(pages.agents, inTenant) },
                   { path: 'imports', lazy: screen(pages.imports, canReadImports) },
                   { path: 'imports/new', lazy: screen(pages.importNew, canImport) },
