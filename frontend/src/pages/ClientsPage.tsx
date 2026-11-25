@@ -6,6 +6,7 @@ import { ClientAssignDialog } from '../components/ClientAssignDialog'
 import { CreateClientForm } from '../components/ClientForms'
 import { hasPermission, hasRole } from '../auth/access'
 import { useMe } from '../auth/useMe'
+import { TierBadge } from '../components/TierBadge'
 import { Alert, Badge, Button, Card, Container, Dialog, ClearFilters, EmptyState, FilterBand, FilterField, PageHeader, Pagination, SearchInput, Select, Spinner, TableScroll, TabBar, Checkbox } from '../components/ui'
 import { t, tDynamic } from '../i18n'
 import { errorMessage } from '../lib/api'
@@ -36,7 +37,7 @@ function ClientCell({ client }: { client: ClientRow }) {
       {client.phone && <span className="block text-ink-meta tabular-nums">{client.phone}</span>}
       {(client.tier || client.manual) && (
         <span className="mt-1 flex flex-wrap gap-1">
-          {client.tier && <Badge tone="info">{client.tier}</Badge>}
+          {client.tier && <TierBadge tier={client.tier} />}
           {client.manual && <Badge tone="muted">{t('clients.badgeManual')}</Badge>}
         </span>
       )}

@@ -31,6 +31,16 @@ const PERSONAL_COLUMNS = [
   'age',
   'extra_info',
   'progress_note',
+  // Free text from a GA's file, as personal as a note (25/11/2026)
+  'follow_up_10d',
+  'follow_up_15d',
+  'follow_up_20d',
+  'handling_note',
+  'cdyt_stats',
+  'cdyt_profile',
+  // The street address and commune point at the person; the province stays for statistics
+  'address_line',
+  'ward_code',
   'ref_link',
   'application_no',
   'policy_no',
@@ -44,6 +54,8 @@ const PERSONAL_HISTORY = [
   'extraInfo',
   'progressNote',
   'refLink',
+  'addressLine',
+  'ward',
   'applicationNo',
   'policyNo',
   // LEAD-32: the linked client, named in the history (decided 25/11/2026)
@@ -350,6 +362,13 @@ export class LeadRemovalService {
           .filter((field) => keep[field] === null && gone[field] !== null)
           .map((field) => [field, gone[field]]),
       );
+      // Decided 26/11/2026: the place moves as a whole, so a commune stays in its province
+      if (keep.provinceCode === null && gone.provinceCode !== null)
+        Object.assign(fill, {
+          provinceCode: gone.provinceCode,
+          wardCode: gone.wardCode,
+          ...(keep.addressLine === null && { addressLine: gone.addressLine }),
+        });
       const lastComment = latest(keep.lastCommentAt, gone.lastCommentAt);
       // The other lead's link moves to the kept one; the unique index allows one at a time
       if (gone.clientId)

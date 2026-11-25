@@ -2,7 +2,12 @@ import { Column, Entity, PrimaryColumn } from 'typeorm';
 import { bigintNumber } from '../../../core/db/transformers.js';
 import type { Relation } from '../client-insights.js';
 import { LINK_SOURCES, PRODUCT_ROLES } from '../client.constants.js';
-import type { LinkSource } from '../client.constants.js';
+import type {
+  CareRecordKind,
+  LinkSource,
+  ReferralRelation,
+  ReferralResult,
+} from '../client.constants.js';
 
 export { LINK_SOURCES };
 
@@ -135,6 +140,18 @@ export class Policy {
   @money() unpaidPremiumVnd: number | null;
   @money() aplDebtVnd: number | null;
   @flag() hasBeneficiary: boolean | null;
+  /** Personal data: returned only by the audited reveal (decided 25/11/2026). */
+  @text() contactAddress: string | null;
+  /** Used only when the policy has no main product line with a sum assured. */
+  @money() sumAssuredVnd: number | null;
+  @day() graceEndDate: string | null;
+  /** DLVN's assignment of the servicing agent (Success only). */
+  @text() assignmentType: string | null;
+  @day() assignmentDate: string | null;
+  @money() advancePremiumVnd: number | null;
+  @money() totalPaidPremiumVnd: number | null;
+  @money() basicPremiumVnd: number | null;
+  @money() topUpPremiumVnd: number | null;
   @Column({ type: 'jsonb', default: () => `'[]'` }) agents: PolicyAgent[];
   /** SCOPE-5 */
   @Column({ type: 'text', array: true, default: () => `'{}'` })
@@ -208,6 +225,44 @@ export class InsuranceProgram {
   @Column({ type: 'boolean', default: true }) active: boolean;
   @Column({ type: 'integer' }) sortOrder: number;
   @Column({ type: 'timestamptz', default: () => 'now()' }) createdAt: Date;
+}
+
+/** Decided 26/11/2026: one dated care event of a client, entered by hand. */
+@Entity('client_care_records')
+export class ClientCareRecord {
+  @id() id: string;
+  @Column({ type: 'uuid' }) tenantId: string;
+  @Column({ type: 'uuid' }) clientId: string;
+  @Column({ type: 'text' }) kind: CareRecordKind;
+  @Column({ type: 'date' }) occurredOn: string;
+  /** What: the event's or the gift's name. */
+  @text() title: string | null;
+  /** Where: the hospital of a claim, the venue of an event. */
+  @text() place: string | null;
+  @money() amountVnd: number | null;
+  @text() policyNo: string | null;
+  @text() note: string | null;
+  @Column({ type: 'uuid' }) createdBy: string;
+  @Column({ type: 'timestamptz', default: () => 'now()' }) createdAt: Date;
+  @Column({ type: 'timestamptz', default: () => 'now()' }) updatedAt: Date;
+}
+
+/** Decided 26/11/2026: one person a client referred, and what came of it. */
+@Entity('client_referrals')
+export class ClientReferral {
+  @id() id: string;
+  @Column({ type: 'uuid' }) tenantId: string;
+  @Column({ type: 'uuid' }) clientId: string;
+  @Column({ type: 'text' }) personName: string;
+  @Column({ type: 'text' }) relation: ReferralRelation;
+  @Column({ type: 'date' }) referredOn: string;
+  @Column({ type: 'text' }) result: ReferralResult;
+  /** The premium of the policy a successful referral brought. */
+  @money() premiumVnd: number | null;
+  @text() note: string | null;
+  @Column({ type: 'uuid' }) createdBy: string;
+  @Column({ type: 'timestamptz', default: () => 'now()' }) createdAt: Date;
+  @Column({ type: 'timestamptz', default: () => 'now()' }) updatedAt: Date;
 }
 
 /** IMP-21: one row per field an import or a person really changed. */

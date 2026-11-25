@@ -869,7 +869,8 @@ export class ClientCareService {
         },
         db,
       );
-      const link = `/clients/${clientId}`;
+      // Comments sit in the client's care tab (26/11/2026)
+      const link = `/clients/${clientId}?tab=care`;
       if (mentions.length > 0)
         await this.notifications.notify(
           scope,

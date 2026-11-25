@@ -32,6 +32,7 @@ import {
 import { ClientCareService } from './client-care.service.js';
 import { IdPipe } from '../../common/pagination.js';
 import { ClientEditorService } from './client-editor.service.js';
+import { ClientRecordsService } from './client-records.service.js';
 import {
   AssignClientsDto,
   ClientFieldsDto,
@@ -57,6 +58,7 @@ export class ClientsController {
     private readonly clients: ClientsService,
     private readonly editor: ClientEditorService,
     private readonly care: ClientCareService,
+    private readonly records: ClientRecordsService,
   ) {}
 
   @Get()
@@ -122,7 +124,12 @@ export class ClientsController {
     @Param('clientId', IdPipe) clientId: string,
   ) {
     const detail = await this.clients.detail(actor, clientId);
-    return { ...detail, ...(await this.care.insights(actor, clientId)) };
+    return {
+      ...detail,
+      ...(await this.care.insights(actor, clientId)),
+      // Decided 26/11/2026: care records and referrals entered by hand
+      ...(await this.records.forClient(actor, clientId)),
+    };
   }
 
   @Patch(':clientId')
@@ -176,6 +183,26 @@ export class ClientsController {
   ): Promise<void> {
     await this.editor.updatePolicy(actor, clientId, policyNo, dto);
   }
+
+  @Get(':clientId/policies/:policyNo/contact-address')
+  @ApiOperation({
+    summary: 'Xem địa chỉ liên hệ của hợp đồng',
+    description:
+      'Dữ liệu cá nhân, không trả cùng hợp đồng. Mỗi lần xem ghi kiểm toán VIEW_CLIENT (entity policy). Cùng phạm vi như xem khách hàng (CUS-5, CUS-8).',
+  })
+  @ApiParam({ name: 'clientId', format: 'uuid' })
+  @ApiParam({ name: 'policyNo', example: '000000001' })
+  @ApiNotFoundResponse({
+    description: 'not_found (kể cả hợp đồng ngoài phạm vi hoặc GA khác)',
+  })
+  contactAddress(
+    @CurrentActor() actor: Actor,
+    @Param('clientId', IdPipe) clientId: string,
+    @Param('policyNo') policyNo: string,
+  ): Promise<{ contactAddress: string | null }> {
+    return this.clients.contactAddress(actor, clientId, policyNo);
+  }
+
   @Delete(':clientId/policies/:policyNo')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({

@@ -116,6 +116,6 @@ Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:44`
 
 Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:45`
 
-Đã trích dẫn trong: `backend/src/modules/leads/lead-options.service.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/lead-options.e2e-spec.ts`, `frontend/src/pages/LeadDetailPage.tsx`, `frontend/src/pages/LeadsPage.tsx`
+Đã trích dẫn trong: `backend/src/modules/leads/lead-options.service.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/lead-options.e2e-spec.ts`, `frontend/src/components/OptionPicker.tsx`, `frontend/src/pages/LeadDetailPage.tsx`, `frontend/src/pages/LeadsPage.tsx`
 
 - **OPT-13** Nguồn: danh mục dùng cho ô lọc và form thêm lead; file nhập vẫn ghi nhận nguồn mới (thêm vào danh mục) **[QĐ đề xuất: OPEN]** - có bắt buộc nguồn phải nằm trong danh mục khi tạo tay không.

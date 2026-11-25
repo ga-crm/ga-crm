@@ -212,6 +212,79 @@ describe('Reports (e2e)', () => {
     });
   });
 
+  it('R2, decided 26/11/2026: the activities behind a number, each counted or not and why; Success data as of', async () => {
+    type Item = {
+      type: string;
+      source: string;
+      ref: string;
+      status: string | null;
+      counted: boolean;
+      excluded: string | null;
+      leadId: string | null;
+      person: string | null;
+    };
+    const details = async (agent: Agent, query: Record<string, string>) =>
+      (
+        await agent
+          .get(`${API}/reports/activities/details`)
+          .query({ from: TODAY, to: TODAY, ...query })
+          .expect(200)
+      ).body as { items: Item[]; total: number; counted: number };
+
+    // Every activity of the FC: the counted ones are exactly the report's total
+    const all = await details(head, { agents: FC });
+    expect(all.counted).toBe(3);
+    const byRef = new Map(all.items.map((item) => [item.ref, item]));
+    expect(byRef.get('S1')).toMatchObject({
+      type: 'CALL',
+      source: 'SUCCESS',
+      counted: false,
+      excluded: 'duplicate',
+    });
+    expect(byRef.get('S3')).toMatchObject({
+      type: 'COACHING',
+      status: 'draft',
+      counted: false,
+      excluded: 'status',
+    });
+    expect(byRef.get('S4')).toMatchObject({ type: 'ZALO', counted: true });
+    // The CRM call opens its lead
+    expect(all.items.find((item) => item.source === 'CRM')).toMatchObject({
+      type: 'CALL',
+      counted: true,
+      leadId: leadIds[0],
+      person: 'Lead 0911000001',
+    });
+
+    // One column, one source, a team's agents
+    expect(
+      (await details(head, { agents: FC, type: 'ZALO' })).items.map(
+        (item) => item.ref,
+      ),
+    ).toEqual(['S4']);
+    expect(
+      (await details(head, { agents: `${UM},${FC}`, source: 'SUCCESS' })).items,
+    ).toHaveLength(4);
+
+    // RPT-3: a FC opens only their own row; another GA sees nothing of GA-1
+    expect((await details(fc, { agents: FC })).counted).toBe(3);
+    expect((await details(fc, { agents: UM })).items).toEqual([]);
+    expect((await details(head2, { agents: FC })).items).toEqual([]);
+    await head
+      .get(`${API}/reports/activities/details`)
+      .query({ agents: 'abc' })
+      .expect(400);
+
+    // How far the Success data goes, shown with the report
+    const body = (
+      await head
+        .get(`${API}/reports/activities`)
+        .query({ from: TODAY, to: TODAY })
+        .expect(200)
+    ).body;
+    expect(body.successAsOf.lastActivityDate).toBe(TODAY);
+  });
+
   it('R8: received, handed over, handed over with no contact, days held', async () => {
     await head
       .post(`${API}/leads/assign`)

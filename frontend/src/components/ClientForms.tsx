@@ -48,6 +48,13 @@ const policySchema = z.object({
   unpaidPremiumVnd: money,
   aplDebtVnd: money,
   hasBeneficiary: yesNoUnknown,
+  contactAddress: optionalText(300),
+  sumAssuredVnd: money,
+  graceEndDate: optionalDate,
+  advancePremiumVnd: money,
+  totalPaidPremiumVnd: money,
+  basicPremiumVnd: money,
+  topUpPremiumVnd: money,
   insuredName: optionalText(200),
   products: z.array(productSchema).max(20),
 })
@@ -100,6 +107,13 @@ const emptyPolicy = (): PolicyValues => ({
   unpaidPremiumVnd: '',
   aplDebtVnd: '',
   hasBeneficiary: '',
+  contactAddress: '',
+  sumAssuredVnd: '',
+  graceEndDate: '',
+  advancePremiumVnd: '',
+  totalPaidPremiumVnd: '',
+  basicPremiumVnd: '',
+  topUpPremiumVnd: '',
   insuredName: '',
   products: [],
 })
@@ -135,6 +149,14 @@ function policyBody(values: PolicyValues) {
     unpaidPremiumVnd: num(values.unpaidPremiumVnd),
     aplDebtVnd: num(values.aplDebtVnd),
     hasBeneficiary: bool(values.hasBeneficiary),
+    // A blank address keeps the stored one, which the form never receives
+    contactAddress: text(values.contactAddress),
+    sumAssuredVnd: num(values.sumAssuredVnd),
+    graceEndDate: text(values.graceEndDate),
+    advancePremiumVnd: num(values.advancePremiumVnd),
+    totalPaidPremiumVnd: num(values.totalPaidPremiumVnd),
+    basicPremiumVnd: num(values.basicPremiumVnd),
+    topUpPremiumVnd: num(values.topUpPremiumVnd),
     insuredName: text(values.insuredName),
     products: values.products.map((line) => ({
       insuredName: text(line.insuredName),
@@ -207,19 +229,25 @@ function ClientFields({ register, errors, prefix = 'client' }: { register: UseFo
           ))}
         </Select>
       </Field>
-      <Field label={t('clients.loyalty')} htmlFor={`${prefix}-loyalty`} error={errors.loyaltyPoints?.message}>
-        <Input id={`${prefix}-loyalty`} inputMode="numeric" placeholder="0" aria-invalid={!!errors.loyaltyPoints} {...register('loyaltyPoints')} />
-      </Field>
-      <Field label={t('clients.dconnect')} htmlFor={`${prefix}-dconnect`}>
-        <YesNoSelect id={`${prefix}-dconnect`} label={t('clients.dconnect')} register={reg('usesDconnect')} />
-      </Field>
+      {SHOW_SUCCESS_FLAGS && (
+        <Field label={t('clients.loyalty')} htmlFor={`${prefix}-loyalty`} error={errors.loyaltyPoints?.message}>
+          <Input id={`${prefix}-loyalty`} inputMode="numeric" placeholder="0" aria-invalid={!!errors.loyaltyPoints} {...register('loyaltyPoints')} />
+        </Field>
+      )}
+      {SHOW_SUCCESS_FLAGS && (
+        <Field label={t('clients.dconnect')} htmlFor={`${prefix}-dconnect`}>
+          <YesNoSelect id={`${prefix}-dconnect`} label={t('clients.dconnect')} register={reg('usesDconnect')} />
+        </Field>
+      )}
       <Field label={t('clients.ekyc')} htmlFor={`${prefix}-ekyc`}>
         <YesNoSelect id={`${prefix}-ekyc`} label={t('clients.ekyc')} register={reg('ekycRegistered')} />
       </Field>
       {/* PDP-1: only whether it was updated */}
-      <Field label={t('clients.idUpdated')} htmlFor={`${prefix}-id`} hint={t('clients.idUpdatedHint')}>
-        <YesNoSelect id={`${prefix}-id`} label={t('clients.idUpdated')} register={reg('idUpdated')} />
-      </Field>
+      {SHOW_SUCCESS_FLAGS && (
+        <Field label={t('clients.idUpdated')} htmlFor={`${prefix}-id`} hint={t('clients.idUpdatedHint')}>
+          <YesNoSelect id={`${prefix}-id`} label={t('clients.idUpdated')} register={reg('idUpdated')} />
+        </Field>
+      )}
     </div>
   )
 }
@@ -229,7 +257,7 @@ function ClientFields({ register, errors, prefix = 'client' }: { register: UseFo
  * the root). `kept` names the products the policy already carries, so a line keeps one the catalogue
  * now hides or lacks (TENANT-5).
  */
-function PolicyFields({ control, register, errors, name, showNumber, editableLines = true, kept }: { control: Control<never>; register: UseFormRegister<never>; errors?: FieldErrors<PolicyValues>; name: string; showNumber: boolean; editableLines?: boolean; kept?: ReadonlyMap<string, string> }) {
+function PolicyFields({ control, register, errors, name, showNumber, editableLines = true, kept, addressKept = false }: { control: Control<never>; register: UseFormRegister<never>; errors?: FieldErrors<PolicyValues>; name: string; showNumber: boolean; editableLines?: boolean; kept?: ReadonlyMap<string, string>; addressKept?: boolean }) {
   const path = (field: string) => (name ? `${name}.${field}` : field) as never
   const reg = (field: string) => (register as unknown as UseFormRegister<Record<string, string>>)(path(field) as string)
   const lines = useFieldArray({ control, name: path('products') as never })
@@ -277,6 +305,27 @@ function PolicyFields({ control, register, errors, name, showNumber, editableLin
         </Field>
         <Field label={t('clients.beneficiary')} htmlFor={id('beneficiary')}>
           <YesNoSelect id={id('beneficiary')} label={t('clients.beneficiary')} register={reg('hasBeneficiary')} />
+        </Field>
+        <Field label={t('clients.graceEnd')} htmlFor={id('grace')} error={err('graceEndDate')}>
+          <Input id={id('grace')} type="date" {...reg('graceEndDate')} />
+        </Field>
+        <Field label={t('clients.sumAssuredPolicy')} htmlFor={id('sum')} hint={t('clients.sumAssuredHint')} error={err('sumAssuredVnd')}>
+          <Input id={id('sum')} inputMode="numeric" placeholder={t('placeholder.money')} {...reg('sumAssuredVnd')} />
+        </Field>
+        <Field label={t('clients.advancePremium')} htmlFor={id('advance')} error={err('advancePremiumVnd')}>
+          <Input id={id('advance')} inputMode="numeric" placeholder={t('placeholder.money')} {...reg('advancePremiumVnd')} />
+        </Field>
+        <Field label={t('clients.totalPaid')} htmlFor={id('paid')} error={err('totalPaidPremiumVnd')}>
+          <Input id={id('paid')} inputMode="numeric" placeholder={t('placeholder.money')} {...reg('totalPaidPremiumVnd')} />
+        </Field>
+        <Field label={t('clients.basicPremium')} htmlFor={id('basic')} error={err('basicPremiumVnd')}>
+          <Input id={id('basic')} inputMode="numeric" placeholder={t('placeholder.money')} {...reg('basicPremiumVnd')} />
+        </Field>
+        <Field label={t('clients.topUp')} htmlFor={id('topup')} error={err('topUpPremiumVnd')}>
+          <Input id={id('topup')} inputMode="numeric" placeholder={t('placeholder.money')} {...reg('topUpPremiumVnd')} />
+        </Field>
+        <Field label={t('clients.contactAddress')} htmlFor={id('address')} error={err('contactAddress')}>
+          <Input id={id('address')} autoComplete="off" placeholder={t(addressKept ? 'placeholder.addressKept' : 'placeholder.contactAddress')} {...reg('contactAddress')} />
         </Field>
         <Field label={t('clients.insuredName')} htmlFor={id('insured')} hint={t('clients.insuredHint')} error={err('insuredName')}>
           <Input id={id('insured')} placeholder={t('placeholder.insuredSame')} {...reg('insuredName')} />
@@ -466,6 +515,13 @@ export function CreateClientForm({ onClose, onCreated }: { onClose: () => void; 
   )
 }
 
+/**
+ * Hidden for now at the project owner's request (26/11/2026): loyalty points, D-Connect and "ID card
+ * updated" are not typed by hand. Success imports still fill them and the client page still shows
+ * them. Set to true to bring the fields back.
+ */
+const SHOW_SUCCESS_FLAGS: boolean = false
+
 /** The client fields as the API takes them. On edit an emptied field is sent as null (MAN-6). */
 function clientBody(values: ClientValues, editing: boolean) {
   const clear = (value: unknown) => (value === undefined && editing ? null : value)
@@ -478,10 +534,13 @@ function clientBody(values: ClientValues, editing: boolean) {
     ageBand: editing ? (text(values.ageBand) ?? (values.dob ? undefined : null)) : text(values.ageBand),
     gender: clear(text(values.gender)),
     maritalStatus: clear(text(values.maritalStatus)),
-    loyaltyPoints: clear(num(values.loyaltyPoints)),
-    usesDconnect: clear(bool(values.usesDconnect)),
     ekycRegistered: clear(bool(values.ekycRegistered)),
-    idUpdated: clear(bool(values.idUpdated)),
+    // Hidden fields are left out, so an edit keeps what Success sent
+    ...(SHOW_SUCCESS_FLAGS && {
+      loyaltyPoints: clear(num(values.loyaltyPoints)),
+      usesDconnect: clear(bool(values.usesDconnect)),
+      idUpdated: clear(bool(values.idUpdated)),
+    }),
   }
 }
 
@@ -558,6 +617,13 @@ export function PolicyForm({ clientId, policy, onClose }: { clientId: string; po
           unpaidPremiumVnd: numText(policy.unpaidPremiumVnd),
           aplDebtVnd: numText(policy.aplDebtVnd),
           hasBeneficiary: choice(policy.hasBeneficiary),
+          contactAddress: '',
+          sumAssuredVnd: numText(policy.sumAssuredVnd),
+          graceEndDate: policy.graceEndDate ?? '',
+          advancePremiumVnd: numText(policy.advancePremiumVnd),
+          totalPaidPremiumVnd: numText(policy.totalPaidPremiumVnd),
+          basicPremiumVnd: numText(policy.basicPremiumVnd),
+          topUpPremiumVnd: numText(policy.topUpPremiumVnd),
           // POL-2: blank when the holder is also the main insured
           insuredName: policy.insuredClientId && policy.insuredClientId === policy.holderClientId ? '' : (policy.insuredName ?? ''),
           products: policy.products.map((product) => ({
@@ -595,7 +661,7 @@ export function PolicyForm({ clientId, policy, onClose }: { clientId: string; po
   return (
     <form noValidate onSubmit={form.handleSubmit((values) => save.mutate(values))}>
       {editing && <p className="mb-3 text-caption text-ink-meta">{t('clients.policyEditHint')}</p>}
-      <PolicyFields control={form.control as never} register={form.register as never} errors={form.formState.errors} name="" showNumber={!editing} editableLines={editableLines} kept={kept} />
+      <PolicyFields control={form.control as never} register={form.register as never} errors={form.formState.errors} name="" showNumber={!editing} editableLines={editableLines} kept={kept} addressKept={!!policy?.hasContactAddress} />
       <FormError message={save.isError && !shownOnField ? errorMessage(save.error) : undefined} />
       <div className={MODAL_FOOTER}>
         <Button variant="secondary" onClick={onClose}>

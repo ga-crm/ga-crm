@@ -8,7 +8,7 @@
 
 Nguồn: `requirement/03-quy-tac-chung.md:27`
 
-Đã trích dẫn trong: `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/clients.dto.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `frontend/src/components/ClientForms.tsx`, `frontend/src/pages/ClientDetailPage.tsx`
+Đã trích dẫn trong: `backend/src/migrations/1763136000000-clients.ts`, `backend/src/migrations/1764691200000-client-care-records.ts`, `backend/src/modules/clients/client-records.dto.ts`, `backend/src/modules/clients/client.constants.ts`, `backend/src/modules/clients/clients.dto.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `frontend/src/components/ClientCareRecords.tsx`, `frontend/src/components/ClientForms.tsx`, `frontend/src/pages/ClientDetailPage.tsx`
 
 - **PDP-1** Không bao giờ lưu số CCCD / CMND / hộ chiếu, số tài khoản ngân hàng, hoặc (trong file Success) dữ liệu sức khỏe. Cột nhập có tiêu đề giống loại dữ liệu này không bao giờ được trình duyệt đọc hay gửi, được liệt kê là lỗi, và file gốc khi đó không được lưu.
 
@@ -24,7 +24,7 @@ Nguồn: `requirement/03-quy-tac-chung.md:28`
 
 Nguồn: `requirement/03-quy-tac-chung.md:29`
 
-Đã trích dẫn trong: `backend/src/modules/leads/lead-rules.spec.ts`, `backend/src/modules/leads/lead-rules.ts`, `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/lead-board.e2e-spec.ts`, `backend/test/lead-removal.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`
+Đã trích dẫn trong: `backend/src/migrations/1764777600000-lead-supporters.ts`, `backend/src/modules/leads/infrastructure/lead.entities.ts`, `backend/src/modules/leads/lead-rules.spec.ts`, `backend/src/modules/leads/lead-rules.ts`, `backend/src/modules/leads/lead-supporters.service.ts`, `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/lead-board.e2e-spec.ts`, `backend/test/lead-removal.e2e-spec.ts`, `backend/test/lead-supporters.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`, `frontend/src/components/LeadSupporters.tsx`
 
 - **PDP-3** Che số điện thoại lead: quản lý tuyến (không phải người được giao, không phải người quản lý lead) thấy `0912***678` (4 số đầu + `***` + 3 số cuối), không tìm theo số điện thoại được, lịch sử đổi số cũng bị che với họ.
 
@@ -40,7 +40,7 @@ Nguồn: `requirement/03-quy-tac-chung.md:30`
 
 Nguồn: `requirement/03-quy-tac-chung.md:31`
 
-Đã trích dẫn trong: `backend/src/modules/leads/leads.service.ts`
+Đã trích dẫn trong: `backend/src/modules/leads/leads.dto.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/leads.e2e-spec.ts`
 
 - **PDP-5** Đồng ý liên hệ của lead (`consentMarketing`) lưu kèm nguồn và thời điểm; file nhập chỉ cấp, không bao giờ rút đồng ý.
 
@@ -48,7 +48,7 @@ Nguồn: `requirement/03-quy-tac-chung.md:31`
 
 Nguồn: `requirement/03-quy-tac-chung.md:32`
 
-Đã trích dẫn trong: `backend/src/migrations/1763049600000-leads.ts`, `backend/src/modules/leads/infrastructure/lead.entities.ts`, `backend/src/modules/leads/lead-removal.service.ts`, `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.dto.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/src/modules/reports/reports.service.ts`, `backend/src/modules/work/work.service.ts`, `backend/test/lead-removal.e2e-spec.ts`, `frontend/src/components/LeadRemoval.tsx`
+Đã trích dẫn trong: `backend/src/migrations/1763049600000-leads.ts`, `backend/src/migrations/1764518400000-lead-follow-ups.ts`, `backend/src/modules/leads/infrastructure/lead.entities.ts`, `backend/src/modules/leads/lead-removal.service.ts`, `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.dto.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/src/modules/reports/reports.service.ts`, `backend/src/modules/work/work.service.ts`, `backend/test/geo.e2e-spec.ts`, `backend/test/lead-removal.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`, `frontend/src/components/LeadRemoval.tsx`
 
 - **PDP-6** Yêu cầu của chủ thể dữ liệu: xóa lead theo yêu cầu = xóa cứng các trường cá nhân (tên, số điện thoại, email, ngày sinh, nội dung ghi chú), giữ thống kê ẩn danh, có audit. **NEW**: xuất dữ liệu của một lead / khách hàng theo yêu cầu (JSON + PDF), có audit.
 

@@ -17,6 +17,37 @@ export const AGE_BANDS = [
 export const GENDERS = ['Nam', 'Nữ'] as const;
 /** CUS-10 */
 export const PREMIUM_FREQUENCIES = ['Năm', 'Nửa năm', 'Quý', 'Tháng'] as const;
+/**
+ * Personal data kept on a policy (decided 25/11/2026): the change history records that it
+ * changed, never its value, and the API returns it only through an audited reveal.
+ */
+export const HIDDEN_FIELDS: ReadonlySet<string> = new Set(['contactAddress']);
+/**
+ * Decided 26/11/2026: what a GA records about caring for a client. A claim says when and where,
+ * never why (PDP-1); a seminar or health check is one the client attended; a gift or visit is care
+ * after the sale; cash and gifts on signing are kept apart.
+ */
+export const CARE_RECORD_KINDS = [
+  'CLAIM',
+  'SEMINAR',
+  'HEALTH_CHECK',
+  'GIFT',
+  'VISIT',
+  'SIGNING_CASH',
+  'SIGNING_GIFT',
+] as const;
+export type CareRecordKind = (typeof CARE_RECORD_KINDS)[number];
+/** How a referred person relates to the client who referred them. */
+export const REFERRAL_RELATIONS = [
+  'FAMILY',
+  'FRIEND',
+  'COLLEAGUE',
+  'NEIGHBOR',
+  'OTHER',
+] as const;
+export type ReferralRelation = (typeof REFERRAL_RELATIONS)[number];
+export const REFERRAL_RESULTS = ['PENDING', 'SUCCESS', 'FAILED'] as const;
+export type ReferralResult = (typeof REFERRAL_RESULTS)[number];
 /** PRD-6 */
 export const PRODUCT_ROLES = ['Chính', 'Bổ trợ'] as const;
 /** CUS-13 */

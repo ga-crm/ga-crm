@@ -5,6 +5,8 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
 import { ProductsModule } from '../products/products.module.js';
 import { ClientCareService } from './client-care.service.js';
 import { ClientEditorService } from './client-editor.service.js';
+import { ClientRecordsController } from './client-records.controller.js';
+import { ClientRecordsService } from './client-records.service.js';
 import { ClientsController } from './clients.controller.js';
 import { ClientsService } from './clients.service.js';
 import { LeadLinkService } from './lead-link.service.js';
@@ -18,6 +20,7 @@ import { ProductsController } from './products.controller.js';
   imports: [AgentsModule, LeadsModule, NotificationsModule, ProductsModule],
   controllers: [
     ClientsController,
+    ClientRecordsController,
     ProgramsController,
     LeadLinksController,
     ProductsController,
@@ -26,6 +29,7 @@ import { ProductsController } from './products.controller.js';
     ClientsService,
     ClientEditorService,
     ClientCareService,
+    ClientRecordsService,
     LeadLinkService,
     ProgramsService,
   ],

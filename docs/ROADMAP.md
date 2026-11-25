@@ -114,7 +114,7 @@ Thiết kế ở [thiet-ke-he-thong.md](thiet-ke-he-thong.md), cách chuyển �
 |---|---|---|---|
 | 4a | Nhập 02_Clients, 03_Policies, 04_Policy_Products, 05_Applications | Xong | Mục 12.1-12.3, 19.3-19.5, IMP-5 đến IMP-21, CUS-1, CUS-4, CUS-10 đến CUS-13 |
 | 4a | Liên kết khách hàng - đại lý, thấy / sở hữu | Xong | CUS-4 đến CUS-8 |
-| 4a | Danh sách khách hàng, chi tiết (hồ sơ, hợp đồng, chương trình, hồ sơ YCBH), `VIEW_CLIENT` | Xong | CUS-9, CUS-14, một phần CUS-15. "Khách hàng của" chọn một, chưa chọn nhiều |
+| 4a | Danh sách khách hàng, chi tiết (hồ sơ, hợp đồng, chương trình, hồ sơ YCBH), `VIEW_CLIENT` | Xong. 25/11/2026: thẻ "Hợp đồng" riêng, chi tiết hợp đồng trong thẻ với 9 trường hợp đồng / phí mới, địa chỉ liên hệ che và xem có audit (decisions.md) | CUS-9, CUS-14, một phần CUS-15. "Khách hàng của" chọn một, chưa chọn nhiều |
 | 4b | Thêm / sửa khách hàng, hợp đồng bằng tay; danh mục chương trình bảo hiểm | Xong. 25/11/2026: thêm khách theo **Mã hợp đồng** + vai trò, khách định danh bằng id, mã khách Success thành cột ẩn (decisions.md) | MAN-1 đến 8, POL-1 đến 6, PRD-1 đến 5, PRG-1 đến 8, quyền `catalog.manage` / `clients.assign`. POL-7, PRG-9 còn OPEN |
 | 4c | Gia đình, quyền lợi bảo hiểm, cơ hội chăm sóc và tab đếm, ghi chú khách hàng | Xong | FAM-1 đến 8, COV-1 đến 5, mục 10.11, SIG-1, NOTE-5. Chưa có SIG-2 (tạo việc từ tín hiệu), việc / góp ý trên khách hàng |
 | 4d | Phân công khách hàng, nhập 07_Activities, tab Lịch sử | Xong | ASG-1 đến 7, IMP-31, IMP-32, CUS-15 tab Lịch sử. Báo cáo hoạt động R2 dùng `successActivities` ở lát cắt 6 |

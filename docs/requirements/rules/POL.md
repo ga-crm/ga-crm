@@ -56,6 +56,6 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:65`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:66`
 
-Đã trích dẫn trong: `backend/src/common/errors.ts`, `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/client-rules.spec.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/test/client-assign.e2e-spec.ts`, `backend/test/policy-delete.e2e-spec.ts`, `frontend/src/lib/types.ts`, `frontend/src/pages/ClientDetailPage.tsx`
+Đã trích dẫn trong: `backend/src/common/errors.ts`, `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/client-rules.spec.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/test/client-assign.e2e-spec.ts`, `backend/test/policy-delete.e2e-spec.ts`, `frontend/src/components/PolicyDetail.tsx`, `frontend/src/lib/types.ts`, `frontend/src/pages/ClientDetailPage.tsx`
 
 - **POL-7** **OPEN**: có cho xóa hợp đồng nhập tay sai không (đề xuất: chỉ khi chưa có lần nhập nào chạm vào, có audit; hợp đồng đã khớp với Success không xóa được).

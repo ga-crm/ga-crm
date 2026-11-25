@@ -8,6 +8,7 @@ import { LeadOptionsController } from './lead-options.controller.js';
 import { LeadOptionsService } from './lead-options.service.js';
 import { LeadRemovalService } from './lead-removal.service.js';
 import { LeadsController } from './leads.controller.js';
+import { LeadSupportersService } from './lead-supporters.service.js';
 import { LeadsService } from './leads.service.js';
 import { SavedFiltersService } from './saved-filters.service.js';
 
@@ -24,6 +25,7 @@ import { SavedFiltersService } from './saved-filters.service.js';
     LeadsService,
     LeadOptionsService,
     LeadRemovalService,
+    LeadSupportersService,
     SavedFiltersService,
   ],
   exports: [LeadsService, LeadOptionsService, LeadRemovalService],

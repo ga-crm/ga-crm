@@ -6,6 +6,8 @@
 /** NTF-2: the events this build notifies. AI budget waits for the AI slice. */
 export const NOTIFICATION_TYPES = [
   'LEAD_ASSIGNED',
+  /** Decided 26/11/2026: being asked to support a lead */
+  'LEAD_SUPPORT',
   'CLIENT_ASSIGNED',
   'LEAD_COMMENT',
   'CLIENT_COMMENT',

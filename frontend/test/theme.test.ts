@@ -37,6 +37,12 @@ describe('themes', () => {
       }
     })
 
+    it('keeps each client tier badge readable (decided 26/11/2026)', () => {
+      for (const tier of ['member', 'silver', 'gold', 'diamond']) {
+        expect(contrast(theme[`tier-${tier}`], theme[`tier-${tier}-band`]), `${tier} badge`).toBeGreaterThanOrEqual(4.5)
+      }
+    })
+
     it('keeps its own accent readable', () => {
       for (const surface of [theme.canvas, theme.chrome]) {
         expect(contrast(theme.primary, surface)).toBeGreaterThanOrEqual(4.5)

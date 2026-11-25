@@ -9,7 +9,10 @@ import { CommentThread } from '../components/CommentThread'
 import { LeadAssignDialog } from '../components/LeadAssignDialog'
 import { DeleteLeadForm, MergeLeadForm } from '../components/LeadRemoval'
 import { LeadLinkTab } from '../components/LeadClientLink'
+import { SupportTab } from '../components/LeadSupporters'
 import { NoteComposer, } from '../components/NoteComposer'
+import { OptionPicker } from '../components/OptionPicker'
+import { PlaceFields } from '../components/PlaceFields'
 import { ProductPicker } from '../components/ProductPicker'
 import { useMe } from '../auth/useMe'
 import { Alert, Badge, Button, ConfirmDialog, Container, Dialog, EmptyState, RowMenu, Field, FormError, Input, MODAL_FOOTER, Notice, Select, Spinner, WIDE_FORM_GRID, TabBar, Textarea, Checkbox } from '../components/ui'
@@ -20,7 +23,6 @@ import { careTone, fromLocalInput, historyValue, interestTone, showDate, toLocal
 import { keys, queries } from '../lib/queries'
 import { toast } from '../lib/toast'
 import { useLeadOptions } from '../lib/leadOptions'
-import { ListSuggestions } from '../components/ListSuggestions'
 import { LEAD_WORK_STAGES } from '../lib/types'
 import type { LeadOption, LeadOptionKind } from '../lib/types'
 import type { LeadDetail, LeadTask } from '../lib/types'
@@ -37,7 +39,7 @@ function Fact({ label, value }: { label: string; value?: string | number | null 
   return (
     <div className="grid grid-cols-[9rem_1fr] gap-2 border-b border-band py-2 text-caption">
       <dt className="text-ink-meta">{label}</dt>
-      <dd className="min-w-0 break-words text-ink-body">{value ?? '-'}</dd>
+      <dd className="min-w-0 break-words whitespace-pre-line text-ink-body">{value ?? '-'}</dd>
     </div>
   )
 }
@@ -47,7 +49,10 @@ const editSchema = z.object({
   phone: phoneField,
   dob: optionalBirthDate,
   region: optionalText(100),
-  province: optionalText(100),
+  // Decided 26/11/2026: the province and commune after 1/7/2025, and the street address
+  provinceCode: z.string(),
+  wardCode: z.string(),
+  addressLine: optionalText(300),
   email: optionalEmail,
   consent: z.enum(['yes', 'no']),
   // OPT-3: a typed value may become a catalogue label; an older, longer one is only sent back unchanged
@@ -57,7 +62,7 @@ const editSchema = z.object({
   productCode: z.string(),
 })
 type EditValues = z.infer<typeof editSchema>
-const EDIT_ERRORS = { invalid_phone: 'phone', phone_exists: 'phone', unknown_option: 'source', unknown_product: 'productCode' } as const
+const EDIT_ERRORS = { invalid_phone: 'phone', phone_exists: 'phone', unknown_option: 'source', unknown_product: 'productCode', unknown_place: 'wardCode' } as const
 
 /** LEAD-8: source and campaign are shown for lead managers only. */
 function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => void }) {
@@ -74,7 +79,9 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
       phone: lead.phone,
       dob: lead.dob ?? '',
       region: lead.region ?? '',
-      province: lead.province ?? '',
+      provinceCode: lead.provinceCode ?? '',
+      wardCode: lead.wardCode ?? '',
+      addressLine: lead.addressLine ?? '',
       email: lead.email ?? '',
       consent: lead.consentMarketing ? 'yes' : 'no',
       // The field shows the GA's label; the API finds the source by label or code
@@ -86,13 +93,15 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
   const { errors, dirtyFields } = form.formState
   const sourceChanged = !!dirtyFields.source
   const save = useMutation({
-    mutationFn: ({ consent, dob, region, province, email, source, campaignId, productCode, ...rest }: EditValues) =>
+    mutationFn: ({ consent, dob, region, provinceCode, wardCode, addressLine, email, source, campaignId, productCode, ...rest }: EditValues) =>
       api.patch(`/leads/${lead.id}`, {
         ...rest,
         consent: consent === 'yes',
         dob: dob || null,
         region: region || null,
-        province: province || null,
+        // Sent only when changed, so an older typed province stays until a province is chosen
+        ...((dirtyFields.provinceCode || dirtyFields.wardCode) && { provinceCode: provinceCode || null, wardCode: wardCode || null }),
+        ...(dirtyFields.addressLine && { addressLine: addressLine || null }),
         email: email || null,
         // Sent only when changed; null clears it
         ...(dirtyFields.productCode && { productCode: productCode || null }),
@@ -126,12 +135,15 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
           <Input id="edit-dob" type="date" min="1900-01-01" aria-invalid={!!errors.dob} {...form.register('dob')} />
         </Field>
         <Field label={t('leads.region')} htmlFor="edit-region" error={errors.region?.message}>
-          <Input id="edit-region" list="edit-region-options" placeholder={t('leads.regionPlaceholder')} {...form.register('region')} />
-          <ListSuggestions id="edit-region-options" kind="region" />
+          <Controller
+            control={form.control}
+            name="region"
+            render={({ field, fieldState }) => (
+              <OptionPicker ref={field.ref} kind="region" id="edit-region" label={t('leads.region')} maxLength={100} emptyLabel={t('leads.noPlace')} placeholder={t('leads.regionPlaceholder')} value={field.value ?? ''} onChange={field.onChange} onBlur={field.onBlur} invalid={fieldState.invalid} />
+            )}
+          />
         </Field>
-        <Field label={t('leads.province')} htmlFor="edit-province" error={errors.province?.message}>
-          <Input id="edit-province" placeholder={t('leads.provincePlaceholder')} {...form.register('province')} />
-        </Field>
+        <PlaceFields control={form.control} setValue={form.setValue} errors={errors} idPrefix="edit" />
         <Field label={t('leads.productInterest')} htmlFor="edit-product" error={errors.productCode?.message}>
           <Controller
             control={form.control}
@@ -160,8 +172,13 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
         {canManage && (
           <>
             <Field label={t('leads.source')} htmlFor="edit-source" required error={errors.source?.message} hint={t('leads.sourceHint')}>
-              <Input id="edit-source" list="edit-source-options" maxLength={200} placeholder={t('leads.sourcePlaceholder')} aria-invalid={!!errors.source} {...form.register('source')} />
-              <ListSuggestions id="edit-source-options" kind="source" />
+              <Controller
+                control={form.control}
+                name="source"
+                render={({ field, fieldState }) => (
+                  <OptionPicker ref={field.ref} kind="source" joins id="edit-source" label={t('leads.source')} maxLength={60} placeholder={t('leads.sourcePlaceholder')} value={field.value} onChange={(next) => field.onChange(next)} onBlur={field.onBlur} invalid={fieldState.invalid} />
+                )}
+              />
             </Field>
             <Field label={t('leads.campaign')} htmlFor="edit-campaign">
               <Select id="edit-campaign" {...form.register('campaignId')}>
@@ -284,8 +301,7 @@ function StatusForm({ detail }: { detail: LeadDetail }) {
         {values.careStatus === 'DROPPED' && (
           <div className="sm:col-span-2">
             <Field label={t('leads.lostReason')} htmlFor="status-reason" required error={fieldError('lost_reason_required')}>
-              <ListSuggestions id="status-reason-options" kind="lost_reason" />
-              <Input id="status-reason" list="status-reason-options" maxLength={500} aria-invalid={!!fieldError('lost_reason_required')} placeholder={t('leads.lostReasonPlaceholder')} value={values.lostReason} onChange={(event) => set({ lostReason: event.target.value })} />
+              <OptionPicker kind="lost_reason" id="status-reason" label={t('leads.lostReason')} maxLength={500} invalid={!!fieldError('lost_reason_required')} placeholder={t('leads.lostReasonPlaceholder')} value={values.lostReason} onChange={(lostReason) => set({ lostReason })} />
             </Field>
           </div>
         )}
@@ -410,7 +426,8 @@ function Timeline({ detail }: { detail: LeadDetail }) {
           </li>
         ))}
       </ol>
-      {detail.canWork ? <NoteComposer path={`/leads/${detail.lead.id}`} onSaved={refresh} /> : <p className="mt-3 text-caption text-ink-meta">{t('leads.notesReadOnly')}</p>}
+      {/* Decided 26/11/2026: a supporter writes notes too, but does not record contacts */}
+      {detail.canContribute ? <NoteComposer path={`/leads/${detail.lead.id}`} notesOnly={!detail.canWork} onSaved={refresh} /> : <p className="mt-3 text-caption text-ink-meta">{t('leads.notesReadOnly')}</p>}
       <Dialog title={t('leads.editNoteTitle')} open={!!editing} onClose={() => url.set({ note: null })}>
         {editing && <EditNoteForm key={editing.id} detail={detail} item={editing} onClose={() => url.set({ note: null })} />}
       </Dialog>
@@ -438,7 +455,9 @@ function InfoTab({ detail, onEdit }: { detail: LeadDetail; onEdit: () => void })
           <Fact label={t('leads.dob')} value={showDate(lead.dob)} />
           <Fact label={t('agents.gender')} value={lead.gender} />
           <Fact label={t('leads.region')} value={lead.region} />
-          <Fact label={t('leads.province')} value={lead.province} />
+          {/* Decided 26/11/2026: the place by its current names; an older typed province shows as written */}
+          <Fact label={t('leads.address')} value={[lead.addressLine, lead.wardName, lead.provinceName].filter(Boolean).join(', ') || null} />
+          {!lead.provinceCode && lead.province && <Fact label={t('leads.provinceOld')} value={lead.province} />}
           <Fact label={t('leads.source')} value={lead.source} />
           <Fact label={t('leads.phoneSource')} value={lead.phoneSource} />
           <Fact label={t('leads.campaign')} value={campaign?.name} />
@@ -459,6 +478,13 @@ function InfoTab({ detail, onEdit }: { detail: LeadDetail; onEdit: () => void })
           )}
           {lead.productInterest && <Fact label={lead.productCode ? t('leads.productNote') : t('leads.product')} value={lead.productInterest} />}
           {lead.extraInfo && <Fact label={t('leads.extraInfo')} value={lead.extraInfo} />}
+          {/* From a GA's file ("XỬ LÝ SAU", "CDYT"), shown when there is something (decided 25/11/2026) */}
+          {lead.followUp10d && <Fact label={t('leads.followUp10d')} value={lead.followUp10d} />}
+          {lead.followUp15d && <Fact label={t('leads.followUp15d')} value={lead.followUp15d} />}
+          {lead.followUp20d && <Fact label={t('leads.followUp20d')} value={lead.followUp20d} />}
+          {lead.handlingNote && <Fact label={t('leads.handlingNote')} value={lead.handlingNote} />}
+          {lead.cdytStats && <Fact label={t('leads.cdytStats')} value={lead.cdytStats} />}
+          {lead.cdytProfile && <Fact label={t('leads.cdytProfile')} value={lead.cdytProfile} />}
           {lead.applicationNo && <Fact label={t('leads.applicationNo')} value={lead.applicationNo} />}
           {lead.policyNo && <Fact label={t('leads.policyNo')} value={lead.policyNo} />}
           {lead.lostReason && <Fact label={t('leads.lostReason')} value={lead.lostReason} />}
@@ -469,7 +495,7 @@ function InfoTab({ detail, onEdit }: { detail: LeadDetail; onEdit: () => void })
         {canWork ? (
           <StatusForm key={lead.updatedAt} detail={detail} />
         ) : (
-          <Notice>{t('leads.viewOnly', { name: detail.assignee?.name ?? '-' })}</Notice>
+          <Notice>{t(detail.supporting ? 'leads.supportingNotice' : 'leads.viewOnly', { name: detail.assignee?.name ?? '-' })}</Notice>
         )}
         <Timeline detail={detail} />
       </div>
@@ -521,7 +547,8 @@ function TaskForm({ leadId, task, onClose }: { leadId: string; task?: LeadTask; 
 }
 
 function TasksTab({ detail }: { detail: LeadDetail }) {
-  const { lead, tasks, canWork } = detail
+  // Decided 26/11/2026: the assignee and the lead's supporters share its tasks
+  const { lead, tasks, canContribute: canWork } = detail
   const refresh = useRefresh(lead.id)
   const [editing, setEditing] = useState<LeadTask | 'new' | null>(null)
   const toggle = useMutation({
@@ -687,9 +714,11 @@ function HistoryTab({ detail }: { detail: LeadDetail }) {
   )
 }
 
-const TABS: { key: 'info' | 'tasks' | 'history' | 'link'; label: MessageKey }[] = [
+const TABS: { key: 'info' | 'tasks' | 'support' | 'history' | 'link'; label: MessageKey }[] = [
   { key: 'info', label: 'leads.tabInfo' },
   { key: 'tasks', label: 'leads.tabTasks' },
+  // Decided 26/11/2026: who helps with the lead, without seeing its phone
+  { key: 'support', label: 'leads.tabSupport' },
   { key: 'history', label: 'leads.tabHistory' },
   // LEAD-32
   { key: 'link', label: 'leads.tabLink' },
@@ -701,7 +730,7 @@ export function LeadDetailPage() {
   const lead = useQuery(queries.lead(id))
   const catalogue = useLeadOptions()
   const [assigning, setAssigning] = useState(false)
-  const tab = url.oneOf('tab', ['tasks', 'history', 'link']) || 'info'
+  const tab = url.oneOf('tab', ['tasks', 'support', 'history', 'link']) || 'info'
   useSelectedTabInView(tab, !!lead.data)
   const editing = url.get('edit') === '1'
   const dialog = url.oneOf('dialog', ['delete', 'merge'])
@@ -722,7 +751,7 @@ export function LeadDetailPage() {
 
   return (
     <>
-      <Container className="flex-none pt-2 pb-3">
+      <Container className="flex-none pt-2 pb-4">
         <Link to="/leads" className="inline-flex items-center gap-1 text-caption text-primary hover:underline">
           <ArrowLeft aria-hidden size={14} />
           {t('leads.back')}
@@ -765,19 +794,20 @@ export function LeadDetailPage() {
 
       <Container className="flex-none">
         <TabBar
-          variant="line"
+          className="mb-2"
           label={info.fullName}
           value={tab}
           onValueChange={(key) => url.set({ tab: key === 'info' ? null : key })}
           items={TABS.map((item) => ({
             value: item.key,
-            label: `${t(item.label)}${item.key === 'tasks' ? ` (${data.tasks.filter((task) => task.status === 'OPEN').length})` : ''}`,
+            label: item.key === 'support' ? t('leads.tabSupport', { count: data.supporters.length }) : `${t(item.label)}${item.key === 'tasks' ? ` (${data.tasks.filter((task) => task.status === 'OPEN').length})` : ''}`,
           }))}
         />
       </Container>
 
       {tab === 'info' && <InfoTab detail={data} onEdit={() => url.set({ edit: 1 }, { push: true })} />}
       {tab === 'tasks' && <TasksTab detail={data} />}
+      {tab === 'support' && <SupportTab detail={data} />}
       {tab === 'history' && <HistoryTab detail={data} />}
       {tab === 'link' && <LeadLinkTab detail={data} />}
 

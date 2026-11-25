@@ -95,6 +95,10 @@ export class Lead {
   @Column({ type: 'integer', nullable: true }) age: number | null;
   @text() province: string | null;
   @text() region: string | null;
+  /** Decided 26/11/2026: the province and commune after 1/7/2025, and the street address. */
+  @text() provinceCode: string | null;
+  @text() wardCode: string | null;
+  @text() addressLine: string | null;
   @Column({ type: 'text' }) source: string;
   @text() phoneSource: string | null;
   @ref() campaignId: string | null;
@@ -116,6 +120,16 @@ export class Lead {
   /** PDP-2: kept as written and never sent to AI. */
   @text() progressNote: string | null;
   @text() messageStatus: string | null;
+  /** A GA's file: what was done 10, 15 and 20 days later, and how it was handled (25/11/2026). */
+  @Column({ type: 'text', nullable: true, name: 'follow_up_10d' })
+  followUp10d: string | null;
+  @Column({ type: 'text', nullable: true, name: 'follow_up_15d' })
+  followUp15d: string | null;
+  @Column({ type: 'text', nullable: true, name: 'follow_up_20d' })
+  followUp20d: string | null;
+  @text() handlingNote: string | null;
+  @text() cdytStats: string | null;
+  @text() cdytProfile: string | null;
   @Column({ type: 'text' }) origin: LeadOrigin;
   @text() assignedAgentCode: string | null;
   @ref() assignedBy: string | null;
@@ -152,6 +166,20 @@ export class Lead {
   @ref() mergedInto: string | null;
   /** PDP-6 */
   @time() erasedAt: Date | null;
+}
+
+/**
+ * Decided 26/11/2026: a user asked to help with a lead besides its assignee. A supporter sees the
+ * lead with its phone masked (PDP-3) and may comment, never change it.
+ */
+@Entity('lead_supporters')
+export class LeadSupporter {
+  @id() id: string;
+  @Column({ type: 'uuid' }) tenantId: string;
+  @Column({ type: 'uuid' }) leadId: string;
+  @Column({ type: 'uuid' }) userId: string;
+  @Column({ type: 'uuid' }) addedBy: string;
+  @Column({ type: 'timestamptz', default: () => 'now()' }) createdAt: Date;
 }
 
 /** LEAD-20 */

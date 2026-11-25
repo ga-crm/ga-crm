@@ -78,6 +78,8 @@ export interface LeadRow {
   isNew: boolean
   newComment: boolean
   overdue: boolean
+  /** Decided 26/11/2026: the viewer sees this lead only because they support it; its phone is masked. */
+  supporting: boolean
 }
 
 export interface LeadCounts {
@@ -100,6 +102,21 @@ export interface LeadTask {
   doneBy: string | null
 }
 
+/** A province or a commune after 1/7/2025 (decided 26/11/2026). */
+export interface Place {
+  code: string
+  name: string
+  fullName: string
+}
+
+export interface LeadSupporter {
+  userId: string
+  name: string
+  agentCode: string | null
+  addedAt: string
+  addedByName: string | null
+}
+
 export interface LeadDetail {
   lead: Omit<LeadRow, 'agentName' | 'campaignName' | 'assignedAt'> & {
     email: string | null
@@ -111,6 +128,19 @@ export interface LeadDetail {
     productCode: string | null
     productName: string | null
     extraInfo: string | null
+    /** Decided 26/11/2026: the province and commune after 1/7/2025, with their names, and the street address. */
+    provinceCode: string | null
+    provinceName: string | null
+    wardCode: string | null
+    wardName: string | null
+    addressLine: string | null
+    /** A GA's file: follow-ups after 10, 15 and 20 days, the handling note and the CDYT columns. */
+    followUp10d: string | null
+    followUp15d: string | null
+    followUp20d: string | null
+    handlingNote: string | null
+    cdytStats: string | null
+    cdytProfile: string | null
     lostReason: string | null
     applicationNo: string | null
     policyNo: string | null
@@ -130,6 +160,12 @@ export interface LeadDetail {
   /** clientId is null for someone who does not see client pages (CUS-5, PDP-4) */
   link: { clientId: string | null; clientName: string | null; linkedAt: string | null } | null
   canLink: boolean
+  /** Decided 26/11/2026: "Người hỗ trợ": who helps with the lead, whether the viewer is one, and whether they may change the list. */
+  supporters: LeadSupporter[]
+  supporting: boolean
+  canSupport: boolean
+  /** Notes and tasks: whoever works the lead, and its supporters. */
+  canContribute: boolean
   canWork: boolean
   canManage: boolean
   /** LEAD-21, or a line manager for a lead of their line (open question 4). */
@@ -408,6 +444,18 @@ export interface ClientPolicy {
   unpaidPremiumVnd: number | null
   aplDebtVnd: number | null
   hasBeneficiary: boolean | null
+  /** The address itself comes only from the audited reveal (decided 25/11/2026). */
+  hasContactAddress: boolean
+  /** The main product line's sum assured; the page falls back to `sumAssuredVnd`. */
+  mainSumAssuredVnd: number | null
+  sumAssuredVnd: number | null
+  graceEndDate: string | null
+  assignmentType: string | null
+  assignmentDate: string | null
+  advancePremiumVnd: number | null
+  totalPaidPremiumVnd: number | null
+  basicPremiumVnd: number | null
+  topUpPremiumVnd: number | null
   servicingAgentCode: string | null
   agents: { agentCode: string; name: string | null; splitPercent: number | null; isServicing: boolean }[]
   products: {
@@ -430,6 +478,39 @@ export interface ClientPolicy {
   manual: boolean
   /** POL-7: entered by hand, untouched by imports, at most 7 days old, and this person may edit the client. */
   canDelete: boolean
+}
+
+/** Decided 26/11/2026: what a GA records about caring for a client. */
+export const CARE_RECORD_KINDS = ['CLAIM', 'SEMINAR', 'HEALTH_CHECK', 'GIFT', 'VISIT', 'SIGNING_CASH', 'SIGNING_GIFT'] as const
+export type CareRecordKind = (typeof CARE_RECORD_KINDS)[number]
+
+export interface CareRecord {
+  id: string
+  kind: CareRecordKind
+  occurredOn: string
+  /** What: the event's or the gift's name. */
+  title: string | null
+  /** Where: the hospital of a claim, the venue of an event. */
+  place: string | null
+  amountVnd: number | null
+  policyNo: string | null
+  note: string | null
+}
+
+export const REFERRAL_RELATIONS = ['FAMILY', 'FRIEND', 'COLLEAGUE', 'NEIGHBOR', 'OTHER'] as const
+export type ReferralRelation = (typeof REFERRAL_RELATIONS)[number]
+export const REFERRAL_RESULTS = ['PENDING', 'SUCCESS', 'FAILED'] as const
+export type ReferralResult = (typeof REFERRAL_RESULTS)[number]
+
+export interface ClientReferral {
+  id: string
+  personName: string
+  relation: ReferralRelation
+  referredOn: string
+  result: ReferralResult
+  /** The premium of the policy a successful referral brought. */
+  premiumVnd: number | null
+  note: string | null
 }
 
 /** CUS-15: the client page. */
@@ -472,6 +553,12 @@ export interface ClientDetail {
   }[]
   clientNames: Record<string, string>
   canEdit: boolean
+  /** Decided 26/11/2026: care entered by hand, newest first, and what the client received on signing. */
+  careRecords: CareRecord[]
+  signingSummary: { cashVnd: number; gifts: number; giftValueVnd: number }
+  /** The people this client referred, and how many became policies. */
+  referrals: ClientReferral[]
+  referralSummary: { total: number; success: number; pending: number; failed: number; premiumVnd: number }
   family: FamilyMember[]
   coverage: CoverageRow[]
   signals: ClientSignal[]
@@ -672,6 +759,38 @@ export interface ReportData {
   total: Record<string, number>
   /** R1 only: a column per interest of the GA's catalogue (OPT-11). */
   interests?: { code: string; label: string; isOpportunity: boolean }[]
+  /** R2 only (26/11/2026): the latest Success activity day and when a file last brought activities. */
+  successAsOf?: { lastActivityDate: string | null; lastImportedAt: string | null }
+}
+
+/** R2 (26/11/2026): one activity behind a number, and whether it counts. */
+export interface ActivityDetail {
+  day: string
+  at: string
+  type: string
+  source: 'CRM' | 'SUCCESS'
+  agentCode: string
+  agentName: string | null
+  counted: boolean
+  /** Why it does not count: the same person that day, or a Success draft / rejected row. */
+  excluded: 'duplicate' | 'status' | null
+  /** The contact's id in the CRM, or the activity's id on Success. */
+  ref: string
+  status: string | null
+  leadId: string | null
+  clientId: string | null
+  person: string | null
+  text: string | null
+  location: string | null
+}
+
+export interface ActivityDetails {
+  from: string
+  to: string
+  total: number
+  counted: number
+  items: ActivityDetail[]
+  truncated: boolean
 }
 
 /** TASK-1: a task of a lead, of a client, or of the person alone. */

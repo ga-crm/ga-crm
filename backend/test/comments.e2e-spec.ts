@@ -168,7 +168,7 @@ describe('Comments on clients and mentions (e2e)', () => {
       .body as { items: { type: string; subject: string; link: string }[] };
     expect(items.find((item) => item.type === 'MENTION')).toMatchObject({
       subject: 'Khách Góp Ý',
-      link: `/clients/${CLIENT}`,
+      link: `/clients/${CLIENT}?tab=care`,
     });
   });
 

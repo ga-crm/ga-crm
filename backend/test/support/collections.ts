@@ -18,6 +18,7 @@ const TABLES: Record<string, string> = {
   agents: 'agents',
   leads: 'leads',
   leadHistory: 'lead_history',
+  leadSupporters: 'lead_supporters',
   interactions: 'interactions',
   comments: 'comments',
   tasks: 'tasks',

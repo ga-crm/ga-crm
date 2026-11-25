@@ -766,6 +766,12 @@ export async function seedShowcase(
         premiumFrequency: 'Năm',
         basePremiumVnd: 18_000_000,
         premiumDueDate: iso(new Date(now + 20 * DAY_MS)),
+        // The policy page's detail and premium fields (decided 25/11/2026)
+        contactAddress: `${number}2 Đường Mẫu, Phường Mẫu, TP.HCM`,
+        graceEndDate: iso(new Date(now + 80 * DAY_MS)),
+        plannedPremiumVnd: 18_000_000,
+        totalPaidPremiumVnd: 36_000_000,
+        basicPremiumVnd: 18_000_000,
         products: [
           {
             productCode: 'AN_TAM_SONG_HANH',

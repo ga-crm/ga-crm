@@ -83,6 +83,23 @@ export const peopleOn = (policy: Pick<Policy, 'clients'>) => {
   return roles;
 };
 
+/**
+ * Decided 25/11/2026: a policy's sum assured is that of its main product line (role "Chính",
+ * the catalogue's role when it knows the product) for the main insured.
+ */
+export const mainSumAssured = (
+  policy: Pick<Policy, 'insuredClientId' | 'products'>,
+  catalogue: ReadonlyMap<string, { productRole: string }>,
+): number | null =>
+  policy.products.find(
+    (line) =>
+      (catalogue.get(line.productCode)?.productRole ?? line.productRole) ===
+        'Chính' &&
+      (!line.insuredClientId ||
+        line.insuredClientId === policy.insuredClientId) &&
+      line.sumAssuredVnd != null,
+  )?.sumAssuredVnd ?? null;
+
 @Injectable()
 export class ClientsService {
   constructor(
@@ -722,6 +739,46 @@ export class ClientsService {
   }
 
   /** CUS-15, first tab. Opening a client is audited (CUS-9). TEN-3: unseen and foreign look missing. */
+  /**
+   * The policy's contact address, for someone who may open the client and the policy (CUS-5,
+   * CUS-8). Personal data, so every reveal is audited (decided 25/11/2026).
+   */
+  async contactAddress(
+    actor: Actor,
+    clientId: string,
+    policyNo: string,
+  ): Promise<{ contactAddress: string | null }> {
+    const scope = this.scopeOf(actor);
+    return this.tenantDb.run(scope, async (db) => {
+      const reach = await this.reach(actor, db);
+      const client = await this.clients(
+        db,
+        scope,
+        and(sql`c.id = ${clientId}`, clientsSeen(reach)),
+      ).getOne();
+      if (!client) throw notFound();
+      const [policy] = await this.visiblePolicies(
+        db,
+        scope,
+        reach,
+        and(sql`p.policy_no = ${policyNo}`, policiesNaming([clientId])),
+      );
+      if (!policy) throw notFound();
+      await this.audit.record(
+        {
+          tenantId: scope.tenantId,
+          userId: actor.id,
+          action: AuditAction.ViewClient,
+          entity: 'policy',
+          entityId: policyNo,
+          meta: { clientId, field: 'contactAddress' },
+        },
+        db,
+      );
+      return { contactAddress: policy.contactAddress };
+    });
+  }
+
   async detail(actor: Actor, clientId: string) {
     const scope = this.scopeOf(actor);
     return this.tenantDb.run(scope, async (db) => {
@@ -851,6 +908,18 @@ export class ClientsService {
           unpaidPremiumVnd: policy.unpaidPremiumVnd,
           aplDebtVnd: policy.aplDebtVnd,
           hasBeneficiary: policy.hasBeneficiary,
+          // Personal data: only whether there is one; the address itself needs the audited reveal
+          hasContactAddress: !!policy.contactAddress,
+          // The main product's sum assured, else the policy's own (decided 25/11/2026)
+          mainSumAssuredVnd: mainSumAssured(policy, catalogue),
+          sumAssuredVnd: policy.sumAssuredVnd,
+          graceEndDate: policy.graceEndDate,
+          assignmentType: policy.assignmentType,
+          assignmentDate: policy.assignmentDate,
+          advancePremiumVnd: policy.advancePremiumVnd,
+          totalPaidPremiumVnd: policy.totalPaidPremiumVnd,
+          basicPremiumVnd: policy.basicPremiumVnd,
+          topUpPremiumVnd: policy.topUpPremiumVnd,
           servicingAgentCode: policy.servicingAgentCode,
           // CUS-8: every current agent and share, so a split policy reads the same for all of them
           agents: policy.agents

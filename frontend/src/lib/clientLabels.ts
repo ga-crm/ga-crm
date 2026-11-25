@@ -1,6 +1,6 @@
-import { t, tDynamic } from '../i18n'
+import { formatVnd, t, tDynamic } from '../i18n'
 import { COVERAGE_GROUPS } from './types'
-import type { CoverageGroup, CoverageRow, PolicyRole } from './types'
+import type { ClientPolicy, CoverageGroup, CoverageRow, PolicyRole } from './types'
 
 export const groupLabel = (group: CoverageGroup) => tDynamic(`group.${group}`, group)
 export const groupList = (groups: string) =>
@@ -24,3 +24,9 @@ export const rolesLabel = (roles: readonly PolicyRole[]) => roles.map((role) => 
 /** A policy someone is on, as lists show it: "HĐ 010000001 · Bên mua BH". */
 export const policyRolesLabel = (policy: { policyNo: string; roles: readonly PolicyRole[] }) =>
   [t('clients.policyNo', { no: policy.policyNo }), rolesLabel(policy.roles)].filter(Boolean).join(' · ')
+
+export const yesNo = (value: boolean | null) => (value === null ? null : t(value ? 'common.yes' : 'common.no'))
+export const money = (value: number | null) => (value === null ? null : formatVnd(value))
+
+/** Decided 25/11/2026: the main product line's sum assured, else the policy's own. */
+export const policySumAssured = (policy: ClientPolicy) => policy.mainSumAssuredVnd ?? policy.sumAssuredVnd

@@ -16,6 +16,11 @@ import { PlatformSettings1764086400000 } from './1764086400000-platform-settings
 import { SingleLeadSource1764172800000 } from './1764172800000-single-lead-source.js';
 import { ClientId1764259200000 } from './1764259200000-client-id.js';
 import { Products1764345600000 } from './1764345600000-products.js';
+import { PolicyDetails1764432000000 } from './1764432000000-policy-details.js';
+import { LeadFollowUps1764518400000 } from './1764518400000-lead-follow-ups.js';
+import { GeoUnits1764604800000 } from './1764604800000-geo-units.js';
+import { ClientCareRecords1764691200000 } from './1764691200000-client-care-records.js';
+import { LeadSupporters1764777600000 } from './1764777600000-lead-supporters.js';
 
 /** In order. Listed rather than globbed, so the ESM build loads them without file scanning. */
 export const MIGRATIONS = [
@@ -37,4 +42,9 @@ export const MIGRATIONS = [
   SingleLeadSource1764172800000,
   ClientId1764259200000,
   Products1764345600000,
+  PolicyDetails1764432000000,
+  LeadFollowUps1764518400000,
+  GeoUnits1764604800000,
+  ClientCareRecords1764691200000,
+  LeadSupporters1764777600000,
 ];
