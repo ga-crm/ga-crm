@@ -3,26 +3,22 @@ import {
   birthDayMonthOf,
   buildProductLines, policyDeletable } from './client-rules.js';
 
-const programs = new Map([
+// TENANT-5: products of the shared catalogue, by code
+const products = new Map([
   [
-    'AN_TAM_SONG_HANH',
-    {
-      code: 'AN_TAM_SONG_HANH',
-      label: 'An Tâm Song Hành',
-      productRole: 'Chính',
-      productCode: 'P001',
-    },
+    'P001',
+    { productCode: 'P001', productName: 'An Tâm Song Hành', productRole: 'Chính' },
   ],
   [
-    'BH_TAI_NAN_CAO_CAP',
+    'P002',
     {
-      code: 'BH_TAI_NAN_CAO_CAP',
-      label: 'BH Tai Nạn Cao Cấp',
+      productCode: 'P002',
+      productName: 'BH Tai Nạn Cao Cấp',
       productRole: 'Bổ trợ',
     },
   ],
 ]);
-const main = { code: '0000000001', name: 'Nguyễn Văn Khách' };
+const main = { clientId: 'client-1', name: 'Nguyễn Văn Khách' };
 
 describe('client rules', () => {
   it('MAN-2: the age band and birthday follow the birth date', () => {
@@ -34,32 +30,31 @@ describe('client rules', () => {
     expect(birthDayMonthOf('1985-05-12')).toBe('12/05');
   });
 
-  it('PRD-2 + PRD-6 + PRG-7: names and roles come from the catalogue; the DLVN code wins when known', () => {
+  it('PRD-2 + PRD-6 (TENANT-5): names, roles and the DLVN code come from the product catalogue; a line may change the role', () => {
     const result = buildProductLines({
       lines: [
         {
-          programCode: 'AN_TAM_SONG_HANH',
+          productCode: 'P001',
           sumAssuredVnd: 500_000_000,
           termYears: 20,
         },
-        { programCode: 'BH_TAI_NAN_CAO_CAP', productRole: 'Chính' },
+        { productCode: 'P002', productRole: 'Chính' },
       ],
-      programs,
+      products,
       mainInsured: main,
     });
     expect(result).toEqual({
       products: [
         expect.objectContaining({
           productCode: 'P001',
-          programCode: 'AN_TAM_SONG_HANH',
           productName: 'An Tâm Song Hành',
           productRole: 'Chính',
-          insuredCode: '0000000001',
+          insuredClientId: 'client-1',
           insuredName: 'Nguyễn Văn Khách',
           termYears: 20,
         }),
         expect.objectContaining({
-          productCode: 'BH_TAI_NAN_CAO_CAP',
+          productCode: 'P002',
           productRole: 'Chính',
         }),
       ],
@@ -69,32 +64,34 @@ describe('client rules', () => {
   it('PRD-3 + PRD-4: another person keeps a name but no client code; a programme repeats only for different people', () => {
     const ok = buildProductLines({
       lines: [
-        { programCode: 'BH_TAI_NAN_CAO_CAP' },
+        { productCode: 'P002' },
         {
-          programCode: 'BH_TAI_NAN_CAO_CAP',
+          productCode: 'P002',
           insuredName: 'Nguyễn Bé An',
           insuredDob: '2015-04-02',
           insuredGender: 'Nữ',
         },
       ],
-      programs,
+      products,
       mainInsured: main,
     });
+    expect('products' in ok && ok.products[1]).not.toHaveProperty(
+      'insuredClientId',
+    );
     expect('products' in ok && ok.products[1]).toMatchObject({
-      insuredCode: '',
       insuredName: 'Nguyễn Bé An',
       insuredGender: 'Nữ',
     });
     expect(
       buildProductLines({
         lines: [
-          { programCode: 'BH_TAI_NAN_CAO_CAP' },
+          { productCode: 'P002' },
           {
-            programCode: 'BH_TAI_NAN_CAO_CAP',
+            productCode: 'P002',
             insuredName: 'nguyễn văn khách',
           },
         ],
-        programs,
+        products,
         mainInsured: main,
       }),
     ).toEqual({ repeated: 1 });

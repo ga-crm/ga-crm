@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FileUp, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import { hasPermission } from '../auth/access'
@@ -11,6 +11,7 @@ import { useContactDeadlineHours, useMe } from '../auth/useMe'
 import { buttonClass } from '../components/buttonStyles'
 import { LeadBoard } from '../components/LeadBoard'
 import { LeadAssignDialog } from '../components/LeadAssignDialog'
+import { ProductPicker } from '../components/ProductPicker'
 import { SavedFilters } from '../components/SavedFilters'
 import { Alert, Badge, Button, Card, Checkbox, ClearFilters, Container, Dialog, EmptyState, Field, FilterBand, FilterField, FormError, Input, MODAL_FOOTER, PageHeader, Pagination, SearchInput, Segmented, Select, SortButton, Spinner, TabBar, TableScroll, Textarea, WIDE_FORM_GRID } from '../components/ui'
 import { formatDateTime, t, tDynamic } from '../i18n'
@@ -21,7 +22,7 @@ import { toast } from '../lib/toast'
 import { useLeadOptions } from '../lib/leadOptions'
 import { ListSuggestions } from '../components/ListSuggestions'
 import { DepartedWorkNotice } from '../components/DepartedWorkNotice'
-import { LEAD_ORIGINS, LEAD_STAGES } from '../lib/types'
+import { LEAD_STAGES } from '../lib/types'
 import type { LeadCounts, LeadRow } from '../lib/types'
 import { useListSearch } from '../lib/useListSearch'
 import { usePrefetchNextPage } from '../lib/usePrefetchNextPage'
@@ -46,7 +47,8 @@ const MAX_ASSIGN = 200
 const schema = z.object({
   fullName: requiredText(200),
   phone: phoneField,
-  source: requiredText(200),
+  // OPT-3: a typed value may become a catalogue label
+  source: requiredText(60),
   consent: z.enum(['yes', 'no'], { error: t('leads.consentRequired') }),
   email: optionalEmail,
   region: optionalText(100),
@@ -56,25 +58,26 @@ const schema = z.object({
   note: optionalText(4000),
   campaignId: z.string(),
   assignedAgentCode: z.string(),
+  // TENANT-5: a shown product of the shared catalogue, optional
+  productCode: z.string(),
 })
 type FormValues = z.infer<typeof schema>
 
-const FIELD_ERRORS = { invalid_phone: 'phone', phone_exists: 'phone', agent_not_found: 'assignedAgentCode', campaign_not_found: 'campaignId' } as const
+const FIELD_ERRORS = { invalid_phone: 'phone', phone_exists: 'phone', agent_not_found: 'assignedAgentCode', campaign_not_found: 'campaignId', unknown_option: 'source', unknown_product: 'productCode' } as const
 
 /** LEAD-3 */
 function CreateLeadForm({ manages, onClose, onCreated }: { manages: boolean; onClose: () => void; onCreated: (id: string) => void }) {
   const queryClient = useQueryClient()
   const facets = useQuery(queries.leadFacets())
-  const catalogue = useLeadOptions()
   const assignees = useQuery({ ...queries.leadAssignees(), enabled: manages })
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     // Errors appear when leaving a field, then update while it is being corrected
     mode: 'onTouched',
-    defaultValues: { fullName: '', phone: '', source: '', email: '', region: '', province: '', gender: '', dob: '', note: '', campaignId: '', assignedAgentCode: '' },
+    defaultValues: { fullName: '', phone: '', source: '', email: '', region: '', province: '', gender: '', dob: '', note: '', campaignId: '', assignedAgentCode: '', productCode: '' },
   })
   const create = useMutation({
-    mutationFn: ({ consent, email, region, province, gender, dob, note, campaignId, assignedAgentCode, ...required }: FormValues) =>
+    mutationFn: ({ consent, email, region, province, gender, dob, note, campaignId, assignedAgentCode, productCode, ...required }: FormValues) =>
       api.post<{ id: string }>('/leads', {
         ...required,
         consent: consent === 'yes',
@@ -86,9 +89,11 @@ function CreateLeadForm({ manages, onClose, onCreated }: { manages: boolean; onC
         note: note || undefined,
         campaignId: campaignId || undefined,
         assignedAgentCode: assignedAgentCode || undefined,
+        productCode: productCode || undefined,
       }),
     onSuccess: async ({ id }, { fullName }) => {
-      await queryClient.invalidateQueries({ queryKey: keys.leads })
+      // OPT-13: a typed source has joined the GA's list, so the pickers and filters need it
+      await Promise.all([queryClient.invalidateQueries({ queryKey: keys.leads }), queryClient.invalidateQueries({ queryKey: keys.leadOptions })])
       toast.success(t('toast.leadCreated', { name: fullName }))
       onCreated(id)
     },
@@ -109,18 +114,10 @@ function CreateLeadForm({ manages, onClose, onCreated }: { manages: boolean; onC
         <Field label={t('leads.phone')} htmlFor="lead-phone" required error={errors.phone?.message}>
           <Input id="lead-phone" placeholder={t('agents.phonePlaceholder')} inputMode="tel" aria-invalid={!!errors.phone} {...form.register('phone')} />
         </Field>
-        <Field label={t('leads.source')} htmlFor="lead-source" required error={errors.source?.message}>
-          {/* OPT-13: the form offers the GA's shown sources */}
-          <Select id="lead-source" defaultValue="" aria-invalid={!!errors.source} {...form.register('source')}>
-            <option value="" disabled>
-              {catalogue.active('source').length > 0 ? t('leads.sourcePlaceholder') : t('leads.noSources')}
-            </option>
-            {catalogue.active('source').map((option) => (
-              <option key={option.id} value={option.code}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
+        <Field label={t('leads.source')} htmlFor="lead-source" required error={errors.source?.message} hint={t('leads.sourceHint')}>
+          {/* OPT-13 (24/11/2026): pick one of the GA's shown sources or type a new one, which joins the list */}
+          <Input id="lead-source" list="lead-source-options" maxLength={60} placeholder={t('leads.sourcePlaceholder')} aria-invalid={!!errors.source} {...form.register('source')} />
+          <ListSuggestions id="lead-source-options" kind="source" />
         </Field>
         <Field label={t('leads.consent')} htmlFor="lead-consent" required error={errors.consent?.message}>
           <Select id="lead-consent" defaultValue="" aria-invalid={!!errors.consent} {...form.register('consent')}>
@@ -146,6 +143,15 @@ function CreateLeadForm({ manages, onClose, onCreated }: { manages: boolean; onC
         </Field>
         <Field label={t('agents.gender')} htmlFor="lead-gender" error={errors.gender?.message}>
           <Input id="lead-gender" placeholder={t('agents.genderPlaceholder')} {...form.register('gender')} />
+        </Field>
+        <Field label={t('leads.productInterest')} htmlFor="lead-product" error={errors.productCode?.message}>
+          <Controller
+            control={form.control}
+            name="productCode"
+            render={({ field, fieldState }) => (
+              <ProductPicker ref={field.ref} id="lead-product" label={t('leads.productInterest')} emptyLabel={t('leads.noProduct')} value={field.value} onChange={field.onChange} onBlur={field.onBlur} invalid={fieldState.invalid} />
+            )}
+          />
         </Field>
         {manages && (
           <>
@@ -228,10 +234,11 @@ export function LeadsPage() {
   const interest = url.get('interest')
   const care = url.get('care')
   const stage = url.oneOf('stage', LEAD_STAGES)
-  const origin = url.oneOf('origin', LEAD_ORIGINS)
   const source = url.get('source')
   const campaignId = url.get('campaign')
   const assignee = url.get('assignee')
+  // TENANT-5: leads interested in one catalogue product
+  const product = url.get('product')
   const from = url.get('from')
   const to = url.get('to')
   const order = url.oneOf('order', ['asc', 'desc']) as 'asc' | 'desc' | ''
@@ -245,9 +252,9 @@ export function LeadsPage() {
     interest,
     care,
     stage,
-    origin,
     source,
     campaignId,
+    product,
     from,
     to,
     order,
@@ -294,8 +301,8 @@ export function LeadsPage() {
   })
   const canSelectMore = allOnPage && total > items.length && selected.size < Math.min(total, MAX_ASSIGN)
 
-  const filtered = !!(search.input || interest || care || stage || origin || source || campaignId || assignee || from || to)
-  const clearFilters = () => url.set({ q: null, interest: null, care: null, stage: null, origin: null, source: null, campaign: null, assignee: null, from: null, to: null, page: null })
+  const filtered = !!(search.input || interest || care || stage || source || campaignId || product || assignee || from || to)
+  const clearFilters = () => url.set({ q: null, interest: null, care: null, stage: null, source: null, campaign: null, product: null, assignee: null, from: null, to: null, page: null })
 
   return (
     <>
@@ -403,6 +410,9 @@ export function LeadsPage() {
             ))}
           </Select>
         </FilterField>
+        <FilterField label={t('leads.productInterest')} className="sm:w-56 sm:flex-none">
+          <ProductPicker label={t('leads.productInterest')} placeholder={t('leads.allProducts')} emptyLabel={t('leads.allProducts')} value={product} onChange={(code) => url.set({ product: code, page: null })} />
+        </FilterField>
         {tab.key !== 'unassigned' && tab.key !== 'mine' && (
           <FilterField label={t('leads.assignee')} className="sm:w-48 sm:flex-none">
             <Select value={assignee} onChange={(event) => url.set({ assignee: event.target.value, page: null })}>
@@ -417,16 +427,6 @@ export function LeadsPage() {
             </Select>
           </FilterField>
         )}
-        <FilterField label={t('leads.origin')} className="sm:w-44 sm:flex-none">
-          <Select value={origin} onChange={(event) => url.set({ origin: event.target.value, page: null })}>
-            <option value="">{t('leads.allOrigins')}</option>
-            {LEAD_ORIGINS.map((value) => (
-              <option key={value} value={value}>
-                {tDynamic(`origin.${value}`, value)}
-              </option>
-            ))}
-          </Select>
-        </FilterField>
         <FilterField label={t('leads.from')} className="sm:w-40 sm:flex-none">
           <Input type="date" title={t('leads.from')} value={from} onChange={(event) => url.set({ from: event.target.value, page: null })} />
         </FilterField>

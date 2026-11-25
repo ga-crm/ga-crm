@@ -43,6 +43,7 @@ import { Tenant } from '../../modules/tenants/infrastructure/tenant.entity.js';
 import { User } from '../../modules/users/infrastructure/user.entity.js';
 import { IdempotencyKey } from '../persistence/idempotency-key.entity.js';
 import { OutboxMessage } from '../persistence/outbox-message.entity.js';
+import { Product } from '../../modules/products/product.entity.js';
 
 /** Every entity, listed rather than globbed. A module adds its own here when it moves over. */
 export const ENTITIES = [
@@ -72,6 +73,7 @@ export const ENTITIES = [
   Application,
   FamilyLink,
   InsuranceProgram,
+  Product,
   RecordChange,
   Import,
   ImportError,

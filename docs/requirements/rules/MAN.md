@@ -16,7 +16,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:50`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:51`
 
-Đã trích dẫn trong: `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/client-rules.spec.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/client.constants.ts`, `backend/src/modules/clients/clients.dto.ts`, `backend/test/manual-clients.e2e-spec.ts`, `frontend/src/components/ClientForms.tsx`, `frontend/src/lib/types.ts`
+Đã trích dẫn trong: `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/client-rules.spec.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/client.constants.ts`, `backend/src/modules/clients/clients.dto.ts`, `frontend/src/components/ClientForms.tsx`, `frontend/src/lib/types.ts`
 
 - **MAN-2** Trường: **Mã khách hàng (bắt buộc, đúng 10 chữ số** → `400 invalid_input` với gợi ý "Mã khách hàng gồm đúng 10 chữ số" [QĐ 11/2026]), họ tên (bắt buộc), số điện thoại, hạng, ngày sinh, nhóm tuổi (để trống thì tự tính theo ngày sinh), giới tính (Nam / Nữ), hôn nhân, điểm thưởng, dùng D-Connect (không rõ / Có / Chưa), lần đăng nhập D-Connect gần nhất, đăng ký eKYC + thời điểm, "Đã cập nhật Căn cước" (chỉ Có / Chưa, gợi ý "hệ thống không lưu số căn cước"). `birthDayMonth` suy từ ngày sinh. Số HĐ còn / mất hiệu lực để cho file nhập (màn hình tự đếm hợp đồng).
 
@@ -40,7 +40,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:53`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:54`
 
-Đã trích dẫn trong: `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/src/modules/clients/clients.dto.ts`, `backend/test/manual-clients.e2e-spec.ts`, `frontend/src/components/ClientForms.tsx`
+Đã trích dẫn trong: `backend/src/modules/clients/clients.controller.ts`, `frontend/src/components/ClientForms.tsx`
 
 - **MAN-5** Có thể nhập kèm hợp đồng ngay trên form (mục "Hợp đồng và chương trình bảo hiểm", tối đa 10 hợp đồng); khách và hợp đồng lưu cùng một transaction: số hợp đồng bị từ chối thì không tạo khách dở dang.
 
@@ -64,6 +64,6 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:56`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:57`
 
-Đã trích dẫn trong: `backend/src/modules/clients/clients.service.ts`, `backend/test/manual-clients.e2e-spec.ts`
+Đã trích dẫn trong: `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/imports/success-plan.ts`, `backend/test/client-assign.e2e-spec.ts`, `backend/test/lead-link.e2e-spec.ts`, `backend/test/manual-clients.e2e-spec.ts`
 
 - **MAN-8** Lần nhập 02_Clients sau tìm đúng bản ghi theo mã và ghi đè mọi cột sheet có (trừ trường GA tự quản lý).

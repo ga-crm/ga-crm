@@ -7,7 +7,6 @@ import { demoEmail, seedDemoData } from '../src/seed/demo-data.js';
 const API = '/api/v1';
 const PASSWORD = 'demo-password-123';
 const FC = '00100004';
-const CLIENT = '9500000001';
 type Agent = ReturnType<typeof request.agent>;
 
 /** CMT-5: comments on a client and @mentions (on leads and clients). */
@@ -20,6 +19,8 @@ describe('Comments on clients and mentions (e2e)', () => {
   let head2: Agent;
   let leadId: string;
   const ids: Record<string, string> = {};
+  /** The client's id, known once they are added. */
+  let CLIENT: string;
 
   const as = async (key: string, ga = 1) => {
     const agent = request.agent(app.getHttpServer());
@@ -51,10 +52,12 @@ describe('Comments on clients and mentions (e2e)', () => {
     for (const key of ['head', 'fc', 'um', 'marketing'])
       ids[key] = (await user(key))._id.toString();
     ids.head2 = (await user('head', 2))._id.toString();
-    await fc
-      .post(`${API}/clients`)
-      .send({ clientCode: CLIENT, name: 'Khách Góp Ý' })
-      .expect(201);
+    CLIENT = (
+      await fc
+        .post(`${API}/clients`)
+        .send({ policyNo: '950000001', role: 'PO', name: 'Khách Góp Ý' })
+        .expect(201)
+    ).body.id;
     leadId = (
       await head
         .post(`${API}/leads`)

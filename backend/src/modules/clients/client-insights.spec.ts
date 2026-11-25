@@ -14,14 +14,14 @@ const ME = '0000000001';
 const policy = (patch: Partial<InsightPolicy> = {}): InsightPolicy => ({
   policyNo: '000000001',
   status: 'Đang hiệu lực',
-  holderClientCode: ME,
-  insuredClientCode: ME,
+  holderClientId: ME,
+  insuredClientId: ME,
   insuredName: 'NGUYỄN VĂN KHÁCH',
   maturityDate: '2044-06-01',
   basePremiumVnd: 12_000_000,
   clients: [
-    { clientCode: ME, role: 'PO' },
-    { clientCode: ME, role: 'LI' },
+    { clientId: ME, role: 'PO' },
+    { clientId: ME, role: 'LI' },
   ],
   products: [],
   ...patch,
@@ -68,20 +68,20 @@ describe('coverage (COV)', () => {
   it('COV-1: a line belongs to its client code, to another named person, or to the main insured', () => {
     const p = policy();
     expect(
-      insuredOf(p, { productCode: 'A', insuredCode: '', productRole: 'Chính' })
+      insuredOf(p, { productCode: 'A', insuredClientId: null, productRole: 'Chính' })
         .key,
     ).toBe(ME);
     expect(
       insuredOf(p, {
         productCode: 'A',
-        insuredCode: '0000000002',
+        insuredClientId: '0000000002',
         productRole: 'Chính',
       }).key,
     ).toBe('0000000002');
     expect(
       insuredOf(p, {
         productCode: 'A',
-        insuredCode: '',
+        insuredClientId: null,
         productRole: 'Chính',
         insuredName: 'Bé An',
       }).key,
@@ -89,7 +89,7 @@ describe('coverage (COV)', () => {
     expect(
       insuredOf(p, {
         productCode: 'A',
-        insuredCode: '',
+        insuredClientId: null,
         productRole: 'Chính',
         insuredName: 'nguyễn văn khách',
       }).key,
@@ -103,21 +103,21 @@ describe('coverage (COV)', () => {
           products: [
             {
               productCode: 'A',
-              insuredCode: '',
+              insuredClientId: null,
               productRole: 'Chính',
               productName: 'An Tâm Song Hành',
               sumAssuredVnd: 500,
             },
             {
               productCode: 'B',
-              insuredCode: '',
+              insuredClientId: null,
               productRole: 'Bổ trợ',
               productName: 'BH Chăm Sóc Sức Khoẻ',
               sumAssuredVnd: 100,
             },
             {
               productCode: 'C',
-              insuredCode: '',
+              insuredClientId: null,
               productRole: 'Bổ trợ',
               productName: 'BH Chăm Sóc Sức Khoẻ',
               sumAssuredVnd: 50,
@@ -125,7 +125,7 @@ describe('coverage (COV)', () => {
             // A product that ended counts as detail but adds no cover
             {
               productCode: 'D',
-              insuredCode: '',
+              insuredClientId: null,
               productRole: 'Bổ trợ',
               productName: 'BH Tai Nạn',
               sumAssuredVnd: 70,
@@ -133,7 +133,7 @@ describe('coverage (COV)', () => {
             },
             {
               productCode: 'E',
-              insuredCode: '',
+              insuredClientId: null,
               productRole: 'Bổ trợ',
               productName: 'BH Tai Nạn',
               sumAssuredVnd: 30,
@@ -148,7 +148,7 @@ describe('coverage (COV)', () => {
           products: [
             {
               productCode: 'F',
-              insuredCode: '',
+              insuredClientId: null,
               productRole: 'Bổ trợ',
               productName: 'Ung thư',
               sumAssuredVnd: 999,
@@ -157,9 +157,9 @@ describe('coverage (COV)', () => {
         }),
       ],
       [
-        { key: ME, name: 'Nguyễn Văn Khách', code: ME },
-        { key: personKey(null, 'Bé An'), name: 'Bé An', code: null },
-        { key: '0000000009', name: 'Vợ', code: '0000000009' },
+        { key: ME, name: 'Nguyễn Văn Khách', clientId: ME },
+        { key: personKey(null, 'Bé An'), name: 'Bé An', clientId: null },
+        { key: '0000000009', name: 'Vợ', clientId: '0000000009' },
       ],
     );
     expect(rows[0]).toMatchObject({
@@ -182,7 +182,7 @@ describe('signals (section 10.11)', () => {
 
   it('premium due in 30 days, unpaid, APL, maturity in 12 months, for the right role', () => {
     const list = signals({
-      client: { clientCode: ME },
+      client: { id: ME },
       policies: [
         policy({
           premiumDueDate: '2026-12-10',
@@ -195,7 +195,7 @@ describe('signals (section 10.11)', () => {
         policy({
           policyNo: '000000003',
           premiumDueDate: '2026-11-20',
-          clients: [{ clientCode: ME, role: 'LI' }],
+          clients: [{ clientId: ME, role: 'LI' }],
           maturityDate: '2027-01-01',
         }),
       ],
@@ -220,7 +220,7 @@ describe('signals (section 10.11)', () => {
   it('not active beats the Success lapsed count; birthday this month; D-Connect not used', () => {
     const lapsed = signals({
       client: {
-        clientCode: ME,
+        id: ME,
         lapsedPolicies: 2,
         birthMonth: 11,
         birthDayMonth: '25/11',
@@ -233,7 +233,7 @@ describe('signals (section 10.11)', () => {
     });
     expect(codes(lapsed)).toEqual(['LAPSED', 'BIRTHDAY', 'NO_DCONNECT']);
     const notActive = signals({
-      client: { clientCode: ME, lapsedPolicies: 2 },
+      client: { id: ME, lapsedPolicies: 2 },
       policies: [policy({ status: 'Mất hiệu lực' })],
       coverage: [],
       family: [],
@@ -249,7 +249,7 @@ describe('signals (section 10.11)', () => {
 
   it('BIRTHDAY: from the birth date when Success sends no day and month', () => {
     const list = signals({
-      client: { clientCode: ME, birthMonth: 11, dob: '1990-11-03' },
+      client: { id: ME, birthMonth: 11, dob: '1990-11-03' },
       policies: [],
       coverage: [],
       family: [],
@@ -275,13 +275,13 @@ describe('signals (section 10.11)', () => {
 
   it('gaps of anyone with detail, and family members without cover', () => {
     const list = signals({
-      client: { clientCode: ME },
+      client: { id: ME },
       policies: [],
       coverage: [
         {
           key: ME,
           name: 'Khách',
-          code: ME,
+          clientId: ME,
           groups: { LIFE: 1 },
           hasDetail: true,
           gaps: ['HEALTH', 'CI', 'ACCIDENT'],
@@ -289,7 +289,7 @@ describe('signals (section 10.11)', () => {
         {
           key: 'name:BE AN',
           name: 'Bé An',
-          code: null,
+          clientId: null,
           groups: {},
           hasDetail: false,
           gaps: [],

@@ -3,7 +3,11 @@ import request from 'supertest';
 import { startApp, stopApp } from './support/app.js';
 import { connection } from './support/collections.js';
 import { ownerDb } from './support/owner-db.js';
-import { PERMISSIONS_VERSION, TenantsService } from '../src/modules/tenants/tenants.service.js';
+import { clientIdOf } from './support/clients.js';
+import {
+  PERMISSIONS_VERSION,
+  TenantsService,
+} from '../src/modules/tenants/tenants.service.js';
 import { demoEmail, seedDemoData } from '../src/seed/demo-data.js';
 
 const API = '/api/v1';
@@ -23,7 +27,7 @@ const policyBody = (policyNo: string, patch: Record<string, unknown> = {}) => ({
   premiumDueDate: '2099-06-01',
   products: [
     {
-      programCode: 'AN_TAM_SONG_HANH',
+      productCode: 'AN_TAM_SONG_HANH',
       sumAssuredVnd: 500_000_000,
       termYears: 20,
     },
@@ -58,10 +62,24 @@ describe('Clients and policies entered by hand (e2e)', () => {
     }[];
   const create = (agent: Agent, body: Record<string, unknown>) =>
     agent.post(`${API}/clients`).send(body);
-  const stored = (clientCode: string) =>
-    connection.collection('clients').findOne({ clientCode });
+  /** Adds a client on a policy (decided 25/11/2026) and returns their id. */
+  const add = async (
+    agent: Agent,
+    policyNo: string,
+    role: 'PO' | 'LI' | 'BEN',
+    body: Record<string, unknown>,
+  ) =>
+    (await create(agent, { policyNo, role, ...body }).expect(201)).body
+      .id as string;
+  const stored = (id: string) =>
+    connection.collection('clients').findOne({ _id: id });
+  const { policyNo: _none, ...policyFields } = policyBody('x');
+  // The clients the tests below add, by name
+  const ids: Record<string, string> = {};
+  // GA-1's policy: the same number may also be GA-2's own (TEN-7)
+  let ga1 = '';
   const policyOf = (policyNo: string) =>
-    connection.collection('policies').findOne({ policyNo });
+    connection.collection('policies').findOne({ policyNo, tenantId: ga1 });
 
   beforeAll(async () => {
     app = await startApp();
@@ -69,6 +87,9 @@ describe('Clients and policies entered by hand (e2e)', () => {
     [head, admin, fc, um, marketing] = await Promise.all(
       ['head', 'admin', 'fc', 'um', 'marketing'].map((key) => as(key)),
     );
+    ga1 = (await connection
+      .collection('users')
+      .findOne({ email: demoEmail(1, 'head') }))!.tenantId as string;
     await head
       .post(`${API}/agents`)
       .send({
@@ -206,28 +227,37 @@ describe('Clients and policies entered by hand (e2e)', () => {
     });
   });
 
-  describe('adding a client', () => {
-    it('test 37 + MAN-2: the code is exactly 10 digits', async () => {
-      for (const clientCode of ['123456789', '12345678901', '12345678AB']) {
+  describe('adding a client on a policy (decided 25/11/2026)', () => {
+    it('POL-2: the policy number is exactly 9 digits; there is no client code any more', async () => {
+      for (const policyNo of ['12345678', '1234567890', '12345678A']) {
         const { body } = await create(fc, {
-          clientCode,
-          name: 'Sai Mã',
+          policyNo,
+          role: 'PO',
+          name: 'Sai Số',
         }).expect(400);
-        expect(body.error).toBe('invalid_client_code');
+        expect(body).toEqual({
+          error: 'invalid_policy_no',
+          issues: [{ path: 'policyNo', message: 'invalid_policy_no' }],
+        });
       }
+      await create(fc, {
+        policyNo: '500000009',
+        role: 'PO',
+        name: 'Mã Cũ',
+        clientCode: '5000000009',
+      }).expect(400);
     });
 
-    it('test 37 + MAN-3 + MAN-7: a FC adds their own client; the age band follows the birth date; the phone is masked in the audit', async () => {
-      await create(fc, {
-        clientCode: '5000000001',
+    it('MAN-3 + MAN-7: a FC adds a client on a new number, which starts a policy holding only that number; the phone is masked in the audit', async () => {
+      ids.holder = await add(fc, '500000001', 'PO', {
         name: 'Phạm Thị Tay',
         phone: '+84 912 345 678',
         dob: '1990-02-01',
         gender: 'Nữ',
         tier: 'Bạc',
         idUpdated: true,
-      }).expect(201);
-      const client = await stored('5000000001');
+      });
+      const client = await stored(ids.holder);
       expect(client).toMatchObject({
         origin: 'MANUAL',
         phone: '0912345678',
@@ -235,120 +265,18 @@ describe('Clients and policies entered by hand (e2e)', () => {
         birthMonth: 2,
         ageBand: '30-39',
         ownerAgentCodes: [FC],
-        agentLinks: [
-          expect.objectContaining({ agentCode: FC, source: 'MANUAL' }),
-        ],
       });
-      const audit = await connection.collection('auditEvents').findOne({
-        entity: 'client',
-        entityId: '5000000001',
-        action: 'CREATE',
-      });
-      expect(audit?.meta).toMatchObject({ agentCode: FC, phone: '0912***678' });
-      // An age band entered by hand is kept
-      await create(fc, {
-        clientCode: '5000000002',
-        name: 'Có Nhóm Tuổi',
-        dob: '1990-02-01',
-        ageBand: '40-49',
-      }).expect(201);
-      expect((await stored('5000000002'))?.ageBand).toBe('40-49');
-      const { body } = await fc.get(`${API}/clients/5000000001`).expect(200);
-      expect(body.client).toMatchObject({ manual: true, phone: '0912345678' });
-      expect(body.canEdit).toBe(true);
-    });
-
-    it('test 37 + MAN-4: a code in use is refused, and only named back to someone who sees that client', async () => {
-      const seen = await create(fc, {
-        clientCode: '5000000001',
-        name: 'Trùng',
-      }).expect(409);
-      expect(seen.body).toEqual({
-        error: 'client_exists',
-        clientCode: '5000000001',
-      });
-      await create(head, {
-        clientCode: '5000000099',
-        name: 'Khách Nhánh Khác',
-        agentCode: PEER,
-      }).expect(201);
-      const unseen = await create(fc, {
-        clientCode: '5000000099',
-        name: 'Dò Mã',
-      }).expect(409);
-      expect(unseen.body).toEqual({ error: 'client_exists' });
-    });
-
-    it('test 37 + MAN-3: a manager adds for the branch only; GA_HEAD without an agent code must pick one; Marketing and Admin cannot add', async () => {
-      await create(um, {
-        clientCode: '5000000010',
-        name: 'Của FC Tuyến Dưới',
-        agentCode: FC,
-      }).expect(201);
-      expect((await stored('5000000010'))?.ownerAgentCodes).toEqual([FC]);
+      expect(client?.successCode).toBeUndefined();
       expect(
-        (
-          await create(um, {
-            clientCode: '5000000011',
-            name: 'Ngoài Tuyến',
-            agentCode: PEER,
-          }).expect(400)
-        ).body.error,
-      ).toBe('agent_not_found');
-      expect(
-        (
-          await create(fc, {
-            clientCode: '5000000012',
-            name: 'FC Chọn Người Khác',
-            agentCode: UM,
-          }).expect(400)
-        ).body.error,
-      ).toBe('agent_not_found');
-      expect(
-        (
-          await create(head, {
-            clientCode: '5000000013',
-            name: 'Chưa Chọn',
-          }).expect(400)
-        ).body.error,
-      ).toBe('agent_required');
-      for (const agent of [marketing, admin]) {
-        await create(agent, {
-          clientCode: '5000000014',
-          name: 'Không Được',
-          agentCode: FC,
-        }).expect(403);
-      }
-    });
-
-    it('test 40 + MAN-5 + POL-3: policies saved with the client; the agent serves at 100%; programmes from the catalogue only', async () => {
-      await create(fc, {
-        clientCode: '5000000020',
-        name: 'Có Hợp Đồng',
-        policies: [
-          policyBody('500000020', {
-            products: [
-              {
-                programCode: 'AN_TAM_SONG_HANH',
-                sumAssuredVnd: 500_000_000,
-                termYears: 20,
-              },
-              {
-                programCode: 'BH_TAI_NAN_CAO_CAP',
-                insuredName: 'Bé Con',
-                insuredDob: '2015-04-02',
-                insuredGender: 'Nữ',
-                sumAssuredVnd: 100_000_000,
-              },
-            ],
-          }),
-        ],
-      }).expect(201);
-      const policy = await policyOf('500000020');
+        client?.agentLinks
+          .map((link: { source: string }) => link.source)
+          .sort(),
+      ).toEqual(['MANUAL', 'POLICY_HOLDER']);
+      const policy = await policyOf('500000001');
       expect(policy).toMatchObject({
         origin: 'MANUAL',
-        holderClientCode: '5000000020',
-        insuredClientCode: '5000000020',
+        holderClientId: ids.holder,
+        holderName: 'Phạm Thị Tay',
         servicingAgentCode: FC,
         agents: [
           expect.objectContaining({
@@ -357,79 +285,212 @@ describe('Clients and policies entered by hand (e2e)', () => {
             isServicing: true,
           }),
         ],
-        clients: [
-          { clientCode: '5000000020', role: 'PO', source: 'POLICY' },
-          { clientCode: '5000000020', role: 'LI', source: 'POLICY' },
-        ],
+        clients: [{ clientId: ids.holder, role: 'PO', source: 'POLICY' }],
       });
-      // PRD-3: another person keeps a name only
-      expect(policy?.products[1]).toMatchObject({
-        insuredCode: '',
-        insuredName: 'Bé Con',
-        productCode: 'BH_TAI_NAN_CAO_CAP',
+      // Everything but the number comes later, or from Success
+      expect(policy?.status).toBeUndefined();
+      expect(policy?.effectiveDate).toBeUndefined();
+      const audit = await connection.collection('auditEvents').findOne({
+        entity: 'client',
+        entityId: ids.holder,
+        action: 'CREATE',
       });
-      expect(
-        (await stored('5000000020'))?.agentLinks
-          .map((link: { source: string }) => link.source)
-          .sort(),
-      ).toEqual(['MANUAL', 'POLICY_HOLDER', 'POLICY_INSURED']);
+      expect(audit?.meta).toMatchObject({
+        agentCode: FC,
+        phone: '0912***678',
+        policyNo: '500000001',
+        role: 'PO',
+      });
+      // An age band entered by hand is kept
+      ids.second = await add(fc, '500000002', 'PO', {
+        name: 'Có Nhóm Tuổi',
+        dob: '1990-02-01',
+        ageBand: '40-49',
+      });
+      expect((await stored(ids.second))?.ageBand).toBe('40-49');
+      const { body } = await fc.get(`${API}/clients/${ids.holder}`).expect(200);
+      expect(body.client).toMatchObject({
+        id: ids.holder,
+        manual: true,
+        phone: '0912345678',
+      });
+      expect(body.canEdit).toBe(true);
+      // No response carries a client code
+      expect(JSON.stringify(body)).not.toMatch(/clientCode|successCode/);
     });
 
-    it('test 40 + MAN-5: a refused policy leaves no half-made client', async () => {
-      const cases: [Record<string, unknown>, number, string][] = [
-        [policyBody('500000020'), 409, 'policy_exists'],
-        [policyBody('12345'), 400, 'invalid_policy_no'],
-        [
-          policyBody('500000021', { products: [{ programCode: 'KHONG_CO' }] }),
-          400,
-          'unknown_program',
+    it('a family shares one policy number: holder, insured and beneficiary; the number lists them all', async () => {
+      ids.mother = await add(fc, '500000001', 'LI', {
+        name: 'Mẹ Cùng Hợp Đồng',
+        dob: '1965-05-05',
+      });
+      ids.child = await add(fc, '500000001', 'LI', {
+        name: 'Con Cùng Hợp Đồng',
+      });
+      ids.heir = await add(fc, '500000001', 'BEN', { name: 'Em Thụ Hưởng' });
+      const policy = await policyOf('500000001');
+      // CUS-11: one main insured; anyone else insured is on a product line
+      expect(policy).toMatchObject({
+        holderClientId: ids.holder,
+        insuredClientId: ids.mother,
+        insuredName: 'Mẹ Cùng Hợp Đồng',
+        clients: [
+          { clientId: ids.holder, role: 'PO', source: 'POLICY' },
+          { clientId: ids.mother, role: 'LI', source: 'POLICY' },
+          { clientId: ids.child, role: 'LI', source: 'PRODUCT' },
+          { clientId: ids.heir, role: 'BEN', source: 'POLICY' },
         ],
-        [
-          policyBody('500000022', {
-            products: [
-              { programCode: 'AN_TAM_SONG_HANH' },
-              { programCode: 'AN_TAM_SONG_HANH' },
-            ],
-          }),
-          409,
-          'program_repeated',
-        ],
-        [policyBody('500000023', { agentCode: PEER }), 400, 'agent_not_found'],
-      ];
-      for (const [policy, status, error] of cases) {
-        const { body } = await create(fc, {
-          clientCode: '5000000021',
-          name: 'Dở Dang',
-          policies: [policy],
-        }).expect(status);
-        expect(body.error).toBe(error);
-        expect(await stored('5000000021')).toBeNull();
-      }
-      const repeated = await create(fc, {
-        clientCode: '5000000021',
-        name: 'Dở Dang',
-        policies: [
-          policyBody('500000024', {
-            products: [
-              { programCode: 'AN_TAM_SONG_HANH' },
-              { programCode: 'AN_TAM_SONG_HANH' },
-            ],
-          }),
-        ],
-      }).expect(409);
-      expect(repeated.body.issues).toEqual([
+      });
+
+      // Searching the number lists everyone on the policy, each with their role
+      const found = (
+        await fc
+          .get(`${API}/clients`)
+          .query({ q: '500000001', pageSize: 50 })
+          .expect(200)
+      ).body.items as {
+        id: string;
+        policies: { policyNo: string; roles: string[] }[];
+      }[];
+      expect(found.map((item) => item.id).sort()).toEqual(
+        [ids.holder, ids.mother, ids.child, ids.heir].sort(),
+      );
+      expect(found.find((item) => item.id === ids.heir)?.policies).toEqual([
+        { policyNo: '500000001', roles: ['BEN'] },
+      ]);
+
+      // The policy card names everyone on it
+      const { body } = await fc.get(`${API}/clients/${ids.child}`).expect(200);
+      expect(body.policies[0].people).toEqual([
         {
-          path: 'policies.0.products.1.programCode',
-          message: 'program_repeated',
+          clientId: ids.holder,
+          name: 'Phạm Thị Tay',
+          roles: ['PO'],
+          self: false,
+        },
+        {
+          clientId: ids.mother,
+          name: 'Mẹ Cùng Hợp Đồng',
+          roles: ['LI'],
+          self: false,
+        },
+        {
+          clientId: ids.child,
+          name: 'Con Cùng Hợp Đồng',
+          roles: ['LI'],
+          self: true,
+        },
+        {
+          clientId: ids.heir,
+          name: 'Em Thụ Hưởng',
+          roles: ['BEN'],
+          self: false,
         },
       ]);
+
+      // CUS-11: one holder per policy
+      expect(
+        (
+          await create(fc, {
+            policyNo: '500000001',
+            role: 'PO',
+            name: 'Người Mua Thứ Hai',
+          }).expect(409)
+        ).body,
+      ).toEqual({
+        error: 'holder_exists',
+        issues: [{ path: 'role', message: 'holder_exists' }],
+      });
+      // The same person twice on one policy, whatever the case or marks
+      expect(
+        (
+          await create(fc, {
+            policyNo: '500000001',
+            role: 'BEN',
+            name: 'me cung hop dong',
+            dob: '1965-05-05',
+          }).expect(409)
+        ).body.error,
+      ).toBe('person_on_policy');
+    });
+
+    it("MAN-3 + MAN-4: someone else's policy is refused without telling who is on it; a manager adds for the branch; GA_HEAD picks an agent or takes the policy's", async () => {
+      ids.peer = await add(head, '500000099', 'PO', {
+        name: 'Khách Nhánh Khác',
+        agentCode: PEER,
+      });
+      const refused = await create(fc, {
+        policyNo: '500000099',
+        role: 'LI',
+        name: 'Dò Số',
+      }).expect(403);
+      expect(refused.body).toEqual({
+        error: 'policy_not_yours',
+        issues: [{ path: 'policyNo', message: 'policy_not_yours' }],
+      });
+      expect((await policyOf('500000099'))?.clients).toHaveLength(1);
+
+      ids.branch = await add(um, '500000010', 'PO', {
+        name: 'Của FC Tuyến Dưới',
+        agentCode: FC,
+      });
+      expect((await stored(ids.branch))?.ownerAgentCodes).toEqual([FC]);
+      const refusedAgent = async (
+        agent: Agent,
+        body: Record<string, unknown>,
+      ) =>
+        (
+          await create(agent, {
+            role: 'PO',
+            name: 'Không Được',
+            ...body,
+          }).expect(400)
+        ).body.error;
+      expect(
+        await refusedAgent(um, { policyNo: '500000011', agentCode: PEER }),
+      ).toBe('agent_not_found');
+      expect(
+        await refusedAgent(fc, { policyNo: '500000012', agentCode: UM }),
+      ).toBe('agent_not_found');
+      expect(await refusedAgent(head, { policyNo: '500000013' })).toBe(
+        'agent_required',
+      );
+      // On a policy already there, the serving agent is taken when no agent is chosen
+      const spouse = await add(head, '500000099', 'LI', {
+        name: 'Vợ Khách Nhánh Khác',
+      });
+      expect((await stored(spouse))?.ownerAgentCodes).toEqual([PEER]);
+      for (const agent of [marketing, admin])
+        await create(agent, {
+          policyNo: '500000014',
+          role: 'PO',
+          name: 'Không Được',
+          agentCode: FC,
+        }).expect(403);
+      expect(await policyOf('500000014')).toBeNull();
+    });
+
+    it('TEN-7: GA-2 opens no GA-1 client, and the same number in GA-2 is its own policy', async () => {
+      const head2 = await as('head', 2);
+      await head2.get(`${API}/clients/${ids.holder}`).expect(404);
+      await head2
+        .patch(`${API}/clients/${ids.holder}`)
+        .send({ tier: 'Vàng' })
+        .expect(404);
+      await create(head2, {
+        policyNo: '500000001',
+        role: 'PO',
+        name: 'Khách GA Khác',
+        agentCode: '00200004',
+      }).expect(201);
+      expect((await policyOf('500000001'))?.clients).toHaveLength(4);
     });
   });
 
   describe('editing', () => {
     it('test 38 + test 39 + MAN-6: absent keeps, null clears, the birthday follows; history and audit without the phone in clear', async () => {
       await fc
-        .patch(`${API}/clients/5000000001`)
+        .patch(`${API}/clients/${ids.holder}`)
         .send({
           name: 'Phạm Thị Tay Mới',
           dob: '1975-12-31',
@@ -437,7 +498,7 @@ describe('Clients and policies entered by hand (e2e)', () => {
           tier: null,
         })
         .expect(204);
-      const client = await stored('5000000001');
+      const client = await stored(ids.holder);
       expect(client).toMatchObject({
         name: 'Phạm Thị Tay Mới',
         nameNorm: 'PHAM THI TAY MOI',
@@ -447,148 +508,196 @@ describe('Clients and policies entered by hand (e2e)', () => {
       });
       expect(client?.phone).toBeUndefined();
       expect(client?.tier).toBeUndefined();
+      // MAN-6: the policy shows the new name of its holder
+      expect((await policyOf('500000001'))?.holderName).toBe(
+        'Phạm Thị Tay Mới',
+      );
       const changes = await connection
         .collection('recordChanges')
-        .find({ entity: 'client', entityKey: '5000000001' })
+        .find({ entity: 'client', entityKey: ids.holder })
         .toArray();
       expect(changes.find((item) => item.field === 'phone')).toMatchObject({
         oldValue: '0912***678',
       });
       expect(changes.every((item) => item.importId === undefined)).toBe(true);
       await fc
-        .patch(`${API}/clients/5000000001`)
+        .patch(`${API}/clients/${ids.holder}`)
         .send({ phone: '12345' })
         .expect(400);
       await fc
-        .patch(`${API}/clients/5000000001`)
+        .patch(`${API}/clients/${ids.holder}`)
         .send({ phone: '0987654321' })
         .expect(204);
       // CUS-14: the phone the GA keeps can be searched
       expect(
         (
           await fc.get(`${API}/clients`).query({ q: '7654' }).expect(200)
-        ).body.items.map((item: { clientCode: string }) => item.clientCode),
-      ).toEqual(['5000000001']);
+        ).body.items.map((item: { id: string }) => item.id),
+      ).toEqual([ids.holder]);
     });
 
     it('test 38 + test 43 + CUS-6: a line manager only reads; GA_HEAD edits any client', async () => {
       const refused = await um
-        .patch(`${API}/clients/5000000001`)
+        .patch(`${API}/clients/${ids.holder}`)
         .send({ name: 'Quản Lý Sửa' })
         .expect(403);
       expect(refused.body.error).toBe('client_not_yours');
       expect(
-        (await um.get(`${API}/clients/5000000001`).expect(200)).body.canEdit,
+        (await um.get(`${API}/clients/${ids.holder}`).expect(200)).body.canEdit,
       ).toBe(false);
       await head
-        .patch(`${API}/clients/5000000099`)
+        .patch(`${API}/clients/${ids.peer}`)
         .send({ tier: 'Vàng' })
         .expect(204);
       await fc
-        .patch(`${API}/clients/5000000099`)
+        .patch(`${API}/clients/${ids.peer}`)
         .send({ tier: 'Bạc' })
         .expect(404);
       for (const agent of [marketing, admin])
         await agent
-          .patch(`${API}/clients/5000000001`)
+          .patch(`${API}/clients/${ids.holder}`)
           .send({ tier: 'Bạc' })
           .expect(403);
     });
 
-    it('test 40 + POL-1: a policy added later; a line manager may not; one outside scope is 404', async () => {
+    it("test 40 + POL-1 + POL-3: a policy added later is the client's, served at 100% by their agent; a line manager may not; one outside scope is 404", async () => {
       await fc
-        .post(`${API}/clients/5000000002/policies`)
-        .send(policyBody('500000030'))
+        .post(`${API}/clients/${ids.second}/policies`)
+        .send(
+          policyBody('500000020', {
+            products: [
+              {
+                productCode: 'AN_TAM_SONG_HANH',
+                sumAssuredVnd: 500_000_000,
+                termYears: 20,
+              },
+              {
+                productCode: 'BH_TAI_NAN_CAO_CAP',
+                insuredName: 'Bé Con',
+                insuredDob: '2015-04-02',
+                insuredGender: 'Nữ',
+                sumAssuredVnd: 100_000_000,
+              },
+            ],
+          }),
+        )
         .expect(201);
-      expect((await policyOf('500000030'))?.servicingAgentCode).toBe(FC);
+      const policy = await policyOf('500000020');
+      expect(policy).toMatchObject({
+        origin: 'MANUAL',
+        holderClientId: ids.second,
+        insuredClientId: ids.second,
+        servicingAgentCode: FC,
+        clients: [
+          { clientId: ids.second, role: 'PO', source: 'POLICY' },
+          { clientId: ids.second, role: 'LI', source: 'POLICY' },
+        ],
+      });
+      // PRD-3: the holder's line is theirs; another person keeps a name only
+      expect(policy?.products[0]).toMatchObject({
+        insuredClientId: ids.second,
+      });
+      expect(policy?.products[1]).toMatchObject({
+        insuredName: 'Bé Con',
+        productCode: 'BH_TAI_NAN_CAO_CAP',
+      });
+      expect(policy?.products[1].insuredClientId).toBeUndefined();
+      expect(
+        (await stored(ids.second))?.agentLinks
+          .map((link: { source: string }) => link.source)
+          .sort(),
+      ).toEqual(['MANUAL', 'POLICY_HOLDER', 'POLICY_INSURED']);
+
       expect(
         (
           await um
-            .post(`${API}/clients/5000000002/policies`)
+            .post(`${API}/clients/${ids.second}/policies`)
             .send(policyBody('500000031'))
             .expect(403)
         ).body.error,
       ).toBe('client_not_yours');
       await fc
-        .post(`${API}/clients/5000000099/policies`)
+        .post(`${API}/clients/${ids.peer}/policies`)
         .send(policyBody('500000032'))
         .expect(404);
+      // A policy may be added with its number only
+      await fc
+        .post(`${API}/clients/${ids.second}/policies`)
+        .send({ policyNo: '500000033' })
+        .expect(201);
+      expect((await policyOf('500000033'))?.status).toBeUndefined();
     });
 
-    it('POL-2 + CUS-4 + CUS-6: the insured is a client the person owns or one not in the GA yet, so nobody takes over another agent\'s client', async () => {
-      // 5000000099 belongs to PEER, outside the FC's branch
-      const refused = await fc
-        .post(`${API}/clients/5000000002/policies`)
-        .send(policyBody('500000033', { insuredClientCode: '5000000099' }))
-        .expect(403);
-      expect(refused.body).toEqual({
-        error: 'insured_not_yours',
-        issues: [{ path: 'insuredClientCode', message: 'insured_not_yours' }],
-      });
-      expect(await policyOf('500000033')).toBeNull();
-      expect((await stored('5000000099'))?.ownerAgentCodes).toEqual([PEER]);
-
-      // The same through "Thêm khách hàng", with the path of the policy in the form
-      const nested = await create(fc, {
-        clientCode: '5000000030',
-        name: 'Không Chiếm Được',
-        policies: [
-          policyBody('500000034', { insuredClientCode: '5000000099' }),
+    it('test 40: a refused policy changes nothing', async () => {
+      const cases: [Record<string, unknown>, number, string][] = [
+        [policyBody('500000020'), 409, 'policy_exists'],
+        [policyBody('12345'), 400, 'invalid_policy_no'],
+        [
+          policyBody('500000021', { products: [{ productCode: 'KHONG_CO' }] }),
+          400,
+          'unknown_product',
         ],
-      }).expect(403);
-      expect(nested.body.issues).toEqual([
-        {
-          path: 'policies.0.insuredClientCode',
-          message: 'insured_not_yours',
-        },
-      ]);
-      expect(await stored('5000000030')).toBeNull();
-
-      // A line manager sees the FC's client but does not own it (CUS-6)
-      await create(um, {
-        clientCode: '5000000031',
-        name: 'Của Quản Lý',
-        agentCode: UM,
-      }).expect(201);
-      await um
-        .post(`${API}/clients/5000000031/policies`)
-        .send(policyBody('500000035', { insuredClientCode: '5000000002' }))
-        .expect(403);
-
-      // A person not in the GA yet is fine with a name, and GA_HEAD owns every client
-      await fc
-        .post(`${API}/clients/5000000002/policies`)
+        [policyBody('500000023', { agentCode: PEER }), 400, 'agent_not_found'],
+      ];
+      for (const [policy, status, error] of cases) {
+        const { body } = await fc
+          .post(`${API}/clients/${ids.second}/policies`)
+          .send(policy)
+          .expect(status);
+        expect(body.error).toBe(error);
+      }
+      const repeated = await fc
+        .post(`${API}/clients/${ids.second}/policies`)
         .send(
-          policyBody('500000036', {
-            insuredClientCode: '5000000098',
-            insuredName: 'Người Mới',
+          policyBody('500000024', {
+            products: [
+              { productCode: 'AN_TAM_SONG_HANH' },
+              { productCode: 'AN_TAM_SONG_HANH' },
+            ],
           }),
         )
-        .expect(201);
-      await head
-        .post(`${API}/clients/5000000099/policies`)
-        .send(policyBody('500000037', { insuredClientCode: '5000000031' }))
-        .expect(201);
+        .expect(409);
+      expect(repeated.body.issues).toEqual([
+        { path: 'products.1.productCode', message: 'program_repeated' },
+      ]);
+      for (const policyNo of ['500000021', '500000023', '500000024'])
+        expect(await policyOf(policyNo)).toBeNull();
     });
 
-    it('test 41 + POL-4: editing replaces every programme line; the number and the agent stay; only a policy of this client', async () => {
-      const { policyNo: _ignored, ...edit } = policyBody('x', {
+    it("POL-2 + CUS-6: any other insured is a name only, so nobody takes over another agent's client by naming them", async () => {
+      await fc
+        .post(`${API}/clients/${ids.second}/policies`)
+        .send(policyBody('500000036', { insuredName: 'Khách Nhánh Khác' }))
+        .expect(201);
+      const policy = await policyOf('500000036');
+      expect(policy).toMatchObject({
+        holderClientId: ids.second,
+        insuredName: 'Khách Nhánh Khác',
+        clients: [{ clientId: ids.second, role: 'PO', source: 'POLICY' }],
+      });
+      expect(policy?.insuredClientId).toBeUndefined();
+      expect((await stored(ids.peer))?.ownerAgentCodes).toEqual([PEER]);
+    });
+
+    it('test 41 + POL-4: editing replaces every programme line; the number, the agent and the holder stay; only a policy of this client', async () => {
+      const edit = {
+        ...policyFields,
         status: 'Mất hiệu lực',
         products: [
-          { programCode: 'BH_CHAM_SOC_SUC_KHOE', sumAssuredVnd: 200_000_000 },
+          { productCode: 'BH_CHAM_SOC_SUC_KHOE', sumAssuredVnd: 200_000_000 },
         ],
-      });
+      };
       // The number and the agent are not part of an edit
       await fc
-        .patch(`${API}/clients/5000000020/policies/500000020`)
+        .patch(`${API}/clients/${ids.second}/policies/500000020`)
         .send({ ...edit, policyNo: '999999999' })
         .expect(400);
       await fc
-        .patch(`${API}/clients/5000000020/policies/500000020`)
+        .patch(`${API}/clients/${ids.second}/policies/500000020`)
         .send({ ...edit, agentCode: '00100003' })
         .expect(400);
       await fc
-        .patch(`${API}/clients/5000000020/policies/500000020`)
+        .patch(`${API}/clients/${ids.second}/policies/500000020`)
         .send(edit)
         .expect(204);
       const policy = await policyOf('500000020');
@@ -596,10 +705,11 @@ describe('Clients and policies entered by hand (e2e)', () => {
         status: 'Mất hiệu lực',
         servicingAgentCode: FC,
         policyNo: '500000020',
+        holderClientId: ids.second,
       });
       expect(policy?.products).toEqual([
         expect.objectContaining({
-          programCode: 'BH_CHAM_SOC_SUC_KHOE',
+          productCode: 'BH_CHAM_SOC_SUC_KHOE',
           sumAssuredVnd: 200_000_000,
         }),
       ]);
@@ -612,118 +722,178 @@ describe('Clients and policies entered by hand (e2e)', () => {
           .map((item) => String(item.field))
           .sort((a, b) => a.localeCompare(b)),
       ).toEqual(['products', 'status']);
+
+      // From the page of someone else on the policy, the holder stays who they are
+      const wife = await add(fc, '500000020', 'LI', { name: 'Vợ Có Hợp Đồng' });
       await fc
-        .patch(`${API}/clients/5000000001/policies/500000020`)
+        .patch(`${API}/clients/${wife}/policies/500000020`)
+        .send({ ...edit, status: 'Đang hiệu lực' })
+        .expect(204);
+      expect(await policyOf('500000020')).toMatchObject({
+        status: 'Đang hiệu lực',
+        holderClientId: ids.second,
+        insuredClientId: ids.second,
+      });
+
+      await fc
+        .patch(`${API}/clients/${ids.holder}/policies/500000020`)
         .send(edit)
         .expect(404);
       await um
-        .patch(`${API}/clients/5000000020/policies/500000020`)
+        .patch(`${API}/clients/${ids.second}/policies/500000020`)
         .send(edit)
         .expect(403);
     });
 
-    it('PRG-5: a programme on a policy can only be hidden', async () => {
-      const used = (await programs(head)).find(
-        (item) => item.code === 'BH_CHAM_SOC_SUC_KHOE',
-      )!;
-      expect(
-        (await head.delete(`${API}/programs/${used.id}`).expect(409)).body
-          .error,
-      ).toBe('program_in_use');
-      await head
-        .patch(`${API}/programs/${used.id}`)
-        .send({ active: false })
-        .expect(200);
-      expect(
-        (
-          await fc
-            .post(`${API}/clients/5000000002/policies`)
-            .send(
-              policyBody('500000040', {
-                products: [{ programCode: 'BH_CHAM_SOC_SUC_KHOE' }],
-              }),
-            )
-            .expect(400)
-        ).body.error,
-      ).toBe('unknown_program');
-      await head
-        .patch(`${API}/programs/${used.id}`)
-        .send({ active: true })
-        .expect(200);
+    it('TENANT-5: a hidden product is not offered for a new line, but a line that has it may stay', async () => {
+      const owner = ownerDb();
+      await owner.query(
+        `UPDATE products SET active = false WHERE product_code = 'BH_CHAM_SOC_SUC_KHOE'`,
+      );
+      try {
+        const refused = await fc
+          .post(`${API}/clients/${ids.second}/policies`)
+          .send(
+            policyBody('500000040', {
+              products: [{ productCode: 'BH_CHAM_SOC_SUC_KHOE' }],
+            }),
+          )
+          .expect(400);
+        expect(refused.body).toEqual({
+          error: 'unknown_product',
+          issues: [
+            { path: 'products.0.productCode', message: 'unknown_product' },
+          ],
+        });
+        // 500000020 already carries it, so editing that policy keeps working
+        await fc
+          .patch(`${API}/clients/${ids.second}/policies/500000020`)
+          .send({
+            ...policyFields,
+            products: [
+              {
+                productCode: 'BH_CHAM_SOC_SUC_KHOE',
+                sumAssuredVnd: 250_000_000,
+              },
+            ],
+          })
+          .expect(204);
+      } finally {
+        await owner.query(
+          `UPDATE products SET active = true WHERE product_code = 'BH_CHAM_SOC_SUC_KHOE'`,
+        );
+      }
     });
   });
 
-  it('test 35 + MAN-8 + POL-5: a later Success file updates the same records and keeps what the GA keeps', async () => {
-    const start = (
-      await head
-        .post(`${API}/imports`)
-        .send({
-          fileName: 'success.xlsx',
-          snapshotDate: '2026-11-10',
-          kind: 'SUCCESS',
-          sheets: [
-            {
-              name: '02_Clients',
-              headers: ['Mã Khách Hàng', 'Bên Mua BH', 'Nhóm Khách Hàng'],
-            },
-            {
-              name: '04_Policy_Products',
-              headers: [
-                'Số HĐBH',
-                'product_code',
-                'product_role',
-                'Số tiền bảo hiểm',
-              ],
-            },
-          ],
-        })
-        .expect(201)
-    ).body;
-    await head
-      .post(`${API}/imports/${start.id}/rows`)
-      .send({
-        sheet: '02_Clients',
-        rows: [{ r: 2, c: ['5000000001', 'Tên Theo Success', 'Kim Cương'] }],
-      })
-      .expect(200);
-    await head
-      .post(`${API}/imports/${start.id}/rows`)
-      .send({
-        sheet: '04_Policy_Products',
+  it('test 35 + MAN-8 + POL-5: a Success file finds the client added by hand through their policy, then updates the same record', async () => {
+    const before = await connection.collection('clients').countDocuments({});
+    const importFile = async (
+      sheets: { name: string; headers: string[]; rows: string[][] }[],
+    ) => {
+      const start = (
+        await head
+          .post(`${API}/imports`)
+          .send({
+            fileName: 'success.xlsx',
+            snapshotDate: '2026-11-10',
+            kind: 'SUCCESS',
+            sheets: sheets.map(({ name, headers }) => ({ name, headers })),
+          })
+          .expect(201)
+      ).body;
+      for (const sheet of sheets)
+        await head
+          .post(`${API}/imports/${start.id}/rows`)
+          .send({
+            sheet: sheet.name,
+            rows: sheet.rows.map((c, index) => ({ r: index + 2, c })),
+          })
+          .expect(200);
+      await head.post(`${API}/imports/${start.id}/validate`).expect(200);
+      return (await head.post(`${API}/imports/${start.id}/commit`).expect(200))
+        .body as {
+        sheets: { name: string; inserted: number; updated: number }[];
+      };
+    };
+    const done = await importFile([
+      {
+        name: '02_Clients',
+        headers: ['Mã Khách Hàng', 'Bên Mua BH', 'Nhóm Khách Hàng'],
+        rows: [['5000000001', 'Tên Theo Success', 'Kim Cương']],
+      },
+      {
+        name: '03_Policies',
+        headers: [
+          'Số HĐBH',
+          'Mã KH BMBH',
+          'Mã đại lý',
+          'Bên mua BH',
+          'NĐBH chính',
+          'Tình trạng',
+          'Ngày hiệu lực',
+          'Ngày đáo hạn',
+          'Tỉ lệ chia',
+          'Định kỳ đóng phí',
+          'Phí định kỳ/cơ bản định kỳ',
+        ],
         rows: [
-          { r: 2, c: ['500000030', 'AN_TAM_SONG_HANH', 'Chính', '900000000'] },
+          [
+            '500000001',
+            '5000000001',
+            FC,
+            'TÊN THEO SUCCESS',
+            'MẸ CÙNG HỢP ĐỒNG',
+            'Đang hiệu lực',
+            '01/06/2024',
+            '01/06/2044',
+            '100',
+            'Năm',
+            '12000000',
+          ],
         ],
-      })
-      .expect(200);
-    await head.post(`${API}/imports/${start.id}/validate`).expect(200);
-    const done = (
-      await head.post(`${API}/imports/${start.id}/commit`).expect(200)
-    ).body;
+      },
+      {
+        name: '04_Policy_Products',
+        headers: [
+          'Số HĐBH',
+          'product_code',
+          'product_role',
+          'Số tiền bảo hiểm',
+        ],
+        rows: [['500000020', 'BH_CHAM_SOC_SUC_KHOE', 'Bổ trợ', '900000000']],
+      },
+    ]);
     expect(
-      done.sheets.map(
-        (sheet: { name: string; inserted: number; updated: number }) => [
-          sheet.name,
-          sheet.inserted,
-          sheet.updated,
-        ],
-      ),
+      done.sheets.map((sheet) => [sheet.name, sheet.inserted, sheet.updated]),
     ).toEqual([
       ['02_Clients', 0, 1],
+      ['03_Policies', 0, 1],
       ['04_Policy_Products', 0, 1],
     ]);
-    expect(await stored('5000000001')).toMatchObject({
+    // The holder added by hand took the file's code: updated, not duplicated
+    expect(await clientIdOf('5000000001')).toBe(ids.holder);
+    expect(await connection.collection('clients').countDocuments({})).toBe(
+      before,
+    );
+    expect(await stored(ids.holder)).toMatchObject({
       name: 'Tên Theo Success',
       tier: 'Kim Cương',
       phone: '0987654321',
       origin: 'MANUAL',
     });
+    const policy = await policyOf('500000001');
+    expect(policy).toMatchObject({
+      status: 'Đang hiệu lực',
+      holderClientId: ids.holder,
+      insuredClientId: ids.mother,
+    });
+    expect(policy?.clients).toHaveLength(4);
     // The file's blank insured code matched the hand-entered line of the main insured; its term stayed
-    expect((await policyOf('500000030'))?.products).toEqual([
+    expect((await policyOf('500000020'))?.products).toEqual([
       expect.objectContaining({
-        productCode: 'AN_TAM_SONG_HANH',
+        productCode: 'BH_CHAM_SOC_SUC_KHOE',
         sumAssuredVnd: 900_000_000,
-        termYears: 20,
-        programCode: 'AN_TAM_SONG_HANH',
       }),
     ]);
   });

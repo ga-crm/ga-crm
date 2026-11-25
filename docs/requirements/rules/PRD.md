@@ -24,7 +24,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:70`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:71`
 
-Đã trích dẫn trong: `backend/src/modules/clients/client-insights.ts`, `backend/src/modules/clients/client-rules.spec.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `backend/test/manual-clients.e2e-spec.ts`
+Đã trích dẫn trong: `backend/src/migrations/1764259200000-client-id.ts`, `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/client-insights.ts`, `backend/src/modules/clients/client-rules.spec.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `backend/src/modules/imports/success-plan.ts`, `backend/test/manual-clients.e2e-spec.ts`
 
 - **PRD-3** Người được bảo hiểm có thể không phải khách hàng của GA: lưu tên, ngày sinh, giới tính dạng chữ. `insuredCode` (khóa, là mã khách hàng) chỉ chứa mã người được bảo hiểm chính khi tên trên dòng là của họ, ngược lại để `''` (không tự tạo liên kết khách hàng cho một cái tên).
 
@@ -48,6 +48,6 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:73`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:74`
 
-Đã trích dẫn trong: `backend/src/modules/clients/client-rules.spec.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/client.constants.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `backend/src/modules/imports/success-plan.ts`, `frontend/src/lib/types.ts`
+Đã trích dẫn trong: `backend/src/modules/clients/client-rules.spec.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/client.constants.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `backend/src/modules/imports/success-plan.ts`, `frontend/src/lib/products.ts`, `frontend/src/lib/types.ts`
 
 - **PRD-6** Dòng sản phẩm từ file Success: mã sản phẩm, tên, vai trò, mã người được bảo hiểm (trống = người được bảo hiểm chính), số tiền bảo hiểm, phí năm, chương trình (plan), ngày bắt đầu, trạng thái.

@@ -83,8 +83,11 @@ function readSheet(name: string, hidden: boolean, sheet: WorkSheet, date1904: bo
  * IMP-1: the file is read here, in the browser, and only template columns are sent on. A column the
  * server marks as banned therefore never leaves this computer (test 29).
  */
-export function readWorkbook(data: ArrayBuffer): RawSheet[] {
-  const workbook = read(data, { type: 'array', cellNF: true, cellDates: false, cellHTML: false, dense: true })
+export function readWorkbook(data: ArrayBuffer | string): RawSheet[] {
+  // A CSV is passed as text, already decoded as UTF-8, so Vietnamese marks survive without a BOM.
+  // Its cells stay text (raw), so a code such as 0012 keeps its leading zeros.
+  const text = typeof data === 'string'
+  const workbook = read(data, { type: text ? 'string' : 'array', raw: text, cellNF: true, cellDates: false, cellHTML: false, dense: true })
   const date1904 = !!workbook.Workbook?.WBProps?.date1904
   const meta = workbook.Workbook?.Sheets ?? []
   return workbook.SheetNames.slice(0, MAX_SHEETS).map((name, index) => readSheet(name, !!meta[index]?.Hidden, workbook.Sheets[name], date1904))

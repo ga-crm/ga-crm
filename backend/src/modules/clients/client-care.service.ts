@@ -49,9 +49,10 @@ import {
   RecordChange,
 } from './infrastructure/client.entities.js';
 import { LeadLinkService } from './lead-link.service.js';
+import { ProductsService } from '../products/products.service.js';
 
 const onPolicy = (policy: InsightPolicy, code: string) =>
-  policy.clients.some((link) => link.clientCode === code && !link.endedAt);
+  policy.clients.some((link) => link.clientId === code && !link.endedAt);
 
 /** FAM-7: one row of the family tab. */
 export interface FamilyEntry {
@@ -60,7 +61,8 @@ export interface FamilyEntry {
   linkId: string | null;
   relation: Relation | null;
   name: string;
-  code: string | null;
+  /** The person's client id, when they are a client. */
+  clientId: string | null;
   /** Whether this person has a client record in the GA. */
   isClient: boolean;
   /** FAM-5: only a client in the person's scope has a page they can open. */
@@ -90,6 +92,7 @@ export class ClientCareService {
     private readonly leadLinks: LeadLinkService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly products: ProductsService,
   ) {}
 
   private scopeOf(actor: Actor): Scope {
@@ -97,18 +100,23 @@ export class ClientCareService {
     return { tenantId: actor.tenantId };
   }
 
-  /** CUS-8: the policies this person sees among those naming any of `codes`. */
+  /** CUS-8: the policies this person sees among those naming any of these clients. */
   private visiblePolicies(
     db: EntityManager,
     scope: Scope,
     reach: Reach,
-    codes: readonly string[],
+    clientIds: readonly string[],
   ): Promise<Policy[]> {
-    return this.reader.visiblePolicies(db, scope, reach, policiesNaming(codes));
+    return this.reader.visiblePolicies(
+      db,
+      scope,
+      reach,
+      policiesNaming(clientIds),
+    );
   }
 
   /** FAM-1 + COV-5 + section 10.11 + NOTE-1: what the client page shows beyond the record. */
-  async insights(actor: Actor, clientCode: string) {
+  async insights(actor: Actor, clientId: string) {
     const scope = this.scopeOf(actor);
     return this.tenantDb.run(scope, async (db) => {
       const reach = await this.reader.reach(actor, db);
@@ -116,7 +124,7 @@ export class ClientCareService {
         .clients(
           db,
           scope,
-          and(sql`c.client_code = ${clientCode}`, clientsSeen(reach)),
+          and(sql`c.id = ${clientId}`, clientsSeen(reach)),
         )
         .getOne();
       if (!client) throw notFound();
@@ -126,66 +134,64 @@ export class ClientCareService {
         .createQueryBuilder('link')
         .where('link.tenantId = :tenantId', { tenantId: scope.tenantId })
         .andWhere(
-          '(link.clientCode = :code OR link.relatedClientCode = :code)',
-          { code: clientCode },
+          '(link.clientId = :id OR link.relatedClientId = :id)',
+          { id: clientId },
         )
         .orderBy('link.createdAt', 'ASC')
         .addOrderBy('link.id', 'ASC')
         .getMany();
-      const linkedCodes = links.flatMap((link) =>
-        link.clientCode === clientCode
-          ? (link.relatedClientCode ?? [])
-          : link.clientCode,
+      const linkedIds = links.flatMap((link) =>
+        link.clientId === clientId
+          ? (link.relatedClientId ?? [])
+          : link.clientId,
       );
       const policies = await this.visiblePolicies(db, scope, reach, [
-        clientCode,
-        ...linkedCodes,
+        clientId,
+        ...linkedIds,
       ]);
-      const mine = policies.filter((policy) => onPolicy(policy, clientCode));
+      const mine = policies.filter((policy) => onPolicy(policy, clientId));
 
       // FAM-1 (a): the people on the client's policies, named as the policy writes them (FAM-5)
       const fromPolicy = new Map<string, string>();
       for (const policy of mine) {
         for (const link of policy.clients) {
-          if (link.endedAt || link.clientCode === clientCode) continue;
+          if (link.endedAt || link.clientId === clientId) continue;
           const name =
             link.role === 'PO'
               ? policy.holderName
               : link.role === 'LI'
                 ? policy.insuredName
                 : '';
-          if (!fromPolicy.get(link.clientCode))
-            fromPolicy.set(link.clientCode, titleCase(name));
+          if (!fromPolicy.get(link.clientId))
+            fromPolicy.set(link.clientId, titleCase(name ?? ''));
         }
         for (const product of policy.products) {
           const person = insuredOf(policy, product);
-          if (person.key !== clientCode && !fromPolicy.get(person.key))
+          if (person.key !== clientId && !fromPolicy.get(person.key))
             fromPolicy.set(person.key, titleCase(person.name));
         }
       }
 
-      // Which coded people are clients, and which of them this person may open
-      const codes = [
+      // Which people are clients, and which of them this person may open
+      const ids = [
         ...new Set([
-          ...linkedCodes,
+          ...linkedIds,
           ...[...fromPolicy.keys()].filter((key) => !key.startsWith('name:')),
         ]),
       ];
       const records = await this.reader
-        .clients(db, scope, sql`c.client_code = ANY(${codes}::text[])`)
+        .clients(db, scope, sql`c.id = ANY(${ids}::uuid[])`)
         .getMany();
       const visible = await this.reader
         .clients(
           db,
           scope,
-          and(sql`c.client_code = ANY(${codes}::text[])`, clientsSeen(reach)),
+          and(sql`c.id = ANY(${ids}::uuid[])`, clientsSeen(reach)),
         )
-        .select(['c.id', 'c.clientCode'])
+        .select(['c.id'])
         .getMany();
-      const recordOf = new Map(
-        records.map((record) => [record.clientCode, record]),
-      );
-      const canOpen = new Set(visible.map((record) => record.clientCode));
+      const recordOf = new Map(records.map((record) => [record.id, record]));
+      const canOpen = new Set(visible.map((record) => record.id));
 
       // FAM-1 (b) and (c): the relations recorded, seen from this client's side (FAM-2)
       const entries = new Map<string, FamilyEntry>();
@@ -199,8 +205,8 @@ export class ClientCareService {
         leadId: null,
       };
       for (const link of links) {
-        const ownSide = link.clientCode === clientCode;
-        const code = ownSide ? link.relatedClientCode : link.clientCode;
+        const ownSide = link.clientId === clientId;
+        const code = ownSide ? link.relatedClientId : link.clientId;
         // FAM-3: a related client out of this person's scope and off the shared policies stays hidden
         if (code && !canOpen.has(code) && !fromPolicy.has(code)) continue;
         const key = code ?? personKey(null, link.fullName ?? undefined);
@@ -211,7 +217,7 @@ export class ClientCareService {
           linkId: link.id,
           relation: ownSide ? link.relation : inverseRelation(link.relation),
           name: link.fullName ?? '',
-          code,
+          clientId: code,
           gender: link.gender,
           birth: code
             ? null
@@ -233,16 +239,16 @@ export class ClientCareService {
           linkId: null,
           relation: null,
           name,
-          code: key.startsWith('name:') ? null : key,
+          clientId: key.startsWith('name:') ? null : key,
           sharedPolicies: [],
         });
       }
 
       for (const entry of entries.values()) {
-        const record = entry.code ? recordOf.get(entry.code) : undefined;
+        const record = entry.clientId ? recordOf.get(entry.clientId) : undefined;
         if (record) {
           entry.isClient = true;
-          entry.canOpen = canOpen.has(record.clientCode);
+          entry.canOpen = canOpen.has(record.id);
           entry.name = record.name;
           // Personal details only for a client the person may open
           if (entry.canOpen) {
@@ -250,13 +256,12 @@ export class ClientCareService {
             entry.dob = record.dob;
           }
         }
-        if (!entry.name)
-          entry.name = fromPolicy.get(entry.key) || entry.code || '';
+        if (!entry.name) entry.name = fromPolicy.get(entry.key) || '';
         for (const policy of mine) {
           const roles = new Set<string>();
-          if (entry.code)
+          if (entry.clientId)
             for (const link of policy.clients)
-              if (link.clientCode === entry.code && !link.endedAt)
+              if (link.clientId === entry.clientId && !link.endedAt)
                 roles.add(link.role);
           if (
             policy.products.some(
@@ -273,15 +278,30 @@ export class ClientCareService {
       }
 
       const family = [...entries.values()];
-      const rows = coverage(policies, [
-        { key: clientCode, name: client.name, code: clientCode },
+      // COV-3: the catalogue's category decides the group when the product is in it (TENANT-5)
+      const catalogue = await this.products.byCode(
+        db,
+        policies.flatMap((policy) =>
+          policy.products.map((product) => product.productCode),
+        ),
+      );
+      const rows = coverage(
+        policies.map((policy) => ({
+          ...policy,
+          products: policy.products.map((product) => ({
+            ...product,
+            category: catalogue.get(product.productCode)?.category,
+          })),
+        })),
+        [
+        { key: clientId, name: client.name, clientId },
         ...family.map((entry) => ({
           key: entry.key,
           name: entry.name,
-          code: entry.code,
+          clientId: entry.clientId,
         })),
       ]);
-      const owned = { tenantId: scope.tenantId, clientCode };
+      const owned = { tenantId: scope.tenantId, clientId };
       const notes = await db.getRepository(Interaction).find({
         where: owned,
         order: { occurredAt: 'DESC', id: 'DESC' },
@@ -291,7 +311,7 @@ export class ClientCareService {
         where: owned,
         order: { createdAt: 'ASC', id: 'ASC' },
       });
-      const history = await this.history(db, scope, clientCode, mine);
+      const history = await this.history(db, scope, clientId, mine);
       const userIds = [
         ...notes.flatMap((note) => note.createdBy ?? []),
         ...history.map((item) => item.changedBy),
@@ -317,7 +337,7 @@ export class ClientCareService {
 
       return {
         // LEAD-34
-        linkedLead: await this.leadLinks.linkedLead(actor, clientCode, db),
+        linkedLead: await this.leadLinks.linkedLead(actor, clientId, db),
         family,
         coverage: rows,
         signals: signals({
@@ -370,7 +390,7 @@ export class ClientCareService {
   private history(
     db: EntityManager,
     scope: Scope,
-    clientCode: string,
+    clientId: string,
     policies: readonly { policyNo: string }[],
   ): Promise<RecordChange[]> {
     const policyNos = policies.map((policy) => policy.policyNo);
@@ -379,11 +399,11 @@ export class ClientCareService {
       .createQueryBuilder('change')
       .where('change.tenantId = :tenantId', { tenantId: scope.tenantId })
       .andWhere(
-        `((change.entity = 'client' AND change.entityKey = :clientCode)
+        `((change.entity = 'client' AND change.entityKey = :clientId)
           OR (change.entity = 'policy' AND change.entityKey = ANY(:policyNos))
           OR (change.entity = 'policy_product' AND split_part(change.entity_key, '/', 1) = ANY(:policyNos)))`,
-        // IMP-21: a product line is keyed "policyNo/productCode/insuredCode"
-        { clientCode, policyNos },
+        // IMP-21: a product line is keyed "policyNo/productCode/insuredClientId"
+        { clientId, policyNos },
       )
       .orderBy('change.changedAt', 'DESC')
       .addOrderBy('change.id', 'DESC')
@@ -396,11 +416,11 @@ export class ClientCareService {
   /** FAM-3: a client in scope, or someone on one of this client's policies the person sees. */
   private async assertRelatable(
     actor: Actor,
-    clientCode: string,
+    clientId: string,
     related: string,
     db: EntityManager,
   ) {
-    if (related === clientCode)
+    if (related === clientId)
       throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.SameClient);
     const scope = this.scopeOf(actor);
     const reach = await this.reader.reach(actor, db);
@@ -408,17 +428,19 @@ export class ClientCareService {
       .clients(
         db,
         scope,
-        and(sql`c.client_code = ${related}`, clientsSeen(reach)),
+        and(sql`c.id = ${related}`, clientsSeen(reach)),
       )
       .getCount();
     if (visible) return;
     const shared = (
-      await this.visiblePolicies(db, scope, reach, [clientCode])
+      await this.visiblePolicies(db, scope, reach, [clientId])
     ).some(
       (policy) =>
-        onPolicy(policy, clientCode) &&
+        onPolicy(policy, clientId) &&
         (onPolicy(policy, related) ||
-          policy.products.some((product) => product.insuredCode === related)),
+          policy.products.some(
+            (product) => product.insuredClientId === related,
+          )),
     );
     if (!shared) throw notFound();
   }
@@ -430,20 +452,20 @@ export class ClientCareService {
    */
   private async assertNotClient(
     actor: Actor,
-    clientCode: string,
+    clientId: string,
     dto: FamilyInputDto,
     db: EntityManager,
   ) {
     const scope = this.scopeOf(actor);
     const reach = await this.reader.reach(actor, db);
-    const policies = await this.visiblePolicies(db, scope, reach, [clientCode]);
+    const policies = await this.visiblePolicies(db, scope, reach, [clientId]);
     const onPolicies = new Set(
       policies.flatMap((policy) => [
-        ...policy.clients.map((link) => link.clientCode),
-        ...policy.products.flatMap((product) => product.insuredCode || []),
+        ...policy.clients.map((link) => link.clientId),
+        ...policy.products.flatMap((product) => product.insuredClientId ?? []),
       ]),
     );
-    onPolicies.delete(clientCode);
+    onPolicies.delete(clientId);
     const pad = (value: number) => String(value).padStart(2, '0');
     const dob =
       dto.birthYear && dto.birthMonth && dto.birthDay
@@ -455,9 +477,9 @@ export class ClientCareService {
         scope,
         and(
           sql`c.name_norm = ${normalizeName(dto.fullName!)}`,
-          sql`c.client_code <> ${clientCode}`,
+          sql`c.id <> ${clientId}`,
           or(
-            sql`c.client_code = ANY(${[...onPolicies]}::text[])`,
+            sql`c.id = ANY(${[...onPolicies]}::uuid[])`,
             dob && and(sql`c.dob = ${dob}`, clientsSeen(reach)),
           ),
         ),
@@ -470,33 +492,28 @@ export class ClientCareService {
   /** FAM-2 to FAM-4 + FAM-8 */
   async addFamily(
     actor: Actor,
-    clientCode: string,
+    clientId: string,
     dto: FamilyInputDto,
   ): Promise<{ id: string }> {
     const scope = this.scopeOf(actor);
     // A relation names a client or a relative, never both
-    if (!dto.relatedClientCode === !dto.fullName)
+    if (!dto.relatedClientId === !dto.fullName)
       throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.InvalidInput);
     return this.tenantDb.run(scope, async (db) => {
-      await this.editor.ownedClient(actor, clientCode, db);
-      if (dto.relatedClientCode)
-        await this.assertRelatable(
-          actor,
-          clientCode,
-          dto.relatedClientCode,
-          db,
-        );
-      else await this.assertNotClient(actor, clientCode, dto, db);
+      await this.editor.ownedClient(actor, clientId, db);
+      if (dto.relatedClientId)
+        await this.assertRelatable(actor, clientId, dto.relatedClientId, db);
+      else await this.assertNotClient(actor, clientId, dto, db);
 
       const links = db.getRepository(FamilyLink);
-      const existing = dto.relatedClientCode
+      const existing = dto.relatedClientId
         ? await links
             .createQueryBuilder('link')
             .where('link.tenantId = :tenantId', { tenantId: scope.tenantId })
             .andWhere(
-              `((link.clientCode = :a AND link.relatedClientCode = :b)
-                OR (link.clientCode = :b AND link.relatedClientCode = :a))`,
-              { a: clientCode, b: dto.relatedClientCode },
+              `((link.clientId = :a AND link.relatedClientId = :b)
+                OR (link.clientId = :b AND link.relatedClientId = :a))`,
+              { a: clientId, b: dto.relatedClientId },
             )
             .setLock('pessimistic_write')
             .getOne()
@@ -508,7 +525,7 @@ export class ClientCareService {
           { id: existing.id },
           {
             relation:
-              existing.clientCode === clientCode
+              existing.clientId === clientId
                 ? dto.relation
                 : inverseRelation(dto.relation),
             ...(dto.note !== undefined && { note: dto.note || null }),
@@ -519,10 +536,10 @@ export class ClientCareService {
         const created = await links.save(
           links.create({
             tenantId: scope.tenantId,
-            clientCode,
+            clientId,
             relation: dto.relation,
-            ...(dto.relatedClientCode
-              ? { relatedClientCode: dto.relatedClientCode }
+            ...(dto.relatedClientId
+              ? { relatedClientId: dto.relatedClientId }
               : {
                   fullName: dto.fullName,
                   gender: dto.gender ?? null,
@@ -544,10 +561,10 @@ export class ClientCareService {
           entity: 'family_link',
           entityId: id,
           meta: {
-            clientCode,
+            clientId,
             relation: dto.relation,
-            ...(dto.relatedClientCode && {
-              relatedClientCode: dto.relatedClientCode,
+            ...(dto.relatedClientId && {
+              relatedClientId: dto.relatedClientId,
             }),
           },
         },
@@ -560,7 +577,7 @@ export class ClientCareService {
   /** A relation the client is on either side of, or 404. */
   private async linkOf(
     scope: Scope,
-    clientCode: string,
+    clientId: string,
     id: string,
     db: EntityManager,
   ): Promise<FamilyLink> {
@@ -572,9 +589,11 @@ export class ClientCareService {
         tenantId: scope.tenantId,
         id,
       })
-      .andWhere('(link.clientCode = :code OR link.relatedClientCode = :code)', {
-        code: clientCode,
-      })
+      // Its own parameter name: TypeORM would let `:id` overwrite the link's id above
+      .andWhere(
+        '(link.clientId = :clientId OR link.relatedClientId = :clientId)',
+        { clientId },
+      )
       .getOne();
     if (!link) throw notFound();
     return link;
@@ -583,23 +602,23 @@ export class ClientCareService {
   /** FAM-2 + FAM-4 + FAM-8 */
   async updateFamily(
     actor: Actor,
-    clientCode: string,
+    clientId: string,
     id: string,
     dto: FamilyUpdateDto,
   ): Promise<void> {
     const scope = this.scopeOf(actor);
     await this.tenantDb.run(scope, async (db) => {
-      await this.editor.ownedClient(actor, clientCode, db);
-      const link = await this.linkOf(scope, clientCode, id, db);
+      await this.editor.ownedClient(actor, clientId, db);
+      const link = await this.linkOf(scope, clientId, id, db);
       const patch: Partial<FamilyLink> = {};
       if (dto.relation)
         patch.relation =
-          link.clientCode === clientCode
+          link.clientId === clientId
             ? dto.relation
             : inverseRelation(dto.relation);
       if (dto.note !== undefined) patch.note = dto.note || null;
       // FAM-4: the personal fields belong to a relative who is not a client
-      if (!link.relatedClientCode) {
+      if (!link.relatedClientId) {
         if (dto.fullName) patch.fullName = dto.fullName;
         for (const field of [
           'gender',
@@ -619,7 +638,7 @@ export class ClientCareService {
           action: AuditAction.Update,
           entity: 'family_link',
           entityId: id,
-          meta: { clientCode },
+          meta: { clientId },
         },
         db,
       );
@@ -629,13 +648,13 @@ export class ClientCareService {
   /** FAM-8 */
   async removeFamily(
     actor: Actor,
-    clientCode: string,
+    clientId: string,
     id: string,
   ): Promise<void> {
     const scope = this.scopeOf(actor);
     await this.tenantDb.run(scope, async (db) => {
-      await this.editor.ownedClient(actor, clientCode, db);
-      const link = await this.linkOf(scope, clientCode, id, db);
+      await this.editor.ownedClient(actor, clientId, db);
+      const link = await this.linkOf(scope, clientId, id, db);
       await db
         .getRepository(FamilyLink)
         .delete({ id: link.id, tenantId: scope.tenantId });
@@ -646,7 +665,7 @@ export class ClientCareService {
           action: AuditAction.Delete,
           entity: 'family_link',
           entityId: id,
-          meta: { clientCode },
+          meta: { clientId },
         },
         db,
       );
@@ -660,16 +679,16 @@ export class ClientCareService {
    */
   async familyLead(
     actor: Actor,
-    clientCode: string,
+    clientId: string,
     id: string,
     dto: FamilyLeadDto,
   ): Promise<{ leadId: string }> {
     const scope = this.scopeOf(actor);
-    const client = await this.editor.ownedClient(actor, clientCode);
+    const client = await this.editor.ownedClient(actor, clientId);
     const link = await this.tenantDb.run(scope, (db) =>
-      this.linkOf(scope, clientCode, id, db),
+      this.linkOf(scope, clientId, id, db),
     );
-    if (link.relatedClientCode || !link.fullName || !dto.leadId === !dto.create)
+    if (link.relatedClientId || !link.fullName || !dto.leadId === !dto.create)
       throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.InvalidInput);
     let leadId = dto.leadId;
     if (leadId) await this.leads.assertVisible(actor, leadId);
@@ -682,7 +701,7 @@ export class ClientCareService {
             phone: dto.create!.phone,
             source: 'Giới thiệu',
             consent: dto.create!.consent,
-            note: `Người thân của khách hàng ${clientCode}`,
+            note: `Người thân của khách hàng ${client.name}`,
           },
           { ownerAgentCode: client.ownerAgentCodes[0] },
         )
@@ -698,7 +717,7 @@ export class ClientCareService {
           action: AuditAction.Update,
           entity: 'family_link',
           entityId: id,
-          meta: { clientCode, leadId },
+          meta: { clientId, leadId },
         },
         db,
       );
@@ -710,7 +729,7 @@ export class ClientCareService {
 
   private async addInteraction(
     actor: Actor,
-    clientCode: string,
+    clientId: string,
     entry: { type: string; note: string; outcome?: string; occurredAt?: Date },
   ): Promise<{ id: string }> {
     const scope = this.scopeOf(actor);
@@ -720,12 +739,12 @@ export class ClientCareService {
     if (occurredAt.getTime() > now.getTime() + 60_000)
       throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.InvalidInput);
     return this.tenantDb.run(scope, async (db) => {
-      const client = await this.editor.ownedClient(actor, clientCode, db); // NOTE-5
+      const client = await this.editor.ownedClient(actor, clientId, db); // NOTE-5
       const interactions = db.getRepository(Interaction);
       const created = await interactions.save(
         interactions.create({
           tenantId: scope.tenantId,
-          clientCode,
+          clientId,
           agentCode: actor.agentCode ?? client.ownerAgentCodes[0] ?? null,
           type: entry.type,
           note: entry.note,
@@ -743,7 +762,7 @@ export class ClientCareService {
           action: AuditAction.Create,
           entity: 'client_note',
           entityId: created.id,
-          meta: { clientCode, type: entry.type },
+          meta: { clientId, type: entry.type },
         },
         db,
       );
@@ -756,7 +775,7 @@ export class ClientCareService {
   /** The client, if this person sees it: 403 for roles without a client book, else 404. */
   private async visibleClient(
     actor: Actor,
-    clientCode: string,
+    clientId: string,
     db: EntityManager,
   ) {
     const scope = this.scopeOf(actor);
@@ -765,18 +784,18 @@ export class ClientCareService {
       .clients(
         db,
         scope,
-        and(sql`c.client_code = ${clientCode}`, clientsSeen(reach)),
+        and(sql`c.id = ${clientId}`, clientsSeen(reach)),
       )
-      .select(['c.id', 'c.clientCode', 'c.ownerAgentCodes'])
+      .select(['c.id', 'c.ownerAgentCodes'])
       .getOne();
     if (!client) throw notFound();
     return { scope, client };
   }
 
   /** CMT-5: up to 8 people who see the client, for the @ picker. */
-  async mentionable(actor: Actor, clientCode: string, q?: string) {
+  async mentionable(actor: Actor, clientId: string, q?: string) {
     return this.tenantDb.run(this.scopeOf(actor), async (db) => {
-      const { scope } = await this.visibleClient(actor, clientCode, db);
+      const { scope } = await this.visibleClient(actor, clientId, db);
       const people = await this.notifications.activeActors(
         scope,
         { q, except: actor.id, limit: 50 },
@@ -786,7 +805,7 @@ export class ClientCareService {
         [];
       for (const person of people) {
         if (items.length === 8) break;
-        if (await this.reader.visibleTo(person, clientCode, db))
+        if (await this.reader.visibleTo(person, clientId, db))
           items.push({
             id: person.id,
             name: person.name,
@@ -801,9 +820,9 @@ export class ClientCareService {
    * CMT-5: whoever sees the client may comment (a manager coaching their line, the owner replying).
    * The owners hear about it, the people mentioned hear it first-hand.
    */
-  async addComment(actor: Actor, clientCode: string, dto: AddCommentDto) {
+  async addComment(actor: Actor, clientId: string, dto: AddCommentDto) {
     return this.tenantDb.run(this.scopeOf(actor), async (db) => {
-      const { scope, client } = await this.visibleClient(actor, clientCode, db);
+      const { scope, client } = await this.visibleClient(actor, clientId, db);
       const mentions = [...new Set(dto.mentions ?? [])].filter(
         (id) => id !== actor.id,
       );
@@ -816,7 +835,7 @@ export class ClientCareService {
         // One at a time: the transaction's connection runs one query at a time
         const visible: boolean[] = [];
         for (const person of people)
-          visible.push(await this.reader.visibleTo(person, clientCode, db));
+          visible.push(await this.reader.visibleTo(person, clientId, db));
         if (people.length !== mentions.length || visible.includes(false))
           throw new ApiException(
             HttpStatus.BAD_REQUEST,
@@ -832,7 +851,7 @@ export class ClientCareService {
       const comment = await comments.save(
         comments.create({
           tenantId: scope.tenantId,
-          clientCode,
+          clientId,
           authorUserId: actor.id,
           body: dto.body,
           mentions: mentions.length > 0 ? mentions : null,
@@ -846,16 +865,16 @@ export class ClientCareService {
           action: AuditAction.Create,
           entity: 'client_comment',
           entityId: comment.id,
-          meta: { clientCode, mentions: mentions.length },
+          meta: { clientId, mentions: mentions.length },
         },
         db,
       );
-      const link = `/clients/${clientCode}`;
+      const link = `/clients/${clientId}`;
       if (mentions.length > 0)
         await this.notifications.notify(
           scope,
           mentions,
-          { type: 'MENTION', data: { clientCode }, link },
+          { type: 'MENTION', data: { clientId }, link },
           db,
         );
       const skip = new Set([actor.id, ...mentions]);
@@ -864,21 +883,21 @@ export class ClientCareService {
         await this.notifications.notify(
           scope,
           told,
-          { type: 'CLIENT_COMMENT', data: { clientCode }, link },
+          { type: 'CLIENT_COMMENT', data: { clientId }, link },
           db,
         );
       return { id: comment.id };
     });
   }
 
-  addNote(actor: Actor, clientCode: string, dto: AddNoteDto) {
-    return this.addInteraction(actor, clientCode, {
+  addNote(actor: Actor, clientId: string, dto: AddNoteDto) {
+    return this.addInteraction(actor, clientId, {
       type: 'NOTE',
       note: dto.body,
     });
   }
 
-  addActivity(actor: Actor, clientCode: string, dto: AddActivityDto) {
-    return this.addInteraction(actor, clientCode, dto);
+  addActivity(actor: Actor, clientId: string, dto: AddActivityDto) {
+    return this.addInteraction(actor, clientId, dto);
   }
 }

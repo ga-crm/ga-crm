@@ -8,7 +8,7 @@
 
 Nguồn: `requirement/03-quy-tac-chung.md:46`
 
-Đã trích dẫn trong: `backend/src/migrations/1762963200000-identity-and-agents.ts`, `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/agents/infrastructure/agent.entity.ts`, `backend/src/modules/clients/client-code.pipe.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `backend/src/modules/imports/cells.spec.ts`, `backend/src/modules/users/infrastructure/user.entity.ts`, `backend/test/auth.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`, `backend/test/tenancy.int-spec.ts`
+Đã trích dẫn trong: `backend/src/migrations/1762963200000-identity-and-agents.ts`, `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/agents/infrastructure/agent.entity.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `backend/src/modules/imports/cells.spec.ts`, `backend/src/modules/imports/success-plan.ts`, `backend/src/modules/users/infrastructure/user.entity.ts`, `backend/test/auth.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`, `backend/test/tenancy.int-spec.ts`
 
 - **DATA-1** Khóa tự nhiên từ DLVN là **chuỗi** và giữ số 0 đầu: mã khách hàng (**đúng 10 chữ số, áp dụng cả khi nhập tay** [QĐ 11/2026]), số hợp đồng (đúng 9 chữ số), số hồ sơ YCBH (4-20 chữ và số), mã đại lý (chữ số), mã sản phẩm. Không bao giờ ép sang số.
 
@@ -40,7 +40,7 @@ Nguồn: `requirement/03-quy-tac-chung.md:49`
 
 Nguồn: `requirement/03-quy-tac-chung.md:50`
 
-Đã trích dẫn trong: `backend/src/common/normalize.ts`, `backend/src/migrations/1763049600000-leads.ts`, `backend/src/modules/agents/infrastructure/agent.entity.ts`, `frontend/src/lib/agentTree.ts`
+Đã trích dẫn trong: `backend/src/common/normalize.ts`, `backend/src/migrations/1763049600000-leads.ts`, `backend/src/migrations/1764259200000-client-id.ts`, `backend/src/modules/agents/infrastructure/agent.entity.ts`, `frontend/src/lib/agentTree.ts`
 
 - **DATA-5** So khớp tên tiếng Việt dùng dạng chuẩn hóa: bỏ dấu, `đ` → `d`, viết hoa, gộp khoảng trắng (`nameNorm`).
 

@@ -87,7 +87,9 @@ import {
   type ParsedPolicyRow,
   type ParsedProductRow,
   planSuccess,
+  refId,
   type SheetResult,
+  storedRef,
   SUCCESS_SHEETS,
   type SuccessPlan,
 } from './success-plan.js';
@@ -774,7 +776,6 @@ export class ImportsService implements OnModuleInit, OnModuleDestroy {
           },
         )
         .getMany();
-    const existingClients = await byKey(Client, 'c', 'clientCode', clientCodes);
     const existingPolicies = await byKey(Policy, 'p', 'policyNo', policyNos);
     const existingApplications = await byKey(
       Application,
@@ -782,28 +783,128 @@ export class ImportsService implements OnModuleInit, OnModuleDestroy {
       'applicationNo',
       applications.map((row) => row.data.applicationNo),
     );
-    return planSuccess({
+
+    // Decided 25/11/2026: stored records name people by id; the planner works with the file's
+    // codes. Every stored person gets their Success code, or `id:<id>` when they have none.
+    const peopleIds = new Set<string>();
+    for (const policy of existingPolicies) {
+      for (const link of policy.clients) peopleIds.add(link.clientId);
+      for (const product of policy.products)
+        if (product.insuredClientId) peopleIds.add(product.insuredClientId);
+      if (policy.holderClientId) peopleIds.add(policy.holderClientId);
+      if (policy.insuredClientId) peopleIds.add(policy.insuredClientId);
+    }
+    for (const application of existingApplications)
+      if (application.clientId) peopleIds.add(application.clientId);
+    const stored = await rowsOf<{ id: string; success_code: string | null }>(
+      db,
+      `SELECT id, success_code FROM clients WHERE tenant_id = $1 AND id = ANY($2::uuid[])`,
+      [scope.tenantId, [...peopleIds]],
+    );
+    const codeOf = new Map(
+      stored.map((person) => [
+        person.id,
+        person.success_code ?? storedRef(person.id),
+      ]),
+    );
+    const known = new Set(
+      (
+        await rowsOf<{ success_code: string }>(
+          db,
+          `SELECT success_code FROM clients WHERE tenant_id = $1 AND success_code = ANY($2::text[])`,
+          [scope.tenantId, clientCodes],
+        )
+      ).map((row) => row.success_code),
+    );
+    // A person added by hand takes the code the file gives their role on their own policy
+    const adoptions = new Map<string, string>();
+    const adopted = new Set<string>();
+    for (const row of policies) {
+      const policy = existingPolicies.find(
+        (item) => item.policyNo === row.data.policyNo,
+      );
+      if (!policy) continue;
+      for (const [role, code] of [
+        ['PO', row.data.holderClientCode],
+        ['LI', row.data.insuredClientCode],
+      ] as const) {
+        if (!code || known.has(code) || adoptions.has(code)) continue;
+        const person = policy.clients.find(
+          (link) =>
+            link.role === role && link.source === 'POLICY' && !link.endedAt,
+        );
+        if (
+          !person ||
+          adopted.has(person.clientId) ||
+          refId(codeOf.get(person.clientId) ?? '') !== person.clientId
+        )
+          continue;
+        adoptions.set(code, person.clientId);
+        adopted.add(person.clientId);
+        codeOf.set(person.clientId, code);
+      }
+    }
+    const coded = (id: string | null | undefined) =>
+      id ? (codeOf.get(id) ?? storedRef(id)) : undefined;
+
+    const existingClients = await db
+      .getRepository(Client)
+      .createQueryBuilder('c')
+      .where(
+        'c.tenantId = :tenantId AND (c.successCode = ANY(:codes) OR c.id = ANY(CAST(:ids AS uuid[])))',
+        {
+          tenantId: scope.tenantId,
+          codes: clientCodes,
+          ids: [...adoptions.values()],
+        },
+      )
+      .getMany();
+    const plan = planSuccess({
       clients,
       policies,
       products,
       applications,
       existingClients: new Map(
-        existingClients.map((item) => [
-          item.clientCode,
-          withoutNulls(item) as unknown as ExistingClient,
-        ]),
+        existingClients.map((item) => {
+          const { successCode, ...rest } = withoutNulls(item) as Client;
+          const clientCode = successCode ?? codeOf.get(item.id)!;
+          return [clientCode, { ...rest, clientCode } as ExistingClient];
+        }),
       ),
       existingPolicies: new Map(
-        existingPolicies.map((item) => [
-          item.policyNo,
-          withoutNulls(item) as unknown as ExistingPolicy,
-        ]),
+        existingPolicies.map((item) => {
+          const {
+            holderClientId,
+            insuredClientId,
+            clientIds: _ids,
+            ...rest
+          } = withoutNulls(item) as Policy;
+          return [
+            item.policyNo,
+            {
+              ...rest,
+              holderClientCode: coded(holderClientId),
+              insuredClientCode: coded(insuredClientId),
+              clients: item.clients.map(({ clientId, ...link }) => ({
+                ...link,
+                clientCode: coded(clientId)!,
+              })),
+              products: item.products.map(({ insuredClientId: id, ...line }) => ({
+                ...line,
+                insuredCode: coded(id) ?? '',
+              })),
+            } as unknown as ExistingPolicy,
+          ];
+        }),
       ),
       existingApplications: new Map(
-        existingApplications.map((item) => [
-          item.applicationNo,
-          withoutNulls(item) as unknown as ExistingApplication,
-        ]),
+        existingApplications.map((item) => {
+          const { clientId, ...rest } = withoutNulls(item) as Application;
+          return [
+            item.applicationNo,
+            { ...rest, clientCode: coded(clientId) } as unknown as ExistingApplication,
+          ];
+        }),
       ),
       knownAgents: new Set([
         ...(await this.agentCodes(scope, db)),
@@ -812,6 +913,13 @@ export class ImportsService implements OnModuleInit, OnModuleDestroy {
       uploader: await this.successUploader(actor, db),
       now: new Date(),
     });
+    return {
+      ...plan,
+      adoptions: [...adoptions].map(([clientCode, clientId]) => ({
+        clientCode,
+        clientId,
+      })),
+    };
   }
 
   private allCrossRowErrors(planned: Planned, current: Import): NewError[] {
@@ -1045,6 +1153,7 @@ export class ImportsService implements OnModuleInit, OnModuleDestroy {
         applications: [],
         changes: [],
         touchedClients: [],
+        adoptions: [],
       };
       const apply = (part: Partial<SuccessPlan>) => (db: EntityManager) =>
         this.clientsService.applyImport(
@@ -1054,6 +1163,13 @@ export class ImportsService implements OnModuleInit, OnModuleDestroy {
           now,
           db,
         );
+      // A client added by hand takes the code the file gives them, before anything is matched
+      if (plan.adoptions.length > 0)
+        steps.push({
+          items: [],
+          sheet: CLIENTS_SHEET.name,
+          run: apply({ adoptions: plan.adoptions }),
+        });
       for (const clients of chunks(plan.clients))
         steps.push({
           items: clients.map((item) => ({
@@ -1099,31 +1215,56 @@ export class ImportsService implements OnModuleInit, OnModuleDestroy {
         items: [],
         sheet: CLIENTS_SHEET.name,
         run: async (db) => {
-          // IMP-21: only fields of stored records that really changed, and were written
+          // IMP-21: only fields of stored records that really changed, and were written.
+          // People are recorded by client id; the holder and insured codes are not kept (their
+          // names are, as holderName and insuredName).
+          const written = plan.changes.filter(
+            (item) =>
+              !write.failed.has(
+                failedKey(CHANGE_SHEETS[item.entity], item.entityKey),
+              ) &&
+              item.field !== 'holderClientCode' &&
+              item.field !== 'insuredClientCode',
+          );
+          const idOf = await this.clientsService.idsOfCodes(
+            scope,
+            [
+              ...plan.touchedClients,
+              ...written.flatMap((item) =>
+                item.entity === 'client'
+                  ? [item.entityKey]
+                  : item.entity === 'policy_product'
+                    ? [item.entityKey.split('/')[2]]
+                    : [],
+              ),
+            ],
+            db,
+          );
+          const keyOf = (item: (typeof written)[number]) => {
+            if (item.entity === 'client')
+              return idOf.get(item.entityKey) ?? item.entityKey;
+            if (item.entity !== 'policy_product') return item.entityKey;
+            const [policyNo, productCode, code] = item.entityKey.split('/');
+            return `${policyNo}/${productCode}/${(code && idOf.get(code)) ?? ''}`;
+          };
           await insertRows(
             db,
             RecordChange,
-            plan.changes
-              .filter(
-                (item) =>
-                  !write.failed.has(
-                    failedKey(CHANGE_SHEETS[item.entity], item.entityKey),
-                  ),
-              )
-              .map((item) => ({
-                tenantId: scope.tenantId,
-                ...item,
-                oldValue: item.oldValue ?? null,
-                newValue: item.newValue ?? null,
-                importId,
-                changedBy: actor.id,
-                changedAt: now,
-              })),
+            written.map((item) => ({
+              tenantId: scope.tenantId,
+              ...item,
+              entityKey: keyOf(item),
+              oldValue: item.oldValue ?? null,
+              newValue: item.newValue ?? null,
+              importId,
+              changedBy: actor.id,
+              changedAt: now,
+            })),
           );
           // CUS-4: agent links follow the data, once every batch is in
           await this.clientsService.recomputeLinks(
             scope,
-            plan.touchedClients,
+            plan.touchedClients.flatMap((code) => idOf.get(code) ?? []),
             now,
             db,
           );

@@ -1,6 +1,6 @@
-import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronLeft, ChevronRight, Copy, Ellipsis, Info, Search, TriangleAlert, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Ellipsis, Info, Search, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import type { ComponentProps, ElementType, ReactNode } from 'react'
+import type { ComponentProps, ElementType, ReactNode, Ref } from 'react'
 import { Alert as AlertBox } from '@/components/shadcn/alert'
 import {
   AlertDialog,
@@ -19,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input as InputBase } from '@/components/shadcn/input'
 import { Label } from '@/components/shadcn/label'
 import { NativeSelect } from '@/components/shadcn/native-select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/shadcn/popover'
 import { RadioGroup as RadioGroupBase, RadioGroupCard, RadioGroupItem } from '@/components/shadcn/radio-group'
 import { Tabs, TabsList, TabsTrigger } from '@/components/shadcn/tabs'
 import { Textarea as TextareaBase } from '@/components/shadcn/textarea'
@@ -266,6 +267,94 @@ export function PickList({
         {note && <p className="px-3 py-2 text-caption text-ink-meta">{note}</p>}
       </CommandList>
     </Command>
+  )
+}
+
+/**
+ * A form field that opens a `PickList` in a shadcn/ui Popover: one value out of a list too long or
+ * too wordy for a native select (hundreds of product names). The trigger looks like an `Input`; the
+ * caller filters the options through `onSearchChange`. `ref` lets React Hook Form focus it.
+ */
+export function PickField({
+  id,
+  label,
+  value,
+  valueLabel,
+  placeholder,
+  options,
+  search,
+  onSearchChange,
+  searchPlaceholder,
+  loading,
+  empty,
+  onChange,
+  onBlur,
+  invalid = false,
+  disabled = false,
+  ref,
+}: {
+  id?: string
+  label: string
+  value: string
+  /** What the trigger shows for `value`; the placeholder shows while it is empty. */
+  valueLabel?: string
+  placeholder: string
+  options: PickOption[]
+  search: string
+  onSearchChange: (search: string) => void
+  searchPlaceholder: string
+  loading?: boolean
+  empty?: string
+  onChange: (value: string) => void
+  onBlur?: () => void
+  invalid?: boolean
+  disabled?: boolean
+  ref?: Ref<HTMLButtonElement>
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) onBlur?.()
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          ref={ref}
+          id={id}
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          aria-invalid={invalid || undefined}
+          aria-label={valueLabel ? `${label}: ${valueLabel}` : label}
+          disabled={disabled}
+          title={valueLabel}
+          className={cn(FIELD_CLASS, 'flex cursor-pointer items-center gap-2 border text-left disabled:cursor-not-allowed disabled:opacity-50')}
+        >
+          <span className={cn('min-w-0 flex-1 truncate', !valueLabel && 'text-ink-meta')}>{valueLabel || placeholder}</span>
+          <ChevronDown aria-hidden size={16} className="flex-none text-ink-meta" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-(--radix-popover-trigger-width) min-w-72 border-hairline bg-canvas p-0">
+        <PickList
+          label={label}
+          options={options}
+          value={value}
+          search={search}
+          onSearchChange={onSearchChange}
+          placeholder={searchPlaceholder}
+          loading={loading}
+          empty={empty}
+          onChange={(next) => {
+            onChange(next)
+            setOpen(false)
+            onBlur?.()
+          }}
+        />
+      </PopoverContent>
+    </Popover>
   )
 }
 

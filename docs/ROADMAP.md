@@ -85,7 +85,7 @@ Thiết kế ở [thiet-ke-he-thong.md](thiet-ke-he-thong.md), cách chuyển �
 | Ma trận phân quyền theo GA | Xong | Mục 4.2. Chưa có quyền mới `clients.assign`, `catalog.manage` |
 | Nhật ký kiểm toán: màn hình xem | Một phần | Chưa có xuất file |
 | Cây đại lý: nhập tay, nhập 01_Agents, phạm vi tuyến dưới | Xong | File 07 AGT, SCOPE-2. Chưa có xuất sơ đồ tổ chức, worker cho file 20.000 dòng, lưu file gốc. AGT-9 (ô chọn đại lý theo cây) đi cùng lát cắt 4 |
-| Danh mục lead: Nhu cầu, Trạng thái hiện tại, Nguồn | Xong | OPT-1 đến 10, OPT-12, OPT-13 (tạm, chờ câu 12a), LEAD-14, LEAD-15, DATA-9, màn hình 16.8, API 17.5. OPT-11 (cột báo cáo) chờ R1 |
+| Danh mục lead: Nhu cầu, Trạng thái hiện tại, Nguồn | Xong | OPT-1 đến 10, OPT-12, OPT-13 (24/11/2026: ai tạo lead cũng gõ được nguồn gốc mới; trên giao diện gọi là "Nguồn gốc", xem decisions), LEAD-14, LEAD-15, DATA-9, màn hình 16.8, API 17.5. OPT-11 (cột báo cáo) chờ R1 |
 | Cài đặt GA | Một phần | Mục 5.2, màn hình 16.16: hồ sơ, hạn liên hệ, ngưỡng liên hệ kịp thời, gói (chỉ xem), `409 stale_settings`. Còn danh sách phụ (chờ câu hỏi D), logo, lịch làm việc, giờ yên lặng |
 
 ## Lát cắt 3: chi tiết
@@ -115,7 +115,7 @@ Thiết kế ở [thiet-ke-he-thong.md](thiet-ke-he-thong.md), cách chuyển �
 | 4a | Nhập 02_Clients, 03_Policies, 04_Policy_Products, 05_Applications | Xong | Mục 12.1-12.3, 19.3-19.5, IMP-5 đến IMP-21, CUS-1, CUS-4, CUS-10 đến CUS-13 |
 | 4a | Liên kết khách hàng - đại lý, thấy / sở hữu | Xong | CUS-4 đến CUS-8 |
 | 4a | Danh sách khách hàng, chi tiết (hồ sơ, hợp đồng, chương trình, hồ sơ YCBH), `VIEW_CLIENT` | Xong | CUS-9, CUS-14, một phần CUS-15. "Khách hàng của" chọn một, chưa chọn nhiều |
-| 4b | Thêm / sửa khách hàng, hợp đồng bằng tay; danh mục chương trình bảo hiểm | Xong | MAN-1 đến 8, POL-1 đến 6, PRD-1 đến 5, PRG-1 đến 8, quyền `catalog.manage` / `clients.assign`. POL-7, PRG-9 còn OPEN |
+| 4b | Thêm / sửa khách hàng, hợp đồng bằng tay; danh mục chương trình bảo hiểm | Xong. 25/11/2026: thêm khách theo **Mã hợp đồng** + vai trò, khách định danh bằng id, mã khách Success thành cột ẩn (decisions.md) | MAN-1 đến 8, POL-1 đến 6, PRD-1 đến 5, PRG-1 đến 8, quyền `catalog.manage` / `clients.assign`. POL-7, PRG-9 còn OPEN |
 | 4c | Gia đình, quyền lợi bảo hiểm, cơ hội chăm sóc và tab đếm, ghi chú khách hàng | Xong | FAM-1 đến 8, COV-1 đến 5, mục 10.11, SIG-1, NOTE-5. Chưa có SIG-2 (tạo việc từ tín hiệu), việc / góp ý trên khách hàng |
 | 4d | Phân công khách hàng, nhập 07_Activities, tab Lịch sử | Xong | ASG-1 đến 7, IMP-31, IMP-32, CUS-15 tab Lịch sử. Báo cáo hoạt động R2 dùng `successActivities` ở lát cắt 6 |
 
@@ -155,7 +155,7 @@ Thiết kế ở [thiet-ke-he-thong.md](thiet-ke-he-thong.md), cách chuyển �
 |---|---|---|---|
 | 8a | Gói dịch vụ và giới hạn (người dùng, token AI, dung lượng), chặn khi vượt, GA xem gói; Platform Admin đặt lại MFA người dùng GA | Xong | Mục 5.2, 16.17, M13. Cách tính cước vẫn chờ câu 9 |
 | 8b | Yêu cầu của chủ thể dữ liệu: ghi nhận, xuất, xóa | Chưa làm | PDP-6, `dsrRequests` |
-| 8c | Danh mục sản phẩm 11_Products; xuất dữ liệu GA khi rời nền tảng | Chưa làm | TENANT-5, TENANT-6 |
+| 8c | Danh mục sản phẩm 11_Products; xuất dữ liệu GA khi rời nền tảng | Một phần: danh mục sản phẩm xong 25/11/2026 (form, file 11_Products, nối hợp đồng và lead); còn xuất dữ liệu GA | TENANT-5, TENANT-6 |
 | 8d | Gia cố: correlation id, Idempotency-Key, kiểm thử tải, CI | Chưa làm | Mục 22. Audit mã nguồn 17/11/2026: 3 lỗi mức cao và 11 lỗi mức trung bình đã sửa; các lỗi còn lại ở [viec-con-lai.md](viec-con-lai.md), mục 1b CI xong 18/11/2026 (`ci.yml` trên PR và push vào `main`, Promote chờ CI xanh, hook pre-push); còn correlation id, `Idempotency-Key`, kiểm thử tải, Playwright |
 | - | Kho kiến thức toàn DLVN, bảng giá AI trên console | Chờ AI | Theo lát cắt 7 |
 

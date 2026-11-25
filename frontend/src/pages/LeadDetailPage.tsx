@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { Link, useParams } from 'react-router-dom'
 import { z } from 'zod'
 import { CommentThread } from '../components/CommentThread'
@@ -10,6 +10,7 @@ import { LeadAssignDialog } from '../components/LeadAssignDialog'
 import { DeleteLeadForm, MergeLeadForm } from '../components/LeadRemoval'
 import { LeadLinkTab } from '../components/LeadClientLink'
 import { NoteComposer, } from '../components/NoteComposer'
+import { ProductPicker } from '../components/ProductPicker'
 import { useMe } from '../auth/useMe'
 import { Alert, Badge, Button, ConfirmDialog, Container, Dialog, EmptyState, RowMenu, Field, FormError, Input, MODAL_FOOTER, Notice, Select, Spinner, WIDE_FORM_GRID, TabBar, Textarea, Checkbox } from '../components/ui'
 import { formatDate, formatDateTime, t, tDynamic } from '../i18n'
@@ -49,14 +50,18 @@ const editSchema = z.object({
   province: optionalText(100),
   email: optionalEmail,
   consent: z.enum(['yes', 'no']),
+  // OPT-3: a typed value may become a catalogue label; an older, longer one is only sent back unchanged
   source: requiredText(200),
   campaignId: z.string(),
+  // TENANT-5: a shown product of the catalogue, or the one the lead already has
+  productCode: z.string(),
 })
 type EditValues = z.infer<typeof editSchema>
-const EDIT_ERRORS = { invalid_phone: 'phone', phone_exists: 'phone' } as const
+const EDIT_ERRORS = { invalid_phone: 'phone', phone_exists: 'phone', unknown_option: 'source', unknown_product: 'productCode' } as const
 
 /** LEAD-8: source and campaign are shown for lead managers only. */
 function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => void }) {
+  const queryClient = useQueryClient()
   const refresh = useRefresh(detail.lead.id)
   const { lead, canManage } = detail
   const facets = useQuery(queries.leadFacets())
@@ -72,12 +77,16 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
       province: lead.province ?? '',
       email: lead.email ?? '',
       consent: lead.consentMarketing ? 'yes' : 'no',
-      source: lead.source,
+      // The field shows the GA's label; the API finds the source by label or code
+      source: catalogue.label('source', lead.source),
       campaignId: lead.campaignId ?? '',
+      productCode: lead.productCode ?? '',
     },
   })
+  const { errors, dirtyFields } = form.formState
+  const sourceChanged = !!dirtyFields.source
   const save = useMutation({
-    mutationFn: ({ consent, dob, region, province, email, source, campaignId, ...rest }: EditValues) =>
+    mutationFn: ({ consent, dob, region, province, email, source, campaignId, productCode, ...rest }: EditValues) =>
       api.patch(`/leads/${lead.id}`, {
         ...rest,
         consent: consent === 'yes',
@@ -85,10 +94,14 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
         region: region || null,
         province: province || null,
         email: email || null,
-        ...(canManage && { source, campaignId: campaignId || null }),
+        // Sent only when changed; null clears it
+        ...(dirtyFields.productCode && { productCode: productCode || null }),
+        // An untouched source is left out, so a lead keeps one the GA has since hidden (OPT-8)
+        ...(canManage && { ...(sourceChanged && { source }), campaignId: campaignId || null }),
       }),
     onSuccess: async () => {
-      await refresh()
+      // OPT-13: a typed source has joined the GA's list
+      await Promise.all([refresh(), queryClient.invalidateQueries({ queryKey: keys.leadOptions })])
       toast.success(t('toast.leadUpdated', { name: lead.fullName }))
       onClose()
     },
@@ -97,7 +110,6 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
       if (field) form.setError(field, { message: errorMessage(error) })
     },
   })
-  const { errors } = form.formState
   return (
     <form noValidate onSubmit={form.handleSubmit((values) => save.mutate(values))}>
       <div className={WIDE_FORM_GRID}>
@@ -120,6 +132,25 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
         <Field label={t('leads.province')} htmlFor="edit-province" error={errors.province?.message}>
           <Input id="edit-province" placeholder={t('leads.provincePlaceholder')} {...form.register('province')} />
         </Field>
+        <Field label={t('leads.productInterest')} htmlFor="edit-product" error={errors.productCode?.message}>
+          <Controller
+            control={form.control}
+            name="productCode"
+            render={({ field, fieldState }) => (
+              <ProductPicker
+                ref={field.ref}
+                id="edit-product"
+                label={t('leads.productInterest')}
+                emptyLabel={t('leads.noProduct')}
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                invalid={fieldState.invalid}
+                kept={lead.productCode ? { code: lead.productCode, name: lead.productName ?? lead.productCode } : null}
+              />
+            )}
+          />
+        </Field>
         <Field label={t('leads.consent')} htmlFor="edit-consent">
           <Select id="edit-consent" {...form.register('consent')}>
             <option value="yes">{t('leads.consentYes')}</option>
@@ -128,14 +159,9 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
         </Field>
         {canManage && (
           <>
-            <Field label={t('leads.source')} htmlFor="edit-source" required error={errors.source?.message}>
-              <Select id="edit-source" aria-invalid={!!errors.source} {...form.register('source')}>
-                {choicesFor(catalogue, 'source', lead.source).map((option) => (
-                  <option key={option.id} value={option.code}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
+            <Field label={t('leads.source')} htmlFor="edit-source" required error={errors.source?.message} hint={t('leads.sourceHint')}>
+              <Input id="edit-source" list="edit-source-options" maxLength={200} placeholder={t('leads.sourcePlaceholder')} aria-invalid={!!errors.source} {...form.register('source')} />
+              <ListSuggestions id="edit-source-options" kind="source" />
             </Field>
             <Field label={t('leads.campaign')} htmlFor="edit-campaign">
               <Select id="edit-campaign" {...form.register('campaignId')}>
@@ -420,7 +446,18 @@ function InfoTab({ detail, onEdit }: { detail: LeadDetail; onEdit: () => void })
           <Fact label={t('leads.consent')} value={t(lead.consentMarketing ? 'leads.consentYes' : 'leads.consentNo')} />
           <Fact label={t('leads.firstContact')} value={lead.firstContactAt ? formatDateTime(lead.firstContactAt) : null} />
           <Fact label={t('leads.lastContact')} value={lead.lastContactAt ? formatDateTime(lead.lastContactAt) : null} />
-          {lead.productInterest && <Fact label={t('leads.product')} value={lead.productInterest} />}
+          {/* TENANT-5: the catalogue product, next to what was written freely (an import, the public form) */}
+          {lead.productCode && (
+            <div className="grid grid-cols-[9rem_1fr] gap-2 border-b border-band py-2 text-caption">
+              <dt className="text-ink-meta">{t('leads.productInterest')}</dt>
+              <dd className="min-w-0 break-words">
+                <Link to={`/products/${encodeURIComponent(lead.productCode)}`} className="text-primary hover:underline">
+                  {lead.productName ?? lead.productCode}
+                </Link>
+              </dd>
+            </div>
+          )}
+          {lead.productInterest && <Fact label={lead.productCode ? t('leads.productNote') : t('leads.product')} value={lead.productInterest} />}
           {lead.extraInfo && <Fact label={t('leads.extraInfo')} value={lead.extraInfo} />}
           {lead.applicationNo && <Fact label={t('leads.applicationNo')} value={lead.applicationNo} />}
           {lead.policyNo && <Fact label={t('leads.policyNo')} value={lead.policyNo} />}
@@ -589,6 +626,11 @@ function Handovers({ detail }: { detail: LeadDetail }) {
 
 function HistoryTab({ detail }: { detail: LeadDetail }) {
   const catalogue = useLeadOptions()
+  // TENANT-5: product codes in the history show as names when the catalogue knows them
+  const products = useQuery(queries.products())
+  const productNames = new Map((products.data?.items ?? []).map((product) => [product.productCode, product.productName]))
+  if (detail.lead.productCode && detail.lead.productName) productNames.set(detail.lead.productCode, detail.lead.productName)
+  const value = (field: string, raw: string | null) => (field === 'productCode' && raw !== null ? (productNames.get(raw) ?? raw) : historyValue(field, raw, detail.agentNames, catalogue))
   if (detail.history.length === 0 && detail.handovers.length === 0) {
     return (
       <Container className="pb-8">
@@ -625,9 +667,9 @@ function HistoryTab({ detail }: { detail: LeadDetail }) {
               <tr key={row.id}>
                 <td className="whitespace-nowrap text-ink-meta">{formatDateTime(row.changedAt)}</td>
                 <td>{tDynamic(`historyField.${row.field}`, row.field)}</td>
-                <td className="truncate">{historyValue(row.field, row.oldValue, detail.agentNames, catalogue)}</td>
+                <td className="truncate">{value(row.field, row.oldValue)}</td>
                 <td className="truncate" title={row.note ?? undefined}>
-                  {historyValue(row.field, row.newValue, detail.agentNames, catalogue)}
+                  {value(row.field, row.newValue)}
                   {row.note && <span className="block truncate text-ink-meta">{row.note}</span>}
                 </td>
                 <td className="truncate">

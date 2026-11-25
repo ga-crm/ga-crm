@@ -37,7 +37,7 @@ export function notificationText(item: NotificationItem): string {
     case 'CLIENT_COMMENT':
       return t('notification.clientComment', { name })
     case 'MENTION':
-      return item.data.clientCode ? t('notification.mentionClient', { name }) : t('notification.mentionLead', { name })
+      return item.data.clientId ? t('notification.mentionClient', { name }) : t('notification.mentionLead', { name })
     case 'LEAD_DEADLINE_SOON':
       return count === 1 ? t('notification.deadlineOne', { name }) : t('notification.deadlineMany', { count })
     case 'APPOINTMENT_SOON':

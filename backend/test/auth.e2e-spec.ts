@@ -178,6 +178,8 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
         'job_locks',
         // The Platform Admin's switches (USER-16): one row for every GA; only crm_platform
         'platform_settings',
+        // TENANT-5: the DLVN product catalogue every GA reads; only crm_platform writes
+        'products',
         // TypeORM's own bookkeeping
         'migrations',
       ]);

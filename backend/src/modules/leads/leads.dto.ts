@@ -19,15 +19,14 @@ import {
 } from 'class-validator';
 import { PageQueryDto } from '../../common/pagination.js';
 import { IsBirthDate } from '../../common/validators.js';
+import { PRODUCT_KEY } from '../clients/client.constants.js';
 import { CONTACT_TYPES } from './infrastructure/lead.entities.js';
 import {
   LEAD_CARE_STATUSES,
   LEAD_INTERESTS,
-  LEAD_ORIGINS,
   LEAD_STAGES,
   type LeadCareStatus,
   type LeadInterest,
-  type LeadOrigin,
   type LeadStage,
 } from './lead-rules.js';
 
@@ -71,6 +70,12 @@ export class ListLeadsQueryDto extends PageQueryDto {
   @IsIn(LEAD_STAGES)
   stage?: LeadStage;
 
+  /** TENANT-5: leads interested in this catalogue product. */
+  @ApiPropertyOptional({ example: 'P001' })
+  @IsOptional()
+  @Matches(PRODUCT_KEY)
+  product?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -89,11 +94,6 @@ export class ListLeadsQueryDto extends PageQueryDto {
   @IsString()
   @MaxLength(20)
   assignee?: string;
-
-  @ApiPropertyOptional({ enum: LEAD_ORIGINS })
-  @IsOptional()
-  @IsIn(LEAD_ORIGINS)
-  origin?: LeadOrigin;
 
   @ApiPropertyOptional({ example: '2026-11-01' })
   @IsOptional()
@@ -216,9 +216,21 @@ export class CreateLeadDto {
   @IsOptional()
   @Matches(/^\d{1,20}$/)
   assignedAgentCode?: string;
+
+  /** TENANT-5: a shown product of the catalogue. */
+  @ApiPropertyOptional({ example: 'P001', description: 'Sản phẩm quan tâm' })
+  @IsOptional()
+  @Matches(PRODUCT_KEY)
+  productCode?: string;
 }
 
 export class UpdateLeadDto {
+  /** TENANT-5: null clears it. */
+  @ApiPropertyOptional({ nullable: true, description: 'Sản phẩm quan tâm' })
+  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @Matches(PRODUCT_KEY)
+  productCode?: string | null;
+
   @ApiPropertyOptional()
   @ValidateIf(isSet)
   @Transform(trim)

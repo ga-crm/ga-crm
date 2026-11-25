@@ -366,6 +366,43 @@ describe('Lead catalogue (e2e)', () => {
     });
   });
 
+  it('OPT-13 (decided 24/11/2026): whoever makes a lead may bring a new source; a renamed one is found by label or code', async () => {
+    // An agent without leads.manage types a source the GA does not have yet
+    const own = await newLead(fc, { source: 'Hàng xóm' });
+    expect((await rawLead(own))?.source).toBe('Hàng xóm');
+    expect(await find(head, 'source', 'Hàng xóm')).toMatchObject({
+      active: true,
+      builtIn: false,
+    });
+
+    // OPT-3: renaming keeps the code; the new label and the old code both lead to it
+    const renamed = await find(head, 'source', 'Hàng xóm');
+    await edit(head, renamed.id, { label: 'Láng giềng' }).expect(200);
+    const before = (await options(head)).filter(
+      (item) => item.kind === 'source',
+    ).length;
+    for (const typed of ['láng giềng', 'Hàng xóm'])
+      expect(
+        (await rawLead(await newLead(fc, { source: typed })))?.source,
+      ).toBe('Hàng xóm');
+    expect(
+      (await options(head)).filter((item) => item.kind === 'source').length,
+    ).toBe(before);
+
+    // OPT-3: a value added by hand is a catalogue label, 60 characters at most
+    const long = await fc
+      .post(`${API}/leads`)
+      .send({
+        fullName: 'A',
+        phone: nextPhone(),
+        source: 'x'.repeat(61),
+        consent: false,
+      })
+      .expect(400);
+    expect(long.body.error).toBe('invalid_input');
+    expect(long.body.issues[0].path).toBe('source');
+  });
+
   it('test 17 + IMP-25 + OPT-10: a lead file may use labels the GA renamed or added; its new sources join the catalogue', async () => {
     const HEADERS = [
       'SỐ ĐIỆN THOẠI',

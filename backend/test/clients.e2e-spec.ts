@@ -2,7 +2,9 @@ import type { INestApplication } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 import request from 'supertest';
 import { startApp, stopApp } from './support/app.js';
+import { clientIdOf } from './support/clients.js';
 import { connection } from './support/collections.js';
+import { ownerDb } from './support/owner-db.js';
 import { demoEmail, seedDemoData } from '../src/seed/demo-data.js';
 
 const API = '/api/v1';
@@ -129,10 +131,18 @@ describe('Clients from Success files (e2e)', () => {
   };
   const list = async (agent: Agent, query: Record<string, string> = {}) =>
     (await agent.get(`${API}/clients`).query(query).expect(200)).body;
-  const codesOf = (page: { items: { clientCode: string }[] }) =>
-    page.items
-      .map((item) => item.clientCode)
+  /** The Success codes of the clients a list shows (the API itself only gives ids). */
+  const codesOf = async (page: { items: { id: string }[] }) => {
+    const { rows } = await ownerDb().query<{ success_code: string }>(
+      `SELECT success_code FROM clients WHERE id = ANY($1::uuid[])`,
+      [page.items.map((item) => item.id)],
+    );
+    return rows
+      .map((row) => row.success_code)
       .sort((a, b) => a.localeCompare(b));
+  };
+  const open = async (agent: Agent, code: string, status = 200) =>
+    agent.get(`${API}/clients/${await clientIdOf(code)}`).expect(status);
 
   beforeAll(async () => {
     app = await startApp();
@@ -206,9 +216,10 @@ describe('Clients from Success files (e2e)', () => {
     expect(sheetOf('05_Applications')).toMatchObject({ found: 1, inserted: 1 });
     expect(sheetOf('07_Activities')).toMatchObject({ found: 1, inserted: 1 });
 
-    const { body } = await head2.get(`${API}/clients/0000000001`).expect(200);
+    const { body } = await open(head2, '0000000001');
+    expect(JSON.stringify(body)).not.toMatch(/clientCode|successCode/);
     expect(body.client).toMatchObject({
-      clientCode: '0000000001',
+      id: await clientIdOf('0000000001'),
       name: 'Nguyễn Văn Khách',
       tier: 'Vàng',
       dob: '1985-05-12',
@@ -273,31 +284,31 @@ describe('Clients from Success files (e2e)', () => {
       expect.objectContaining({ code: 'padded_key', severity: 'warning' }),
     );
 
-    expect(codesOf(await list(fc))).toEqual(['0100000002', '1000000001']);
+    expect(await codesOf(await list(fc))).toEqual(['0100000002', '1000000001']);
     const stored = await connection
       .collection('clients')
-      .findOne({ clientCode: '1000000001' });
+      .findOne({ successCode: '1000000001' });
     expect(
       stored?.agentLinks.map((link: { source: string }) => link.source).sort(),
     ).toEqual(['CLIENTS_SHEET', 'POLICY_HOLDER', 'POLICY_INSURED']);
     expect(stored?.ownerAgentCodes).toEqual([FC]);
 
     // CUS-7: the manager's own list is theirs; "all" shows the branch
-    expect(codesOf(await list(um))).toEqual([]);
-    expect(codesOf(await list(um, { agents: 'ALL' }))).toEqual([
+    expect(await codesOf(await list(um))).toEqual([]);
+    expect(await codesOf(await list(um, { agents: 'ALL' }))).toEqual([
       '0100000002',
       '1000000001',
     ]);
-    expect(codesOf(await list(um, { agents: FC }))).toEqual([
+    expect(await codesOf(await list(um, { agents: FC }))).toEqual([
       '0100000002',
       '1000000001',
     ]);
     // GA_HEAD has no agent code, so their default is the whole GA
-    expect(codesOf(await list(head))).toEqual(['0100000002', '1000000001']);
+    expect(await codesOf(await list(head))).toEqual(['0100000002', '1000000001']);
 
     const row = (await list(fc, { q: 'Trần' })).items[0];
     expect(row).toMatchObject({
-      clientCode: '1000000001',
+      id: await clientIdOf('1000000001'),
       tier: 'Bạc',
       activePolicies: 1,
       nextDue: '2099-06-01',
@@ -315,15 +326,15 @@ describe('Clients from Success files (e2e)', () => {
     ]);
     const stored = await connection
       .collection('clients')
-      .findOne({ clientCode: '1000000009' });
+      .findOne({ successCode: '1000000009' });
     expect(stored?.agentLinks).toEqual([
       expect.objectContaining({ agentCode: UM, source: 'CLIENTS_SHEET_SCOPE' }),
     ]);
     expect(stored?.ownerAgentCodes).toEqual([]);
-    expect(codesOf(await list(um))).not.toContain('1000000009');
-    expect(codesOf(await list(um, { agents: 'ALL' }))).toContain('1000000009');
+    expect(await codesOf(await list(um))).not.toContain('1000000009');
+    expect(await codesOf(await list(um, { agents: 'ALL' }))).toContain('1000000009');
     // The FC below sees nothing of it
-    await fc.get(`${API}/clients/1000000009`).expect(404);
+    await open(fc, '1000000009', 404);
   });
 
   it("section 12.2: a FC cannot write a stranger's client, a policy of another agent, or a product of a policy outside scope", async () => {
@@ -368,13 +379,13 @@ describe('Clients from Success files (e2e)', () => {
       (
         await connection
           .collection('clients')
-          .findOne({ clientCode: '2000000001' })
+          .findOne({ successCode: '2000000001' })
       )?.name,
     ).toBe('Khách Nhánh Khác');
-    await fc.get(`${API}/clients/2000000001`).expect(404);
+    await open(fc, '2000000001', 404);
     // The UM is not above the peer either
-    await um.get(`${API}/clients/2000000001`).expect(404);
-    await head.get(`${API}/clients/2000000001`).expect(200);
+    await open(um, '2000000001', 404);
+    await open(head, '2000000001', 200);
   });
 
   it('IMP-16 + IMP-17 + CUS-12: a GA file splits a policy, then moves it; history keeps every change (IMP-21)', async () => {
@@ -394,7 +405,7 @@ describe('Clients from Success files (e2e)', () => {
     ]);
     // CUS-8: both agents of a split policy see it with every share
     for (const agent of [fc, head]) {
-      const { body } = await agent.get(`${API}/clients/3000000001`).expect(200);
+      const { body } = await open(agent, '3000000001');
       expect(body.policies[0].agents).toEqual([
         expect.objectContaining({
           agentCode: FC,
@@ -428,7 +439,7 @@ describe('Clients from Success files (e2e)', () => {
       }),
     ]);
     // The FC's link to this client came only from the policy, so the client leaves their book
-    await fc.get(`${API}/clients/3000000001`).expect(404);
+    await open(fc, '3000000001', 404);
     const stored = await connection
       .collection('policies')
       .findOne({ policyNo: '300000001' });
@@ -456,34 +467,41 @@ describe('Clients from Success files (e2e)', () => {
   });
 
   it('CUS-9 + CUS-5: opening a client is audited; Marketing and Admin have no client book; GA-2 gets 404 (TEN-7)', async () => {
-    await fc.get(`${API}/clients/1000000001`).expect(200);
+    await open(fc, '1000000001', 200);
     expect(
       await connection
         .collection('auditEvents')
-        .countDocuments({ action: 'VIEW_CLIENT', entityId: '1000000001' }),
+        .countDocuments({
+          action: 'VIEW_CLIENT',
+          entityId: await clientIdOf('1000000001'),
+        }),
     ).toBeGreaterThan(0);
 
     for (const key of ['marketing', 'admin']) {
       const agent = await as(key);
       await agent.get(`${API}/clients`).expect(403);
-      await agent.get(`${API}/clients/1000000001`).expect(403);
+      await open(agent, '1000000001', 403);
     }
     const head2 = await as('head', 2);
-    await head2.get(`${API}/clients/1000000001`).expect(404);
-    expect(codesOf(await list(head2, { agents: 'ALL' }))).not.toContain(
+    await open(head2, '1000000001', 404);
+    expect(await codesOf(await list(head2, { agents: 'ALL' }))).not.toContain(
       '1000000001',
     );
-    await fc.get(`${API}/clients/123`).expect(404);
+    // Not an id at all
+    await fc.get(`${API}/clients/123`).expect(400);
   });
 
-  it('CUS-14: search by name, code or phone digits, and filter by tier', async () => {
-    expect(codesOf(await list(head, { q: 'tran van' }))).toEqual([
+  it('CUS-14 (decided 25/11/2026): search by name, policy number or phone digits, not by client code; filter by tier', async () => {
+    expect(await codesOf(await list(head, { q: 'tran van' }))).toEqual([
       '1000000001',
     ]);
-    expect(codesOf(await list(head, { q: '1000000' }))).toEqual(
-      expect.arrayContaining(['1000000001', '1000000009']),
-    );
-    expect(codesOf(await list(head, { tier: 'Bạc' }))).toEqual(['1000000001']);
+    // A policy number lists the people on that policy
+    expect(await codesOf(await list(head, { q: '100000001' }))).toEqual([
+      '1000000001',
+    ]);
+    // The client code itself finds nothing
+    expect((await list(head, { q: '1000000009' })).items).toEqual([]);
+    expect(await codesOf(await list(head, { tier: 'Bạc' }))).toEqual(['1000000001']);
     await head.get(`${API}/clients`).query({ tier: 'Đồng' }).expect(400);
     await head.get(`${API}/clients`).query({ agents: 'abc' }).expect(400);
   });

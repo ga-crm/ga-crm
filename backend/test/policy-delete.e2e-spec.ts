@@ -6,7 +6,6 @@ import { demoEmail, seedDemoData } from '../src/seed/demo-data.js';
 
 const API = '/api/v1';
 const PASSWORD = 'demo-password-123';
-const CLIENT = '6000000001';
 type Agent = ReturnType<typeof request.agent>;
 
 const policyBody = (policyNo: string) => ({
@@ -16,7 +15,7 @@ const policyBody = (policyNo: string) => ({
   maturityDate: '2044-06-01',
   premiumFrequency: 'Năm',
   basePremiumVnd: 12_000_000,
-  products: [{ programCode: 'AN_TAM_SONG_HANH', sumAssuredVnd: 500_000_000, termYears: 20 }],
+  products: [{ productCode: 'AN_TAM_SONG_HANH', sumAssuredVnd: 500_000_000, termYears: 20 }],
 });
 
 /** POL-7 (open question 12b, decided 14/11/2026): deleting a policy entered by hand by mistake. */
@@ -26,6 +25,8 @@ describe('Deleting a hand-entered policy (e2e)', () => {
   let fc: Agent;
   let um: Agent;
   let head2: Agent;
+  /** The client's id, known once they are added. */
+  let CLIENT: string;
 
   const as = async (key: string, ga = 1) => {
     const agent = request.agent(app.getHttpServer());
@@ -42,7 +43,13 @@ describe('Deleting a hand-entered policy (e2e)', () => {
     app = await startApp();
     await seedDemoData(app, PASSWORD);
     [head, fc, um, head2] = await Promise.all([as('head'), as('fc'), as('um'), as('head', 2)]);
-    await fc.post(`${API}/clients`).send({ clientCode: CLIENT, name: 'Khách Nhập Tay', dob: '1985-03-02' }).expect(201);
+    // Added on a policy known only by its number; the policies under test are added to them
+    CLIENT = (
+      await fc
+        .post(`${API}/clients`)
+        .send({ policyNo: '600000000', role: 'PO', name: 'Khách Nhập Tay', dob: '1985-03-02' })
+        .expect(201)
+    ).body.id;
   });
 
   afterAll(async () => {
@@ -61,7 +68,7 @@ describe('Deleting a hand-entered policy (e2e)', () => {
       `SELECT action, meta FROM audit_events WHERE entity = 'policy' AND entity_id = '600000001' ORDER BY id`,
     );
     expect(rows.map((row) => row.action)).toEqual(['CREATE', 'DELETE']);
-    expect(rows[1].meta).toEqual(expect.objectContaining({ clientCode: CLIENT, products: 1 }));
+    expect(rows[1].meta).toEqual(expect.objectContaining({ clientId: CLIENT, products: 1 }));
   });
 
   it('not after 7 days', async () => {
@@ -97,8 +104,13 @@ describe('Deleting a hand-entered policy (e2e)', () => {
   });
 
   it('a policy number of another client is not found from this one', async () => {
-    await fc.post(`${API}/clients`).send({ clientCode: '6000000002', name: 'Khách Khác', dob: '1990-01-01' }).expect(201);
-    await fc.post(`${API}/clients/6000000002/policies`).send(policyBody('600000006')).expect(201);
+    const other = (
+      await fc
+        .post(`${API}/clients`)
+        .send({ policyNo: '600000009', role: 'PO', name: 'Khách Khác', dob: '1990-01-01' })
+        .expect(201)
+    ).body.id as string;
+    await fc.post(`${API}/clients/${other}/policies`).send(policyBody('600000006')).expect(201);
     await fc.delete(`${API}/clients/${CLIENT}/policies/600000006`).expect(404);
     expect(await stored('600000006')).toBe(true);
   });

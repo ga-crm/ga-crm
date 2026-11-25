@@ -1,6 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { startApp, stopApp } from './support/app.js';
+import { clientIdOf } from './support/clients.js';
 import { connection } from './support/collections.js';
 import { demoEmail, seedDemoData } from '../src/seed/demo-data.js';
 
@@ -11,14 +12,14 @@ const FC = '00100004';
 const FC2 = '00100094';
 /** A FC in another branch, under the BM but not under the UM. */
 const PEER = '00100095';
-const WITH_POLICY = '7000000001';
-const NO_POLICY = '7000000002';
-const PEERS_CLIENT = '7000000003';
+/** The code a Success file gives the client with a policy, adopted by the hand-added record. */
+const WITH_POLICY_CODE = '7000000001';
+/** A uuid no client has. */
+const UNKNOWN_ID = '00000000-0000-4000-8000-000000000001';
 type Agent = ReturnType<typeof request.agent>;
 type Cell = string | number | null;
 
-const policyBody = (policyNo: string, patch: Record<string, unknown> = {}) => ({
-  policyNo,
+const policyBody = (patch: Record<string, unknown> = {}) => ({
   status: 'Đang hiệu lực',
   effectiveDate: '2024-06-01',
   maturityDate: '2044-06-01',
@@ -34,6 +35,10 @@ describe('Client assignment, history and Success activities (e2e)', () => {
   let fc: Agent;
   let um: Agent;
   let head2: Agent;
+  // Client ids, known once the clients are added
+  let WITH_POLICY: string;
+  let NO_POLICY: string;
+  let PEERS_CLIENT: string;
 
   const as = async (key: string, ga = 1) => {
     const agent = request.agent(app.getHttpServer());
@@ -45,11 +50,11 @@ describe('Client assignment, history and Success activities (e2e)', () => {
   };
   const assign = (agent: Agent, body: Record<string, unknown>) =>
     agent.post(`${API}/clients/assign`).send(body);
-  const stored = (clientCode: string) =>
-    connection.collection('clients').findOne({ clientCode });
-  const manualOf = async (clientCode: string) =>
+  const stored = (clientId: string) =>
+    connection.collection('clients').findOne({ _id: clientId });
+  const manualOf = async (clientId: string) =>
     (
-      ((await stored(clientCode))?.agentLinks ?? []) as {
+      ((await stored(clientId))?.agentLinks ?? []) as {
         agentCode: string;
         source: string;
       }[]
@@ -120,26 +125,34 @@ describe('Client assignment, history and Success activities (e2e)', () => {
           managerCode,
         })
         .expect(201);
+    const add = async (agent: Agent, body: Record<string, unknown>) =>
+      (await agent.post(`${API}/clients`).send(body).expect(201)).body
+        .id as string;
+    WITH_POLICY = await add(fc, {
+      policyNo: '700000001',
+      role: 'PO',
+      name: 'Khách Có Hợp Đồng',
+    });
     await fc
-      .post(`${API}/clients`)
-      .send({
-        clientCode: WITH_POLICY,
-        name: 'Khách Có Hợp Đồng',
-        policies: [policyBody('700000001')],
-      })
-      .expect(201);
+      .patch(`${API}/clients/${WITH_POLICY}/policies/700000001`)
+      .send(policyBody())
+      .expect(204);
+    // Every client is added on a policy; one entered by mistake is deleted (POL-7), so this client
+    // is left with the manual link only
+    NO_POLICY = await add(fc, {
+      policyNo: '700000002',
+      role: 'PO',
+      name: 'Khách Chưa Có Hợp Đồng',
+    });
     await fc
-      .post(`${API}/clients`)
-      .send({ clientCode: NO_POLICY, name: 'Khách Chưa Có Hợp Đồng' })
-      .expect(201);
-    await head
-      .post(`${API}/clients`)
-      .send({
-        clientCode: PEERS_CLIENT,
-        name: 'Khách Nhánh Khác',
-        agentCode: PEER,
-      })
-      .expect(201);
+      .delete(`${API}/clients/${NO_POLICY}/policies/700000002`)
+      .expect(204);
+    PEERS_CLIENT = await add(head, {
+      policyNo: '700000003',
+      role: 'PO',
+      name: 'Khách Nhánh Khác',
+      agentCode: PEER,
+    });
   });
 
   afterAll(async () => {
@@ -150,7 +163,7 @@ describe('Client assignment, history and Success activities (e2e)', () => {
     it('ASG-1 + ASG-7: only GA_HEAD or clients.assign; an agent cannot, even for their own client; Marketing and Admin never', async () => {
       for (const agent of [fc, um, await as('marketing'), await as('admin')])
         await assign(agent, {
-          clientCodes: [NO_POLICY],
+          clientIds: [NO_POLICY],
           agentCode: FC2,
         }).expect(403);
       expect(await manualOf(NO_POLICY)).toEqual([FC]);
@@ -158,7 +171,7 @@ describe('Client assignment, history and Success activities (e2e)', () => {
 
     it('ASG-2 + ASG-6: a new assignment replaces the one manual link, and is audited with the agent and the count', async () => {
       const { body } = await assign(head, {
-        clientCodes: [WITH_POLICY, NO_POLICY],
+        clientIds: [WITH_POLICY, NO_POLICY],
         agentCode: FC2,
       }).expect(200);
       expect(body).toEqual({ assigned: 2 });
@@ -178,16 +191,14 @@ describe('Client assignment, history and Success activities (e2e)', () => {
         .findOne({ action: 'ASSIGN', entity: 'client' });
       expect(audit?.meta).toMatchObject({ agentCode: FC2, count: 2 });
 
-      await assign(head, { clientCodes: [NO_POLICY], agentCode: FC }).expect(
-        200,
-      );
+      await assign(head, { clientIds: [NO_POLICY], agentCode: FC }).expect(200);
       expect(await manualOf(NO_POLICY)).toEqual([FC]);
       await fc.get(`${API}/clients/${NO_POLICY}`).expect(200);
     });
 
     it('ASG-3: unassigning removes only the manual link; the policy keeps its agent', async () => {
       await assign(head, {
-        clientCodes: [WITH_POLICY],
+        clientIds: [WITH_POLICY],
         agentCode: null,
       }).expect(200);
       expect(await manualOf(WITH_POLICY)).toEqual([]);
@@ -201,29 +212,33 @@ describe('Client assignment, history and Success activities (e2e)', () => {
       });
     });
 
-    it('ASG-4 + TEN-7: a code outside the GA is 404 and nothing changes; an unknown agent is agent_not_found', async () => {
+    it('ASG-4 + TEN-7: a client outside the GA is 404 and nothing changes; an unknown agent is agent_not_found', async () => {
       await assign(head, {
-        clientCodes: [NO_POLICY, '7999999999'],
+        clientIds: [NO_POLICY, UNKNOWN_ID],
         agentCode: FC2,
       }).expect(404);
-      await assign(head2, { clientCodes: [NO_POLICY], agentCode: null }).expect(
+      await assign(head2, { clientIds: [NO_POLICY], agentCode: null }).expect(
         404,
       );
       expect(await manualOf(NO_POLICY)).toEqual([FC]);
       expect(
         (
           await assign(head, {
-            clientCodes: [NO_POLICY],
+            clientIds: [NO_POLICY],
             agentCode: '00999999',
           }).expect(400)
         ).body.error,
       ).toBe('agent_not_found');
-      // The agent must be named (null to unassign), and at most 200 clients of 10 digits
-      await assign(head, { clientCodes: [NO_POLICY] }).expect(400);
-      await assign(head, { clientCodes: ['123'], agentCode: FC }).expect(400);
+      // The agent must be named (null to unassign), and at most 200 clients, by id
+      await assign(head, { clientIds: [NO_POLICY] }).expect(400);
+      await assign(head, { clientIds: ['7000000002'], agentCode: FC }).expect(
+        400,
+      );
       await assign(head, {
-        clientCodes: Array.from({ length: 201 }, (_, index) =>
-          String(7_100_000_000 + index),
+        clientIds: Array.from(
+          { length: 201 },
+          (_, index) =>
+            `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
         ),
         agentCode: FC,
       }).expect(400);
@@ -238,26 +253,24 @@ describe('Client assignment, history and Success activities (e2e)', () => {
         .expect(204);
       const manager = await as('um');
       await assign(manager, {
-        clientCodes: [NO_POLICY],
+        clientIds: [NO_POLICY],
         agentCode: FC2,
       }).expect(200);
       expect(await manualOf(NO_POLICY)).toEqual([FC2]);
       await assign(manager, {
-        clientCodes: [PEERS_CLIENT],
+        clientIds: [PEERS_CLIENT],
         agentCode: FC2,
       }).expect(404);
       expect(
         (
           await assign(manager, {
-            clientCodes: [NO_POLICY],
+            clientIds: [NO_POLICY],
             agentCode: PEER,
           }).expect(400)
         ).body.error,
       ).toBe('agent_not_found');
       await head.put(`${API}/permissions`).send({ grants }).expect(204);
-      await assign(head, { clientCodes: [NO_POLICY], agentCode: FC }).expect(
-        200,
-      );
+      await assign(head, { clientIds: [NO_POLICY], agentCode: FC }).expect(200);
     });
   });
 
@@ -269,15 +282,47 @@ describe('Client assignment, history and Success activities (e2e)', () => {
         .expect(204);
       await fc
         .patch(`${API}/clients/${WITH_POLICY}/policies/700000001`)
-        .send(policyBody('x', { policyNo: undefined, status: 'Mất hiệu lực' }))
+        .send(policyBody({ status: 'Mất hiệu lực' }))
         .expect(204);
+      // The file names the holder of their policy by a code, which the hand-added client adopts
+      // (MAN-8); the policy row repeats what is stored, so only the tier changes
       await importFile(head, [
         {
           name: '02_Clients',
           headers: ['Mã Khách Hàng', 'Bên Mua BH', 'Nhóm Khách Hàng'],
-          rows: [[WITH_POLICY, 'Khách Có Hợp Đồng', 'Vàng']],
+          rows: [[WITH_POLICY_CODE, 'Khách Có Hợp Đồng', 'Vàng']],
+        },
+        {
+          name: '03_Policies',
+          headers: [
+            'Số HĐBH',
+            'Mã KH BMBH',
+            'Mã đại lý',
+            'Bên mua BH',
+            'NĐBH chính',
+            'Tình trạng',
+            'Ngày hiệu lực',
+            'Ngày đáo hạn',
+            'Định kỳ đóng phí',
+            'Phí định kỳ/cơ bản định kỳ',
+          ],
+          rows: [
+            [
+              '700000001',
+              WITH_POLICY_CODE,
+              FC,
+              'Khách Có Hợp Đồng',
+              'Khách Có Hợp Đồng',
+              'Mất hiệu lực',
+              '01/06/2024',
+              '01/06/2044',
+              'Năm',
+              '12000000',
+            ],
+          ],
         },
       ]);
+      expect(await clientIdOf(WITH_POLICY_CODE)).toBe(WITH_POLICY);
       const { body } = await um
         .get(`${API}/clients/${WITH_POLICY}`)
         .expect(200);
@@ -289,8 +334,11 @@ describe('Client assignment, history and Success activities (e2e)', () => {
         fileName: string | null;
         changedBy: string;
       }[];
+      // Older rows are the policy being filled in when it was added
       expect(
-        rows.map((row) => [row.entity, row.field, row.oldValue, row.newValue]),
+        rows
+          .slice(0, 5)
+          .map((row) => [row.entity, row.field, row.oldValue, row.newValue]),
       ).toEqual([
         ['client', 'tier', 'Bạc', 'Vàng'],
         ['policy', 'status', 'Đang hiệu lực', 'Mất hiệu lực'],

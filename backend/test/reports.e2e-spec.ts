@@ -350,21 +350,24 @@ describe('Reports (e2e)', () => {
   });
 
   it('R7: clients with each signal by owner, and contacts and notes on clients in the period', async () => {
+    const clientId = (
+      await fc
+        .post(`${API}/clients`)
+        .send({
+          policyNo: '910000001',
+          role: 'PO',
+          name: 'Khách Sinh Nhật',
+          dob: `1990-${TODAY.slice(5, 7)}-01`,
+        })
+        .expect(201)
+    ).body.id as string;
     await fc
-      .post(`${API}/clients`)
-      .send({
-        clientCode: '9100000001',
-        name: 'Khách Sinh Nhật',
-        dob: `1990-${TODAY.slice(5, 7)}-01`,
-      })
-      .expect(201);
-    await fc
-      .post(`${API}/clients/9100000001/notes`)
+      .post(`${API}/clients/${clientId}/notes`)
       .send({ body: 'Chúc mừng sinh nhật' })
       .expect(201);
     for (let time = 0; time < 2; time++)
       await fc
-        .post(`${API}/clients/9100000001/activities`)
+        .post(`${API}/clients/${clientId}/activities`)
         .send({ type: 'CALL', note: 'Gọi hỏi thăm' })
         .expect(201);
     const { rows } = await report(fc, 'care');

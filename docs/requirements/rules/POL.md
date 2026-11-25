@@ -16,7 +16,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:60`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:61`
 
-Đã trích dẫn trong: `backend/src/common/errors.ts`, `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/clients.dto.ts`, `backend/test/manual-clients.e2e-spec.ts`, `frontend/src/components/ClientForms.tsx`
+Đã trích dẫn trong: `backend/src/migrations/1764259200000-client-id.ts`, `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/clients.dto.ts`, `backend/test/manual-clients.e2e-spec.ts`, `frontend/src/components/ClientForms.tsx`
 
 - **POL-2** Trường hợp đồng: Số HĐBH (**đúng 9 chữ số**, chưa có trong GA → `409 policy_exists`), trạng thái hiệu lực (bắt buộc), ngày hiệu lực, ngày đáo hạn, định kỳ đóng phí (Năm, Nửa năm, Quý, Tháng), phí định kỳ / cơ bản (bắt buộc), ngày đến hạn đóng phí, phí dự tính, phí chưa đóng, nợ APL, đã có người thụ hưởng, mã + tên người được bảo hiểm chính (để trống = chính khách hàng), đại lý phục vụ (phải trong scope; để trống = người nhập hoặc đại lý của khách → `400 agent_required` / `agent_not_found`), các chương trình (tối đa 20, 10.7).
 
@@ -32,7 +32,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:62`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:63`
 
-Đã trích dẫn trong: `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/test/manual-clients.e2e-spec.ts`, `frontend/src/components/ClientForms.tsx`, `frontend/src/pages/ClientDetailPage.tsx`
+Đã trích dẫn trong: `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/test/manual-clients.e2e-spec.ts`, `frontend/src/components/ClientForms.tsx`
 
 - **POL-4** "Sửa hợp đồng": sửa các cột của hợp đồng; **các dòng chương trình bị thay toàn bộ** bằng các dòng form đang hiện (đây là cách sửa thẻ "Quyền lợi bảo hiểm", vì thẻ được tính từ số tiền bảo hiểm của các chương trình, không lưu riêng); liên kết PO / LI được ghi lại (phòng khi đổi người được bảo hiểm). **Không sửa được** Số HĐBH (khóa) và đại lý phục vụ (đại lý của hợp đồng do Success quyết). Hợp đồng phải thuộc đúng khách đang xem → nếu không `404`.
 
@@ -56,6 +56,6 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:65`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:66`
 
-Đã trích dẫn trong: `backend/src/common/errors.ts`, `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/client-rules.spec.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/test/policy-delete.e2e-spec.ts`, `frontend/src/lib/types.ts`, `frontend/src/pages/ClientDetailPage.tsx`
+Đã trích dẫn trong: `backend/src/common/errors.ts`, `backend/src/modules/clients/client-editor.service.ts`, `backend/src/modules/clients/client-rules.spec.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/clients.controller.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/test/client-assign.e2e-spec.ts`, `backend/test/policy-delete.e2e-spec.ts`, `frontend/src/lib/types.ts`, `frontend/src/pages/ClientDetailPage.tsx`
 
 - **POL-7** **OPEN**: có cho xóa hợp đồng nhập tay sai không (đề xuất: chỉ khi chưa có lần nhập nào chạm vào, có audit; hợp đồng đã khớp với Success không xóa được).

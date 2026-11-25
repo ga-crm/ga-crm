@@ -24,7 +24,7 @@ import {
   SESSION_COOKIE,
 } from '../../common/auth.decorators.js';
 import type { Actor } from '../../common/rbac.js';
-import { ClientCodePipe } from '../clients/client-code.pipe.js';
+import { IdPipe } from '../../common/pagination.js';
 import {
   CalendarQueryDto,
   CreateClientTaskDto,
@@ -53,7 +53,7 @@ export class WorkController {
 
   @Post('tasks')
   @ApiOperation({
-    summary: 'Thêm việc cá nhân, hoặc việc của khách hàng (clientCode)',
+    summary: 'Thêm việc cá nhân, hoặc việc của khách hàng (clientId)',
     description: 'TASK-1. Việc của khách hàng: người sở hữu khách (CUS-6).',
   })
   @ApiCreatedResponse({ description: '{ id }' })
@@ -78,20 +78,20 @@ export class WorkController {
     await this.work.update(actor, id, dto);
   }
 
-  @Post('clients/:code/tasks')
+  @Post('clients/:clientId/tasks')
   @ApiTags('Clients')
   @ApiOperation({
     summary: 'Thêm việc cho khách hàng, có thể từ một cơ hội chăm sóc',
     description: 'Mục 17.8 + SIG-2: `signal` ghi nguồn SIGNAL.',
   })
-  @ApiParam({ name: 'code', example: '0000000001' })
+  @ApiParam({ name: 'clientId', format: 'uuid' })
   @ApiCreatedResponse({ description: '{ id }' })
   createForClient(
     @CurrentActor() actor: Actor,
-    @Param('code', ClientCodePipe) code: string,
+    @Param('clientId', IdPipe) clientId: string,
     @Body() dto: CreateClientTaskDto,
   ) {
-    return this.work.createForClient(actor, code, dto);
+    return this.work.createForClient(actor, clientId, dto);
   }
 
   @Get('today')

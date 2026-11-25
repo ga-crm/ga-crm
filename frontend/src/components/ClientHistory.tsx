@@ -6,11 +6,14 @@ import { canReadImports } from '../lib/nav'
 import type { ClientChange, ClientDetail } from '../lib/types'
 import { EmptyState, TableScroll } from './ui'
 
-/** Which record a change belongs to, in words. */
-function recordLabel(change: ClientChange): string {
+/** Which record a change belongs to, in words; a product line names its insured person when known, never their id. */
+function recordLabel(change: ClientChange, clientNames: Readonly<Record<string, string>>): string {
   if (change.entity === 'client') return t('history.client')
-  const [policyNo, productCode] = change.entityKey.split('/')
-  return change.entity === 'policy_product' ? t('history.product', { no: policyNo, code: productCode }) : t('history.policy', { no: policyNo })
+  // "policyNo/productCode/insuredClientId" for a product line
+  const [policyNo, productCode, insuredClientId] = change.entityKey.split('/')
+  if (change.entity !== 'policy_product') return t('history.policy', { no: policyNo })
+  const insured = insuredClientId ? clientNames[insuredClientId] : undefined
+  return [t('history.product', { no: policyNo, code: productCode }), insured].filter(Boolean).join(' · ')
 }
 
 /** A stored value as people read it: dates, yes / no, money and agent shares written out. */
@@ -68,7 +71,9 @@ export function ClientHistory({ detail }: { detail: ClientDetail }) {
               return (
                 <tr key={change.id}>
                   <td className="whitespace-nowrap text-ink-meta">{formatDateTime(change.changedAt)}</td>
-                  <td className="truncate tabular-nums">{recordLabel(change)}</td>
+                  <td className="truncate tabular-nums" title={recordLabel(change, detail.clientNames)}>
+                    {recordLabel(change, detail.clientNames)}
+                  </td>
                   <td className="break-words">{tDynamic(`recordField.${change.field}`, change.field)}</td>
                   {/* Values wrap rather than hide, since the change is what the row is about */}
                   <td className="break-words">

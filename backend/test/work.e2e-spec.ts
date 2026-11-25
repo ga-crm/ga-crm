@@ -8,7 +8,6 @@ import { demoEmail, seedDemoData } from '../src/seed/demo-data.js';
 const API = '/api/v1';
 const PASSWORD = 'demo-password-123';
 const FC = '00100004';
-const CLIENT = '9200000001';
 type Agent = ReturnType<typeof request.agent>;
 
 const DAY_MS = 86_400_000;
@@ -29,6 +28,8 @@ describe('Tasks, Today and calendar (e2e)', () => {
   let head2: Agent;
   let leadId: string;
   const ids: Record<string, string> = {};
+  /** The client's id, known once they are added. */
+  let CLIENT: string;
 
   const as = async (key: string, ga = 1) => {
     const agent = request.agent(app.getHttpServer());
@@ -46,6 +47,7 @@ describe('Tasks, Today and calendar (e2e)', () => {
       source: string;
       status: string;
       canEdit: boolean;
+      client: { id: string; name: string } | null;
     }[];
 
   beforeAll(async () => {
@@ -70,25 +72,28 @@ describe('Tasks, Today and calendar (e2e)', () => {
         .expect(201)
     ).body.id;
     // A client with a birthday this week and a premium due in three days
+    CLIENT = (
+      await fc
+        .post(`${API}/clients`)
+        .send({
+          policyNo: '920000001',
+          role: 'PO',
+          name: 'Khách Tuần Này',
+          dob: `1990-${TODAY.slice(5)}`,
+        })
+        .expect(201)
+    ).body.id;
     await fc
-      .post(`${API}/clients`)
+      .patch(`${API}/clients/${CLIENT}/policies/920000001`)
       .send({
-        clientCode: CLIENT,
-        name: 'Khách Tuần Này',
-        dob: `1990-${TODAY.slice(5)}`,
-        policies: [
-          {
-            policyNo: '920000001',
-            status: 'Đang hiệu lực',
-            effectiveDate: '2024-06-01',
-            maturityDate: '2044-06-01',
-            premiumFrequency: 'Năm',
-            basePremiumVnd: 12_000_000,
-            premiumDueDate: inDays(3),
-          },
-        ],
+        status: 'Đang hiệu lực',
+        effectiveDate: '2024-06-01',
+        maturityDate: '2044-06-01',
+        premiumFrequency: 'Năm',
+        basePremiumVnd: 12_000_000,
+        premiumDueDate: inDays(3),
       })
-      .expect(201);
+      .expect(204);
   });
 
   afterAll(async () => {
@@ -136,7 +141,11 @@ describe('Tasks, Today and calendar (e2e)', () => {
       kind: 'client',
       source: 'SIGNAL',
       canEdit: true,
+      client: { id: CLIENT, name: 'Khách Tuần Này' },
     });
+    expect(
+      (await tasksOf(fc, { clientId: CLIENT })).map((task) => task.id),
+    ).toEqual([ids.signal]);
     // LEAD-22: the automatic contact task of the lead is the FC's too
     expect(
       mine.some(
@@ -207,14 +216,14 @@ describe('Tasks, Today and calendar (e2e)', () => {
     expect(body.leads).toMatchObject({ mine: 1 });
     expect(body.care.premiumDue).toEqual([
       expect.objectContaining({
-        clientCode: CLIENT,
+        clientId: CLIENT,
         policyNo: '920000001',
         date: inDays(3),
       }),
     ]);
     expect(body.care.birthdays).toEqual([
       expect.objectContaining({
-        clientCode: CLIENT,
+        clientId: CLIENT,
         date: TODAY,
         isToday: true,
       }),

@@ -24,11 +24,11 @@ import { IsBirthDate, IsCalendarDate } from '../../common/validators.js';
 import {
   AGE_BANDS,
   APPLICATION_KEY,
-  CLIENT_CODE,
   CLIENT_TIERS,
   GENDERS,
   MARITAL_STATUSES,
   PREMIUM_FREQUENCIES,
+  PRODUCT_KEY,
   PRODUCT_ROLES,
 } from './client.constants.js';
 import { LIST_SIGNALS, RELATIONS } from './client-insights.js';
@@ -36,7 +36,10 @@ import type { ListSignal, Relation } from './client-insights.js';
 
 /** CUS-14 */
 export class ListClientsQueryDto extends PageQueryDto {
-  @ApiPropertyOptional({ description: 'Tên, mã khách hàng hoặc số điện thoại' })
+  @ApiPropertyOptional({
+    description:
+      'Tên, mã hợp đồng (ra mọi người trên hợp đồng) hoặc số điện thoại',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(100)
@@ -77,7 +80,7 @@ const trimmed = ({ value }: { value: unknown }) =>
 const given = (_: unknown, value: unknown) =>
   value !== undefined && value !== null;
 
-/** PRD-1: one programme for one insured person, in the order the GA asked for. */
+/** PRD-1: one product for one insured person, in the order the GA asked for. */
 export class ProductLineDto {
   @ApiPropertyOptional({
     example: 'Nguyễn Văn Con',
@@ -99,12 +102,13 @@ export class ProductLineDto {
   @IsIn(GENDERS)
   insuredGender?: string;
 
-  /** PRD-2: from the GA's programme catalogue only. */
-  @ApiProperty({ example: 'AN_TAM_SONG_HANH' })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(40)
-  programCode: string;
+  /**
+   * PRD-2 as decided on 25/11/2026: a product of the shared catalogue (TENANT-5), by its code. A
+   * line already on the policy may keep a code the catalogue no longer shows.
+   */
+  @ApiProperty({ example: 'P001' })
+  @Matches(PRODUCT_KEY)
+  productCode: string;
 
   @ApiPropertyOptional({ example: 500000000 })
   @IsOptional()
@@ -147,30 +151,39 @@ export class ProductLineDto {
 }
 
 /** POL-2. Used to add a policy, and (without policyNo and agentCode) to change one. */
+/**
+ * POL-2, as decided on 25/11/2026: every field but the number may come later (or from Success),
+ * so a person can be put on a policy from its number alone.
+ */
 export class PolicyFieldsDto {
-  @ApiProperty({ example: 'Đang hiệu lực' })
+  @ApiPropertyOptional({ example: 'Đang hiệu lực' })
+  @IsOptional()
   @Transform(trimmed)
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
-  status: string;
+  status?: string;
 
-  @ApiProperty({ example: '2024-06-01' })
+  @ApiPropertyOptional({ example: '2024-06-01' })
+  @IsOptional()
   @IsCalendarDate()
-  effectiveDate: string;
+  effectiveDate?: string;
 
-  @ApiProperty({ example: '2044-06-01' })
+  @ApiPropertyOptional({ example: '2044-06-01' })
+  @IsOptional()
   @IsCalendarDate()
-  maturityDate: string;
+  maturityDate?: string;
 
-  @ApiProperty({ enum: PREMIUM_FREQUENCIES })
+  @ApiPropertyOptional({ enum: PREMIUM_FREQUENCIES })
+  @IsOptional()
   @IsIn(PREMIUM_FREQUENCIES)
-  premiumFrequency: string;
+  premiumFrequency?: string;
 
-  @ApiProperty({ example: 12000000 })
+  @ApiPropertyOptional({ example: 12000000 })
+  @IsOptional()
   @IsInt()
   @Min(0)
-  basePremiumVnd: number;
+  basePremiumVnd?: number;
 
   @ApiPropertyOptional({ example: '2027-06-01' })
   @IsOptional()
@@ -201,11 +214,6 @@ export class PolicyFieldsDto {
   hasBeneficiary?: boolean;
 
   /** POL-2: blank = the client is also the main insured. */
-  @ApiPropertyOptional({ example: '0000000002' })
-  @IsOptional()
-  @Matches(CLIENT_CODE)
-  insuredClientCode?: string;
-
   @ApiPropertyOptional({ example: 'Nguyễn Văn Con' })
   @IsOptional()
   @Transform(trimmed)
@@ -311,12 +319,26 @@ export class ClientFieldsDto {
   idUpdated?: boolean | null;
 }
 
-/** MAN-1 to MAN-5 */
+/** The roles a person holds on a policy (CUS-11): owner, life insured, beneficiary. */
+export const POLICY_ROLES = ['PO', 'LI', 'BEN'] as const;
+export type PolicyRole = (typeof POLICY_ROLES)[number];
+
+/**
+ * MAN-1 to MAN-3, as decided on 25/11/2026: a client is added on a policy, by its number and the
+ * role they hold. A number not in the GA yet starts a policy with only that number.
+ */
 export class CreateClientDto extends ClientFieldsDto {
-  /** MAN-2 [QĐ 11/2026]: exactly 10 digits, checked by the service so the error names the field. */
-  @ApiProperty({ example: '0000000123' })
+  /** POL-2: exactly 9 digits; checked by the service so the error names the field. */
+  @ApiProperty({ example: '000000123', description: 'Mã hợp đồng (số HĐBH)' })
   @IsString()
-  clientCode: string;
+  policyNo: string;
+
+  @ApiProperty({
+    enum: POLICY_ROLES,
+    description: 'PO bên mua BH, LI người được BH, BEN người thụ hưởng',
+  })
+  @IsIn(POLICY_ROLES)
+  role: PolicyRole;
 
   @ApiProperty({ example: 'Nguyễn Văn Khách' })
   @Transform(trimmed)
@@ -330,15 +352,6 @@ export class CreateClientDto extends ClientFieldsDto {
   @IsOptional()
   @Matches(/^\d{1,20}$/)
   agentCode?: string;
-
-  /** MAN-5 */
-  @ApiPropertyOptional({ type: [CreatePolicyDto], maxItems: 10 })
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(10)
-  @ValidateNested({ each: true })
-  @Type(() => CreatePolicyDto)
-  policies?: CreatePolicyDto[];
 }
 
 /** FAM-2 to FAM-4: a relation to a client, or a relative who is not a client yet. */
@@ -355,10 +368,10 @@ export class FamilyInputDto {
   note?: string;
 
   /** FAM-3: a client in scope, or someone on one of this client's policies. */
-  @ApiPropertyOptional({ example: '0000000002' })
+  @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
-  @Matches(CLIENT_CODE)
-  relatedClientCode?: string;
+  @IsUUID()
+  relatedClientId?: string;
 
   /** FAM-4: a relative who is not a client. */
   @ApiPropertyOptional({ example: 'Nguyễn Bé An' })
@@ -476,12 +489,12 @@ export const MAX_CLIENT_ASSIGN = 200;
 
 /** ASG-1 to ASG-3: hand clients to one agent of the GA, or take the hand-made link away. */
 export class AssignClientsDto {
-  @ApiProperty({ type: [String], example: ['0000000001'] })
+  @ApiProperty({ type: [String], format: 'uuid' })
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(MAX_CLIENT_ASSIGN)
-  @Matches(CLIENT_CODE, { each: true })
-  clientCodes: string[];
+  @IsUUID('all', { each: true })
+  clientIds: string[];
 
   /** Required, so a body that forgets it never unassigns by accident. */
   @ApiProperty({
@@ -497,9 +510,9 @@ export class AssignClientsDto {
 
 /** LEAD-32: the client a lead became, and the application if the agent knows it. */
 export class LinkLeadDto {
-  @ApiProperty({ example: '0000000001' })
-  @Matches(CLIENT_CODE)
-  clientCode: string;
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  clientId: string;
 
   @ApiPropertyOptional({ example: 'A0001' })
   @IsOptional()
@@ -519,7 +532,7 @@ export class UnlinkLeadDto {
 
 export class LinkSuggestionsQueryDto {
   @ApiPropertyOptional({
-    description: 'Tìm theo mã khách hàng, tên hoặc số điện thoại',
+    description: 'Tìm theo tên, mã hợp đồng hoặc số điện thoại',
   })
   @IsOptional()
   @IsString()

@@ -505,7 +505,7 @@ export class ReportsService {
                 CASE WHEN i.lead_id IS NOT NULL THEN l.phone ELSE c.phone END AS phone
            FROM interactions i
            LEFT JOIN leads l ON l.tenant_id = i.tenant_id AND l.id = i.lead_id AND ${IN_USE}
-           LEFT JOIN clients c ON c.tenant_id = i.tenant_id AND c.client_code = i.client_code
+           LEFT JOIN clients c ON c.tenant_id = i.tenant_id AND c.id = i.client_id
           WHERE i.tenant_id = $1 AND i.type IN ('CALL', 'ZALO', 'MEETING', 'SEMINAR')
             AND i.occurred_at >= $2 AND i.occurred_at < $3 AND i.agent_code IS NOT NULL
             ${agentFilter(scope, 'i.agent_code', crmParams)}`,
@@ -878,12 +878,12 @@ export class ReportsService {
       const params: unknown[] = [scope.tenantId, start, end];
       const work = await rowsOf<{
         agentCode: string;
-        clientCode: string;
+        clientId: string;
         type: string;
       }>(
         db,
-        `SELECT agent_code AS "agentCode", client_code AS "clientCode", type FROM interactions
-          WHERE tenant_id = $1 AND client_code IS NOT NULL AND agent_code IS NOT NULL
+        `SELECT agent_code AS "agentCode", client_id AS "clientId", type FROM interactions
+          WHERE tenant_id = $1 AND client_id IS NOT NULL AND agent_code IS NOT NULL
             AND occurred_at >= $2 AND occurred_at < $3
             ${agentFilter(scope, 'agent_code', params)}`,
         params,
@@ -893,7 +893,7 @@ export class ReportsService {
         if (item.type === 'NOTE') bump(item.agentCode, 'notes');
         else {
           bump(item.agentCode, 'contacts');
-          const key = `${item.agentCode}|${item.clientCode}`;
+          const key = `${item.agentCode}|${item.clientId}`;
           if (!contacted.has(key)) {
             contacted.add(key);
             bump(item.agentCode, 'clientsContacted');

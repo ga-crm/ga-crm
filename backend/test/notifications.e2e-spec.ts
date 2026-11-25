@@ -182,20 +182,22 @@ describe('Notifications (e2e)', () => {
   });
 
   it('NTF-2 + ASG-1: an agent hears about clients newly given to them', async () => {
-    await um
-      .post(`${API}/clients`)
-      .send({ clientCode: '9400000001', name: 'Khách Được Giao' })
-      .expect(201);
+    const clientId = (
+      await um
+        .post(`${API}/clients`)
+        .send({ policyNo: '940000001', role: 'PO', name: 'Khách Được Giao' })
+        .expect(201)
+    ).body.id as string;
     await head
       .post(`${API}/clients/assign`)
-      .send({ clientCodes: ['9400000001'], agentCode: FC })
+      .send({ clientIds: [clientId], agentCode: FC })
       .expect(200);
     const { items } = await inbox(fc);
     expect(items.find((item) => item.type === 'CLIENT_ASSIGNED')).toMatchObject(
       {
-        data: { count: 1, clientCode: '9400000001' },
+        data: { count: 1, clientId },
         subject: 'Khách Được Giao',
-        link: '/clients/9400000001',
+        link: `/clients/${clientId}`,
       },
     );
   });
@@ -277,25 +279,28 @@ describe('Notifications (e2e)', () => {
   it('SIG-2 + TASK-7: the morning round waits for quiet hours to end and runs once a day', async () => {
     // A client with a premium due in 4 days and a birthday in 4 days
     const birthday = inDays(5);
+    const clientId = (
+      await fc
+        .post(`${API}/clients`)
+        .send({
+          policyNo: '940000002',
+          role: 'PO',
+          name: 'Khách Sắp Đến Hạn',
+          dob: `1985-${birthday.slice(5)}`,
+        })
+        .expect(201)
+    ).body.id as string;
     await fc
-      .post(`${API}/clients`)
+      .patch(`${API}/clients/${clientId}/policies/940000002`)
       .send({
-        clientCode: '9400000002',
-        name: 'Khách Sắp Đến Hạn',
-        dob: `1985-${birthday.slice(5)}`,
-        policies: [
-          {
-            policyNo: '940000002',
-            status: 'Đang hiệu lực',
-            effectiveDate: '2024-06-01',
-            maturityDate: '2044-06-01',
-            premiumFrequency: 'Năm',
-            basePremiumVnd: 10_000_000,
-            premiumDueDate: inDays(7),
-          },
-        ],
+        status: 'Đang hiệu lực',
+        effectiveDate: '2024-06-01',
+        maturityDate: '2044-06-01',
+        premiumFrequency: 'Năm',
+        basePremiumVnd: 10_000_000,
+        premiumDueDate: inDays(7),
       })
-      .expect(201);
+      .expect(204);
     await fc
       .post(`${API}/tasks`)
       .send({ title: 'Việc để quá hạn', dueAt: vn(inDays(1), '08:00').toISOString() })

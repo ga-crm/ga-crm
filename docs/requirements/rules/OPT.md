@@ -36,7 +36,7 @@ Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:22`
 
 Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:35`
 
-Đã trích dẫn trong: `backend/src/migrations/1763049600000-leads.ts`, `backend/src/modules/leads/infrastructure/lead.entities.ts`, `backend/src/modules/leads/lead-options.controller.ts`, `backend/src/modules/leads/lead-options.dto.ts`, `backend/src/modules/leads/lead-options.service.ts`, `backend/src/modules/leads/lead-rules.ts`, `backend/test/lead-options.e2e-spec.ts`, `frontend/src/lib/bulkLabels.ts`, `frontend/src/pages/CatalogPage.tsx`
+Đã trích dẫn trong: `backend/src/migrations/1763049600000-leads.ts`, `backend/src/modules/leads/infrastructure/lead.entities.ts`, `backend/src/modules/leads/lead-options.controller.ts`, `backend/src/modules/leads/lead-options.dto.ts`, `backend/src/modules/leads/lead-options.service.ts`, `backend/src/modules/leads/lead-rules.ts`, `backend/test/lead-options.e2e-spec.ts`, `frontend/src/lib/bulkLabels.ts`, `frontend/src/pages/CatalogPage.tsx`, `frontend/src/pages/LeadDetailPage.tsx`, `frontend/src/pages/LeadsPage.tsx`
 
 - **OPT-3** Chủ GA thêm giá trị (nhãn ≤ 60 ký tự), đổi tên, đổi thứ tự, ẩn / hiện. Mã của Nhu cầu / Trạng thái sinh từ nhãn (DATA-9); mã của Nguồn chính là nhãn (vì file nhập ghi nguồn bằng chữ). **Đổi tên chỉ đổi nhãn, không đổi mã**: lead đang mang giá trị không đổi.
 
@@ -116,6 +116,6 @@ Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:44`
 
 Nguồn: `requirement/05-tenant-va-cau-hinh-ga.md:45`
 
-Đã trích dẫn trong: `backend/src/modules/leads/lead-options.service.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/lead-options.e2e-spec.ts`, `frontend/src/pages/LeadsPage.tsx`
+Đã trích dẫn trong: `backend/src/modules/leads/lead-options.service.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/lead-options.e2e-spec.ts`, `frontend/src/pages/LeadDetailPage.tsx`, `frontend/src/pages/LeadsPage.tsx`
 
 - **OPT-13** Nguồn: danh mục dùng cho ô lọc và form thêm lead; file nhập vẫn ghi nhận nguồn mới (thêm vào danh mục) **[QĐ đề xuất: OPEN]** - có bắt buộc nguồn phải nằm trong danh mục khi tạo tay không.

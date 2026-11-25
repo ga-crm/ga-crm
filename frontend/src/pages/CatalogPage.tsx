@@ -24,7 +24,6 @@ import { api, errorMessage } from "../lib/api";
 import { keys, queries } from "../lib/queries";
 import { toast } from "../lib/toast";
 import { useUrlState } from "../lib/useUrlState";
-import { ProgramsTab } from "../components/ProgramsTab";
 import { LEAD_OPTION_KINDS } from "../lib/types";
 import { BulkOptionsDialog } from "../components/BulkOptionsDialog";
 import type { LeadOption, LeadOptionKind } from "../lib/types";
@@ -85,14 +84,10 @@ export function CatalogPage() {
   const { data: me } = useMe();
   const queryClient = useQueryClient();
   const url = useUrlState();
-  // Section 4.3: lead lists are for GA_HEAD (edit) and Admin (read); programmes for anyone who opens this
-  const seesLeadLists = hasRole(me, "GA_HEAD") || hasRole(me, "ADMIN");
-  const tabs = [
-    ...(seesLeadLists ? LEAD_OPTION_KINDS : []),
-    "programs",
-  ] as const;
+  // Section 4.3: lead lists are for GA_HEAD (edit) and Admin (read). Products are the platform's (TENANT-5)
+  const tabs = LEAD_OPTION_KINDS;
   const tab = url.oneOf("kind", tabs) || tabs[0];
-  const kind = (tab === "programs" ? "interest" : tab) as LeadOptionKind;
+  const kind = tab as LeadOptionKind;
   const canEdit = hasRole(me, "GA_HEAD");
   const [newLabel, setNewLabel] = useState("");
   const [deleting, setDeleting] = useState<LeadOption | null>(null);
@@ -184,10 +179,7 @@ export function CatalogPage() {
           items={tabs.map((item) => ({ value: item, label: t(`catalog.kind.${item}`) }))}
         />
       </Container>
-      {tab === "programs" ? (
-        <ProgramsTab />
-      ) : (
-        <>
+      <>
           <Container className="flex-none">
             <p className="pb-3 text-caption text-ink-meta">
               {t(`catalog.help.${kind}`)}
@@ -409,8 +401,7 @@ export function CatalogPage() {
             }}
           />
         </>
-      )}
-      {canEdit && tab !== "programs" && (
+      {canEdit && (
         <BulkOptionsDialog
           kind={kind}
           existing={rows.map((option) => option.label)}

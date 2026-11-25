@@ -16,7 +16,7 @@ Nguồn: `requirement/08-lead-pipeline.md:4`
 
 Nguồn: `requirement/08-lead-pipeline.md:5`
 
-Đã trích dẫn trong: `backend/src/modules/clients/client-care.service.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/leads.e2e-spec.ts`, `frontend/src/lib/nav.ts`
+Đã trích dẫn trong: `backend/src/migrations/1764172800000-single-lead-source.ts`, `backend/src/modules/clients/client-care.service.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/leads.e2e-spec.ts`, `backend/test/seed.e2e-spec.ts`, `frontend/src/lib/nav.ts`
 
 - **LEAD-2** Nguồn gốc (`origin`):
   - `GA`: người quản lý lead (`leads.manage`) tạo trên CRM; có thể chưa phân công hoặc phân công ngay.
@@ -77,7 +77,7 @@ Nguồn: `requirement/08-lead-pipeline.md:18`
 
 Nguồn: `requirement/08-lead-pipeline.md:19`
 
-Đã trích dẫn trong: `backend/src/modules/access/departed.ts`, `backend/src/modules/imports/lead-plan.spec.ts`, `backend/src/modules/imports/lead-plan.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/lead-line-assign.e2e-spec.ts`, `backend/test/lead-link.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`
+Đã trích dẫn trong: `backend/src/migrations/1764172800000-single-lead-source.ts`, `backend/src/modules/access/departed.ts`, `backend/src/modules/imports/lead-plan.spec.ts`, `backend/src/modules/imports/lead-plan.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/lead-line-assign.e2e-spec.ts`, `backend/test/lead-link.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`
 
 - **LEAD-9** Khóa lead tự khai thác: lead FC_OWN không được giao cho người khác (bằng tay hay bằng file) khi người tạo còn làm việc cho GA (AGT-7) → `409 own_lead_locked` (dòng file bị từ chối cùng mã). Khi người tạo nghỉ (đại lý ngưng hoạt động / có ngày chấm dứt, hoặc tài khoản bị khóa / lưu trữ), người quản lý lead được phân công lại.
 
@@ -272,7 +272,7 @@ Nguồn: `requirement/08-lead-pipeline.md:74`
 
 Nguồn: `requirement/08-lead-pipeline.md:77`
 
-Đã trích dẫn trong: `backend/src/common/errors.ts`, `backend/src/migrations/1763049600000-leads.ts`, `backend/src/modules/audit/infrastructure/audit-event.entity.ts`, `backend/src/modules/campaigns/campaigns.service.ts`, `backend/src/modules/clients/client-links.ts`, `backend/src/modules/clients/clients.dto.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/clients/lead-link.service.ts`, `backend/src/modules/clients/lead-link.spec.ts`, `backend/src/modules/clients/lead-link.ts`, `backend/src/modules/clients/lead-links.controller.ts`, `backend/src/modules/leads/infrastructure/lead.entities.ts`, `backend/src/modules/leads/lead-rules.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/lead-link.e2e-spec.ts`, `frontend/src/components/LeadClientLink.tsx`, `frontend/src/lib/api.ts`, `frontend/src/lib/queries.ts`, `frontend/src/lib/types.ts`, `frontend/src/pages/LeadDetailPage.tsx`
+Đã trích dẫn trong: `backend/src/common/errors.ts`, `backend/src/migrations/1763049600000-leads.ts`, `backend/src/migrations/1764259200000-client-id.ts`, `backend/src/modules/audit/infrastructure/audit-event.entity.ts`, `backend/src/modules/campaigns/campaigns.service.ts`, `backend/src/modules/clients/client-links.ts`, `backend/src/modules/clients/clients.dto.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/clients/lead-link.service.ts`, `backend/src/modules/clients/lead-link.spec.ts`, `backend/src/modules/clients/lead-link.ts`, `backend/src/modules/clients/lead-links.controller.ts`, `backend/src/modules/leads/infrastructure/lead.entities.ts`, `backend/src/modules/leads/lead-removal.service.ts`, `backend/src/modules/leads/lead-rules.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/lead-link.e2e-spec.ts`, `frontend/src/components/LeadClientLink.tsx`, `frontend/src/lib/api.ts`, `frontend/src/lib/queries.ts`, `frontend/src/lib/types.ts`, `frontend/src/pages/LeadDetailPage.tsx`
 
 - **LEAD-32** Trên lead từ `PROPOSAL` trở đi (hoặc `WON`), FC mở "Liên kết khách hàng". Hệ thống gợi ý tối đa 5 khách hàng trong scope của FC chưa liên kết với lead khác:
   - điểm: trùng `nameNorm` 0,6; cùng giới tính +0,1; cùng nhóm tuổi (hoặc lệch ≤ 3 tuổi) +0,1; có hồ sơ YCBH tạo trong 60 ngày sau khi tạo lead +0,2; **trùng số điện thoại** (số điện thoại khách hàng do GA nhập, file 10) +0,4 (tối đa 1,0);

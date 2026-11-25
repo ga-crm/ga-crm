@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { ClientLeadSource, CommentsCard, CoverageCard, NotesCard, SignalsCard } from '../components/ClientCare'
@@ -9,7 +9,7 @@ import { EditClientForm, PolicyForm } from '../components/ClientForms'
 import { Alert, Badge, Button, ConfirmDialog, Container, Dialog, EmptyState, Notice, Panel, RowMenu, Spinner, TabBar } from '../components/ui'
 import { formatDateTime, formatVnd, t } from '../i18n'
 import { ApiError, api, errorMessage } from '../lib/api'
-import { groupLabel } from '../lib/clientLabels'
+import { groupLabel, rolesLabel } from '../lib/clientLabels'
 import { showDate } from '../lib/leadLabels'
 import { keys, queries } from '../lib/queries'
 import { toast } from '../lib/toast'
@@ -44,7 +44,6 @@ function ClientInfo({ detail, onEdit }: { detail: ClientDetail; onEdit: () => vo
       </div>
       {client.manual && <p className="mb-2 text-caption text-ink-meta">{t('clients.manualNote')}</p>}
       <dl>
-        <Fact label={t('clients.code')} value={client.clientCode} />
         <Fact label={t('clients.phone')} value={client.phone ? `${client.phone} · ${t('clients.phoneKept')}` : null} />
         <Fact label={t('clients.tier')} value={client.tier} />
         <Fact label={t('clients.dob')} value={showDate(client.dob) ?? client.birthDayMonth} />
@@ -63,18 +62,42 @@ function ClientInfo({ detail, onEdit }: { detail: ClientDetail; onEdit: () => vo
   )
 }
 
-const ROLE_KEYS = { PO: 'clients.rolePO', LI: 'clients.roleLI', BEN: 'clients.roleBEN' } as const
+/** CUS-11: everyone on the policy with their roles; a person this viewer may open is a link (CUS-5). */
+function PolicyPeople({ people }: { people: ClientPolicy['people'] }) {
+  if (people.length === 0) return null
+  return (
+    <>
+      <h4 className="mt-4 mb-2 text-caption font-medium text-ink">{t('clients.people')}</h4>
+      <ul className="space-y-1 text-caption text-ink-body">
+        {people.map((person, index) => (
+          <li key={person.clientId ?? `${person.name}-${index}`} className="flex flex-wrap items-center gap-x-2">
+            {person.clientId && !person.self ? (
+              <Link to={`/clients/${person.clientId}`} className="text-primary hover:underline">
+                {person.name || '-'}
+              </Link>
+            ) : (
+              <span>{person.name || '-'}</span>
+            )}
+            {person.self && <span className="text-ink-meta">{t('clients.selfMark')}</span>}
+            <span className="text-ink-meta">{rolesLabel(person.roles)}</span>
+          </li>
+        ))}
+      </ul>
+    </>
+  )
+}
 
-/** CUS-15: one policy card, with every agent and share (CUS-8) and its programmes. */
+/** CUS-15: one policy card, with every agent and share (CUS-8) and its products. */
 function PolicyCard({ policy, onEdit, onDelete }: { policy: ClientPolicy; onEdit?: () => void; onDelete?: () => void }) {
   return (
     <Panel as="article" className="p-5">
       <header className="mb-3 flex flex-wrap items-center gap-2">
         <h3 className="text-subhead text-ink tabular-nums">{t('clients.policyNo', { no: policy.policyNo })}</h3>
-        <Badge tone={policy.active ? 'success' : 'warning'}>{policy.status}</Badge>
+        {/* A policy known only by its number has no status yet */}
+        {policy.status ? <Badge tone={policy.active ? 'success' : 'warning'}>{policy.status}</Badge> : <Badge tone="muted">{t('clients.noStatus')}</Badge>}
         {policy.roles.map((role) => (
           <Badge key={role} tone="muted">
-            {t(ROLE_KEYS[role])}
+            {rolesLabel([role])}
           </Badge>
         ))}
         {policy.manual && <Badge tone="muted">{t('clients.badgeManual')}</Badge>}
@@ -96,13 +119,14 @@ function PolicyCard({ policy, onEdit, onDelete }: { policy: ClientPolicy; onEdit
         <Fact narrow label={t('clients.effective')} value={showDate(policy.effectiveDate)} />
         <Fact narrow label={t('clients.maturity')} value={showDate(policy.maturityDate)} />
         <Fact narrow label={t('clients.frequency')} value={policy.premiumFrequency} />
-        <Fact narrow label={t('clients.premium')} value={formatVnd(policy.basePremiumVnd)} />
+        <Fact narrow label={t('clients.premium')} value={policy.basePremiumVnd === null ? null : formatVnd(policy.basePremiumVnd)} />
         <Fact narrow label={t('clients.dueDate')} value={showDate(policy.premiumDueDate)} />
         <Fact narrow label={t('clients.plannedPremium')} value={policy.plannedPremiumVnd === null ? null : formatVnd(policy.plannedPremiumVnd)} />
         <Fact narrow label={t('clients.unpaid')} value={policy.unpaidPremiumVnd === null ? null : formatVnd(policy.unpaidPremiumVnd)} />
         <Fact narrow label={t('clients.apl')} value={policy.aplDebtVnd === null ? null : formatVnd(policy.aplDebtVnd)} />
         <Fact narrow label={t('clients.beneficiary')} value={yesNo(policy.hasBeneficiary)} />
       </dl>
+      <PolicyPeople people={policy.people} />
       <h4 className="mt-4 mb-2 text-caption font-medium text-ink">{t('clients.policyAgents')}</h4>
       <ul className="space-y-1 text-caption text-ink-body">
         {policy.agents.map((agent) => (
@@ -142,9 +166,16 @@ function PolicyCard({ policy, onEdit, onDelete }: { policy: ClientPolicy; onEdit
             </thead>
             <tbody>
               {policy.products.map((product) => (
-                <tr key={`${product.productCode}-${product.insuredCode ?? ''}`}>
-                  <td className="truncate" title={product.productName ?? product.productCode}>
-                    {product.productName ?? product.productCode}
+                <tr key={`${product.productCode}-${product.insuredClientId ?? product.insuredName ?? ''}`}>
+                  <td className="truncate" title={product.catalogueName ?? product.productName ?? product.productCode}>
+                    {/* TENANT-5: a product of the catalogue opens its page */}
+                    {product.catalogueName ? (
+                      <Link to={`/products/${encodeURIComponent(product.productCode)}`} className="text-primary hover:underline">
+                        {product.catalogueName}
+                      </Link>
+                    ) : (
+                      (product.productName ?? product.productCode)
+                    )}
                     <span className="ml-1 text-ink-meta">{product.productCode}</span>
                   </td>
                   <td className="truncate">{product.insuredName ?? '-'}</td>
@@ -170,10 +201,11 @@ function Applications({ detail }: { detail: ClientDetail }) {
     <section>
       <h2 className="mb-2 text-subhead text-ink">{t('clients.applications', { count: detail.applications.length })}</h2>
       <div className="overflow-x-auto">
-        <table className="data-table min-w-[820px] table-fixed">
+        <table className="data-table min-w-[1000px] table-fixed">
           <colgroup>
             <col className="w-[130px]" />
             <col />
+            <col className="w-[220px]" />
             <col className="w-[120px]" />
             <col className="w-[120px]" />
             <col className="w-[200px]" />
@@ -183,6 +215,7 @@ function Applications({ detail }: { detail: ClientDetail }) {
             <tr>
               <th>{t('clients.applicationNo')}</th>
               <th>{t('clients.agent')}</th>
+              <th>{t('clients.applicationProduct')}</th>
               <th>{t('clients.created')}</th>
               <th>{t('clients.issued')}</th>
               <th>{t('clients.applicationStatus')}</th>
@@ -194,6 +227,9 @@ function Applications({ detail }: { detail: ClientDetail }) {
               <tr key={application.applicationNo}>
                 <td className="tabular-nums">{application.applicationNo}</td>
                 <td className="truncate">{`${application.agentName ?? application.agentCode} (${application.agentCode})`}</td>
+                <td className="truncate" title={application.productName ?? application.productCode ?? undefined}>
+                  {application.productName ?? application.productCode ?? '-'}
+                </td>
                 <td>{showDate(application.createdDate)}</td>
                 <td>{showDate(application.issuedDate) ?? '-'}</td>
                 <td className="truncate" title={application.status}>
@@ -213,33 +249,28 @@ const TABS = ['main', 'family', 'history', 'lead'] as const
 
 /** Section 16.7 + CUS-15: "Khách hàng & hợp đồng" and "Gia đình". */
 export function ClientDetailPage() {
-  const { code = '' } = useParams()
+  const { clientId = '' } = useParams()
   const url = useUrlState()
-  const client = useQuery(queries.client(code))
-  const programs = useQuery(queries.programs())
+  const client = useQuery(queries.client(clientId))
   const queryClient = useQueryClient()
   // A confirmation for a destructive action stays out of the URL
   const [deleting, setDeleting] = useState<ClientPolicy | null>(null)
   const removePolicy = useMutation({
-    mutationFn: (policy: ClientPolicy) => api.delete(`/clients/${code}/policies/${policy.policyNo}`),
+    mutationFn: (policy: ClientPolicy) => api.delete(`/clients/${clientId}/policies/${policy.policyNo}`),
     onSuccess: async (_, policy) => {
       setDeleting(null)
       toast.success(t('toast.policyDeleted', { no: policy.policyNo }))
       await queryClient.invalidateQueries({ queryKey: keys.clients })
     },
   })
-  // POL-4: a stored line's product code back to the catalogue programme that made it
-  const programOf = useMemo(
-    () => new Map((programs.data?.items ?? []).flatMap((program) => [[program.productCode ?? program.code, program.code] as const, [program.code, program.code] as const])),
-    [programs.data],
-  )
   const editing = url.get('edit') === '1'
   const policyKey = url.get('policy')
   const tab = url.oneOf('tab', ['family', 'history', 'lead']) || 'main'
   useSelectedTabInView(tab, !!client.data)
 
   if (client.isPending) return <Spinner />
-  if (client.error instanceof ApiError && client.error.status === 404) return <NotFoundPage />
+  // An id that is not a uuid (an old link by client code) is a 400: as missing as a 404
+  if (client.error instanceof ApiError && (client.error.status === 404 || client.error.status === 400)) return <NotFoundPage />
   if (client.isError) return <Alert className="m-4">{errorMessage(client.error)}</Alert>
   const detail = client.data
   const editedPolicy = policyKey && policyKey !== 'new' ? detail.policies.find((policy) => policy.policyNo === policyKey) : undefined
@@ -253,10 +284,7 @@ export function ClientDetailPage() {
       </Link>
       <header className="mt-2 mb-3">
         <h1 className="text-page-title text-ink">{detail.client.name}</h1>
-        <p className="text-caption text-ink-meta tabular-nums">
-          {detail.client.clientCode}
-          {detail.client.tier && ` · ${detail.client.tier}`}
-        </p>
+        {detail.client.tier && <p className="text-caption text-ink-meta">{detail.client.tier}</p>}
       </header>
       {/* Section 16: "Lead nguồn" only when the client came from a lead (LEAD-34) */}
       <TabBar
@@ -320,7 +348,7 @@ export function ClientDetailPage() {
         {editing && detail.canEdit && <EditClientForm detail={detail} onClose={() => url.set({ edit: null })} />}
       </Dialog>
       <Dialog wide title={editedPolicy ? t('clients.editPolicyTitle', { no: editedPolicy.policyNo }) : t('clients.addPolicyTitle')} open={policyOpen} onClose={() => url.set({ policy: null })}>
-        {policyOpen && <PolicyForm key={policyKey} clientCode={detail.client.clientCode} policy={editedPolicy} programs={programOf} onClose={() => url.set({ policy: null })} />}
+        {policyOpen && <PolicyForm key={policyKey} clientId={detail.client.id} policy={editedPolicy} onClose={() => url.set({ policy: null })} />}
       </Dialog>
       <ConfirmDialog
         message={deleting ? t('clients.deletePolicyConfirm', { no: deleting.policyNo }) : null}

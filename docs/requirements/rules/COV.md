@@ -24,7 +24,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:94`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:95`
 
-Đã trích dẫn trong: `backend/src/modules/clients/client-insights.spec.ts`, `backend/src/modules/clients/client-insights.ts`, `backend/src/modules/clients/clients.service.ts`, `frontend/src/lib/types.ts`
+Đã trích dẫn trong: `backend/src/migrations/1764345600000-products.ts`, `backend/src/modules/clients/client-care.service.ts`, `backend/src/modules/clients/client-insights.spec.ts`, `backend/src/modules/clients/client-insights.ts`, `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/products/products.dto.ts`, `frontend/src/lib/types.ts`
 
 - **COV-3** Nhóm của sản phẩm: từ khóa trên `category` của danh mục 11_Products, rồi trên tên sản phẩm (đã chuẩn hóa), theo thứ tự: MATERNITY (THAI SAN, MATERNITY); CI (UNG THU, CANCER, HIEM NGHEO, CRITICAL); ACCIDENT (TAI NAN, ACCIDENT); HEALTH (SUC KHOE, HEALTH, Y TE, NOI TRU, HOSPITAL, MEDICAL, VIEN PHI); LIFE (LIFE, NHAN THO, TU KY, LIEN KET, TRON DOI, HUU TRI, UNIVERSAL, UNIT-LINKED, ENDOWMENT). Không khớp: sản phẩm Chính → LIFE, Bổ trợ → OTHER. (Ví dụ "BH Chăm Sóc Sức Khoẻ" → HEALTH, "BH Tai Nạn Cao Cấp" → ACCIDENT.)
 

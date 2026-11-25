@@ -181,7 +181,7 @@ describe('Importing a large file in batches (e2e)', () => {
     expect(done).toEqual(expect.objectContaining({ status: 'COMMITTED', progress: { done: 6, total: 6, failedBatches: 0, failedRows: 0 } }));
     expect(done.sheets[0]).toEqual(expect.objectContaining({ inserted: 2_100, rejected: 0 }));
     const { rows } = await ownerDb().query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM clients WHERE client_code LIKE '55%' AND owner_agent_codes = ARRAY['00100004']::text[]`,
+      `SELECT count(*)::int AS n FROM clients WHERE success_code LIKE '55%' AND owner_agent_codes = ARRAY['00100004']::text[]`,
     );
     expect(rows[0].n).toBe(2_100);
   });

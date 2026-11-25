@@ -1170,7 +1170,6 @@ describe('Leads (e2e)', () => {
         { care: 'CARING' },
         { source: 'Nguồn Lọc' },
         { assignee: UM },
-        { origin: 'GA' },
         { stage: 'CONTACTED' },
       ]) {
         expect(await has(query), JSON.stringify(query)).toBe(true);
@@ -1180,7 +1179,6 @@ describe('Leads (e2e)', () => {
         { care: 'NONE' },
         { source: 'Khác' },
         { assignee: 'NONE' },
-        { origin: 'FC_OWN' },
         { stage: 'NEW' },
         { from: '2099-01-01' },
         { to: '2000-01-01' },
@@ -1190,6 +1188,8 @@ describe('Leads (e2e)', () => {
       // OPT-1: the filter takes any catalogue code, so an unknown one simply matches nothing
       expect(await has({ interest: 'BOGUS' })).toBe(false);
       await marketing.get(`${API}/leads`).query({ 'q[$ne]': 'x' }).expect(400);
+      // Decided 24/11/2026: one "Nguồn gốc" (the source); the system origin is not a filter
+      await marketing.get(`${API}/leads`).query({ origin: 'GA' }).expect(400);
 
       const facets = (await marketing.get(`${API}/leads/facets`).expect(200))
         .body;
@@ -1358,6 +1358,10 @@ describe('Leads (e2e)', () => {
             headers.map((_, index) => row.getCell(index + 1).value ?? null),
           );
       });
+      // TENANT-5: a product cell naming a catalogue product (any case, no marks) links to it
+      const productColumn = headers.indexOf('SẢN PHẨM');
+      expect(productColumn).toBeGreaterThan(-1);
+      rows[0][productColumn] = 'an tam song hanh';
       const other = await as('marketing', 2);
       const { id, sheets } = (
         await other
@@ -1402,6 +1406,13 @@ describe('Leads (e2e)', () => {
         careStatus: 'CARING',
         campaignName: 'Chiến dịch mẫu',
         consentMarketing: true,
+      });
+      const linked = (
+        await other.get(`${API}/leads/${leads[0].id}`).expect(200)
+      ).body.lead;
+      expect(linked).toMatchObject({
+        productInterest: 'an tam song hanh',
+        productCode: 'AN_TAM_SONG_HANH',
       });
     });
 

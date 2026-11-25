@@ -11,7 +11,7 @@ import type {
  * again from them; links that were stored (client sheet, manual, lead) are kept as they are.
  */
 export function deriveLinks(input: {
-  clientCode: string;
+  clientId: string;
   stored: readonly AgentLink[];
   policies: readonly {
     currentAgentCodes: readonly string[];
@@ -31,7 +31,7 @@ export function deriveLinks(input: {
     .map(({ agentCode, source }) => ({ agentCode, source }));
   for (const policy of input.policies) {
     const roles = policy.clients.filter(
-      (link) => link.clientCode === input.clientCode && !link.endedAt,
+      (link) => link.clientId === input.clientId && !link.endedAt,
     );
     const sources: LinkSource[] = [];
     if (roles.some((link) => link.role === 'PO')) sources.push('POLICY_HOLDER');

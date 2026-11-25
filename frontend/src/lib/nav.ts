@@ -1,4 +1,4 @@
-import { Activity, BarChart3, MessageCircle, MessagesSquare, Bell, BellRing, Bot, Building2, CalendarDays, ListTodo, ContactRound, Megaphone, IdCard, ListChecks, Settings2, FileInput, FileUp, History, House, KeyRound, Network, Palette, ScrollText, Settings, ShieldCheck, Users } from 'lucide-react'
+import { Activity, BarChart3, MessageCircle, MessagesSquare, Bell, BellRing, Bot, Building2, CalendarDays, ListTodo, ContactRound, Megaphone, IdCard, ListChecks, Package, Settings2, FileInput, FileUp, History, House, KeyRound, Network, Palette, ScrollText, Settings, ShieldCheck, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { hasPermission, hasRole } from '../auth/access'
 import type { MessageKey } from '../i18n'
@@ -45,34 +45,52 @@ export const canImportLeads = (me: Me) => hasPermission(me, 'leads.import')
 export const canAssignLeads = (me: Me) => hasPermission(me, 'leads.manage') || (hasPermission(me, 'leads.assign_line') && me.reach === 'DOWNLINE' && !!me.user.agentCode)
 /** CUS-5: GA_HEAD, managers and agents have a client book; Marketing and Admin do not. */
 export const canUseClients = (me: Me) => !!me.tenant && me.reach !== 'NONE'
-/** Section 16.8 + 4.3: GA_HEAD edits the lead catalogue, Admin reads it. */
-export const canSeeCatalog = (me: Me) => hasRole(me, 'GA_HEAD') || hasRole(me, 'ADMIN') || hasPermission(me, 'catalog.manage')
+/**
+ * Section 16.8 + 4.3: GA_HEAD edits the lead catalogue, Admin reads it. `catalog.manage` alone no
+ * longer opens it: its only tab, the GA's programmes, gave way to the shared products (TENANT-5).
+ */
+export const canSeeCatalog = (me: Me) => hasRole(me, 'GA_HEAD') || hasRole(me, 'ADMIN')
+/** TENANT-5: the shared product catalogue is read by everyone in a GA and kept by the Platform Admin. */
+export const canManageProducts = (me: Me) => hasRole(me, 'PLATFORM_ADMIN')
 
-/** PERM-4: hides entries the user cannot open. The API still checks every permission. */
+/**
+ * PERM-4: hides entries the user cannot open. The API still checks every permission.
+ * The order is the sidebar's: rows without a group first, then one group per kind of work
+ * (docs/decisions.md, 25/11/2026). A group shows only when the person has a row in it.
+ */
 export const NAV_ITEMS: NavItem[] = [
+  // Overview: what is happening, and the numbers behind it
   { to: '/', label: 'nav.home', icon: House, visible: () => true, chunk: pages.home },
-  { to: '/leads', label: 'nav.leads', icon: ContactRound, group: 'nav.groupLeads', visible: canUseLeads, chunk: pages.leads },
-  { to: '/campaigns', label: 'nav.campaigns', icon: Megaphone, group: 'nav.groupLeads', visible: canUseLeads, chunk: pages.campaigns },
-  { to: '/leads/import', label: 'nav.leadImport', icon: FileInput, group: 'nav.groupLeads', visible: canImportLeads, chunk: pages.leadImport },
+  { to: '/reports', label: 'nav.reports', icon: BarChart3, visible: canSeeReports, chunk: pages.reports },
+  // The person's own day
   { to: '/tasks', label: 'nav.tasks', icon: ListTodo, group: 'nav.groupWork', visible: inTenant, chunk: pages.tasks },
   { to: '/calendar', label: 'nav.calendar', icon: CalendarDays, group: 'nav.groupWork', visible: inTenant, chunk: pages.calendar },
-  { to: '/chat', label: 'nav.chat', icon: MessageCircle, group: 'nav.groupWork', visible: inTenant, chunk: pages.chat, prefetch: queries.chatConversations },
-  { to: '/notifications', label: 'nav.notifications', icon: Bell, group: 'nav.groupWork', visible: inTenant, chunk: pages.notifications },
-  { to: '/reports', label: 'nav.reports', icon: BarChart3, group: 'nav.groupReports', visible: canSeeReports, chunk: pages.reports },
-  { to: '/clients', label: 'nav.clients', icon: IdCard, group: 'nav.groupClients', visible: canUseClients, chunk: pages.clients },
-  { to: '/agents', label: 'nav.agents', icon: Network, group: 'nav.groupAgents', visible: inTenant, chunk: pages.agents, prefetch: () => queries.agentTree() },
-  // Opened from "Nhập dữ liệu" on the agent tree and the import history, so not a sidebar row
-  { to: '/imports/new', label: 'nav.importNew', icon: FileUp, group: 'nav.groupAgents', visible: canImport, chunk: pages.importNew, parent: '/agents' },
-  { to: '/imports', label: 'nav.imports', icon: History, group: 'nav.groupAgents', visible: canReadImports, chunk: pages.imports, prefetch: () => queries.imports(FIRST_PAGE_WITH_FILTERS.imports) },
-  { to: '/users', label: 'nav.users', icon: Users, group: 'nav.groupAdmin', visible: (me) => hasPermission(me, 'users.manage'), chunk: pages.users, prefetch: () => queries.users(FIRST_PAGE_WITH_FILTERS.users) },
-  { to: '/chat/review', label: 'nav.chatReview', icon: MessagesSquare, group: 'nav.groupAdmin', visible: (me) => hasRole(me, 'GA_HEAD'), chunk: pages.chatReview },
-  { to: '/users/activity', label: 'nav.userActivity', icon: Activity, group: 'nav.groupAdmin', visible: (me) => !!me.tenant && hasPermission(me, 'users.manage'), chunk: pages.userActivity, prefetch: queries.activeUsers },
-  { to: '/permissions', label: 'nav.permissions', icon: ShieldCheck, group: 'nav.groupAdmin', visible: (me) => hasRole(me, 'GA_HEAD'), chunk: pages.permissions, prefetch: () => queries.permissions() },
-  { to: '/ai', label: 'nav.ai', icon: Bot, group: 'nav.groupAdmin', visible: (me) => !!me.tenant && hasPermission(me, 'ai.manage'), chunk: pages.aiAdmin, prefetch: () => queries.aiSettings() },
-  { to: '/catalog', label: 'nav.catalog', icon: ListChecks, group: 'nav.groupAdmin', visible: canSeeCatalog, chunk: pages.catalog, prefetch: () => queries.leadOptions() },
-  { to: '/ga-settings', label: 'nav.settingsGa', icon: Settings2, group: 'nav.groupAdmin', visible: (me) => hasRole(me, 'GA_HEAD'), chunk: pages.gaSettings, prefetch: () => queries.gaSettings() },
-  { to: '/audit', label: 'nav.audit', icon: ScrollText, group: 'nav.groupAdmin', visible: (me) => hasPermission(me, 'audit.view'), chunk: pages.audit },
+  // The sales cycle: the lead, the campaign it came from, the client it becomes
+  { to: '/leads', label: 'nav.leads', icon: ContactRound, group: 'nav.groupSales', visible: canUseLeads, chunk: pages.leads },
+  { to: '/campaigns', label: 'nav.campaigns', icon: Megaphone, group: 'nav.groupSales', visible: canUseLeads, chunk: pages.campaigns },
+  { to: '/clients', label: 'nav.clients', icon: IdCard, group: 'nav.groupSales', visible: canUseClients, chunk: pages.clients },
+  { to: '/products', label: 'nav.products', icon: Package, group: 'nav.groupSales', visible: inTenant, chunk: pages.products, prefetch: queries.products },
+  // Talking to colleagues, and what the system tells you
+  { to: '/chat', label: 'nav.chat', icon: MessageCircle, group: 'nav.groupComms', visible: inTenant, chunk: pages.chat, prefetch: queries.chatConversations },
+  { to: '/notifications', label: 'nav.notifications', icon: Bell, group: 'nav.groupComms', visible: inTenant, chunk: pages.notifications },
+  // People: the agent tree, the accounts and what they may do
+  { to: '/agents', label: 'nav.agents', icon: Network, group: 'nav.groupTeam', visible: inTenant, chunk: pages.agents, prefetch: () => queries.agentTree() },
+  { to: '/users', label: 'nav.users', icon: Users, group: 'nav.groupTeam', visible: (me) => hasPermission(me, 'users.manage'), chunk: pages.users, prefetch: () => queries.users(FIRST_PAGE_WITH_FILTERS.users) },
+  { to: '/users/activity', label: 'nav.userActivity', icon: Activity, group: 'nav.groupTeam', visible: (me) => !!me.tenant && hasPermission(me, 'users.manage'), chunk: pages.userActivity, prefetch: queries.activeUsers },
+  { to: '/permissions', label: 'nav.permissions', icon: ShieldCheck, group: 'nav.groupTeam', visible: (me) => hasRole(me, 'GA_HEAD'), chunk: pages.permissions, prefetch: () => queries.permissions() },
+  // Files coming in. "Nhập dữ liệu" opens from a button on the agent tree and the history: not a row
+  { to: '/leads/import', label: 'nav.leadImport', icon: FileInput, group: 'nav.groupData', visible: canImportLeads, chunk: pages.leadImport },
+  { to: '/imports/new', label: 'nav.importNew', icon: FileUp, group: 'nav.groupData', visible: canImport, chunk: pages.importNew, parent: '/imports' },
+  { to: '/imports', label: 'nav.imports', icon: History, group: 'nav.groupData', visible: canReadImports, chunk: pages.imports, prefetch: () => queries.imports(FIRST_PAGE_WITH_FILTERS.imports) },
+  // Looking back at what was done
+  { to: '/audit', label: 'nav.audit', icon: ScrollText, group: 'nav.groupOversight', visible: (me) => hasPermission(me, 'audit.view'), chunk: pages.audit },
+  { to: '/chat/review', label: 'nav.chatReview', icon: MessagesSquare, group: 'nav.groupOversight', visible: (me) => hasRole(me, 'GA_HEAD'), chunk: pages.chatReview },
+  // How the GA is set up
+  { to: '/catalog', label: 'nav.catalog', icon: ListChecks, group: 'nav.groupSetup', visible: canSeeCatalog, chunk: pages.catalog, prefetch: () => queries.leadOptions() },
+  { to: '/ai', label: 'nav.ai', icon: Bot, group: 'nav.groupSetup', visible: (me) => !!me.tenant && hasPermission(me, 'ai.manage'), chunk: pages.aiAdmin, prefetch: () => queries.aiSettings() },
+  { to: '/ga-settings', label: 'nav.settingsGa', icon: Settings2, group: 'nav.groupSetup', visible: (me) => hasRole(me, 'GA_HEAD'), chunk: pages.gaSettings, prefetch: () => queries.gaSettings() },
   { to: '/platform/tenants', label: 'nav.tenants', icon: Building2, group: 'nav.groupPlatform', visible: (me) => hasRole(me, 'PLATFORM_ADMIN'), chunk: pages.tenants, prefetch: () => queries.tenants(FIRST_PAGE_WITH_FILTERS.tenants) },
+  { to: '/platform/products', label: 'nav.platformProducts', icon: Package, group: 'nav.groupPlatform', visible: canManageProducts, chunk: pages.platformProducts, prefetch: queries.platformProducts },
   { to: '/platform/settings', label: 'nav.platformSettings', icon: Settings2, group: 'nav.groupPlatform', visible: (me) => hasRole(me, 'PLATFORM_ADMIN'), chunk: pages.platformSettings, prefetch: () => queries.platformSettings() },
   { to: '/settings', label: 'nav.settings', icon: Settings, bottom: true, visible: () => true, chunk: pages.settings },
 ]
@@ -132,6 +150,7 @@ const CHILD_SCREENS: { under: string; match: RegExp; label: MessageKey }[] = [
   { under: '/leads', match: /^\/leads\/[^/]+$/, label: 'breadcrumb.leadDetail' },
   { under: '/campaigns', match: /^\/campaigns\/[^/]+$/, label: 'breadcrumb.campaignDetail' },
   { under: '/clients', match: /^\/clients\/[^/]+$/, label: 'breadcrumb.clientDetail' },
+  { under: '/products', match: /^\/products\/[^/]+$/, label: 'breadcrumb.productDetail' },
   { under: '/imports', match: /^\/imports\/[^/]+$/, label: 'breadcrumb.importDetail' },
 ]
 

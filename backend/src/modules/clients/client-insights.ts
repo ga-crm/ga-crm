@@ -73,66 +73,68 @@ export function coverageGroup(product: {
 
 export interface InsightPolicy {
   policyNo: string;
-  status: string;
-  holderClientCode: string;
-  insuredClientCode?: string | null;
-  insuredName: string;
+  status: string | null;
+  holderClientId?: string | null;
+  insuredClientId?: string | null;
+  insuredName: string | null;
   premiumDueDate?: string | null;
-  maturityDate: string;
+  maturityDate: string | null;
   unpaidPremiumVnd?: number | null;
   aplDebtVnd?: number | null;
-  basePremiumVnd: number;
+  basePremiumVnd: number | null;
   clients: {
-    clientCode: string;
+    clientId: string;
     role: string;
     /** Stored as JSON, so it reads back as ISO text. */
     endedAt?: Date | string | null;
   }[];
   products: {
     productCode: string;
-    insuredCode: string;
+    insuredClientId?: string | null;
     productName?: string | null;
     productRole: string;
+    /** COV-3: the catalogue's category, when the product is in it (TENANT-5). */
+    category?: string | null;
     sumAssuredVnd?: number | null;
     status?: string | null;
     insuredName?: string | null;
   }[];
 }
 
-/** A person known by client code, or only by a name written on a policy (PRD-3, FAM-5). */
+/** A person known by client id, or only by a name written on a policy (PRD-3, FAM-5). */
 export const personKey = (
-  code?: string | null,
+  clientId?: string | null,
   name?: string | null,
-): string => (code ? code : `name:${normalizeName(name ?? '')}`);
+): string => (clientId ? clientId : `name:${normalizeName(name ?? '')}`);
 
 /**
- * COV-1: who a product line insures. A client code wins; a line naming someone other than the
- * main insured belongs to that name; otherwise it is the main insured.
+ * COV-1: who a product line insures. A client wins; a line naming someone other than the main
+ * insured belongs to that name; otherwise it is the main insured.
  */
 export function insuredOf(
   policy: InsightPolicy,
   product: InsightPolicy['products'][number],
-): { key: string; name: string; code: string | null } {
-  if (product.insuredCode)
+): { key: string; name: string; clientId: string | null } {
+  if (product.insuredClientId)
     return {
-      key: product.insuredCode,
+      key: product.insuredClientId,
       name: product.insuredName ?? '',
-      code: product.insuredCode,
+      clientId: product.insuredClientId,
     };
   const name = product.insuredName?.trim();
-  if (name && normalizeName(name) !== normalizeName(policy.insuredName))
-    return { key: personKey(null, name), name, code: null };
+  if (name && normalizeName(name) !== normalizeName(policy.insuredName ?? ''))
+    return { key: personKey(null, name), name, clientId: null };
   return {
-    key: personKey(policy.insuredClientCode, policy.insuredName),
-    name: policy.insuredName,
-    code: policy.insuredClientCode ?? null,
+    key: personKey(policy.insuredClientId, policy.insuredName),
+    name: policy.insuredName ?? '',
+    clientId: policy.insuredClientId ?? null,
   };
 }
 
 export interface CoverageRow {
   key: string;
   name: string;
-  code: string | null;
+  clientId: string | null;
   /** COV-5: sum assured per group, active products only. */
   groups: Partial<Record<CoverageGroup, number>>;
   /** COV-4: whether any product line names this person; without it gaps are unknown. */
@@ -143,7 +145,7 @@ export interface CoverageRow {
 /** COV-1 to COV-5: people × groups, always worked out from the product lines (never stored). */
 export function coverage(
   policies: readonly InsightPolicy[],
-  people: readonly { key: string; name: string; code: string | null }[],
+  people: readonly { key: string; name: string; clientId: string | null }[],
 ): CoverageRow[] {
   const rows = new Map<string, CoverageRow>(
     people.map((person) => [
@@ -215,7 +217,7 @@ export const signalWindows = (today: string) => ({
 /** Section 10.11: a client's care opportunities. They are events, never product advice. */
 export function signals(input: {
   client: {
-    clientCode: string;
+    id: string;
     birthMonth?: number | null;
     birthDayMonth?: string | null;
     dob?: string | null;
@@ -233,7 +235,7 @@ export function signals(input: {
   const result: Signal[] = [];
   const roles = (policy: InsightPolicy) =>
     policy.clients
-      .filter((link) => link.clientCode === client.clientCode && !link.endedAt)
+      .filter((link) => link.clientId === client.id && !link.endedAt)
       .map((link) => link.role);
   let notActive = false;
   for (const policy of input.policies) {
@@ -252,7 +254,7 @@ export function signals(input: {
         values: {
           policyNo: policy.policyNo,
           date: policy.premiumDueDate,
-          amount: policy.basePremiumVnd,
+          amount: policy.basePremiumVnd ?? 0,
         },
       });
     if (holder && (policy.unpaidPremiumVnd ?? 0) > 0)
@@ -268,14 +270,16 @@ export function signals(input: {
     if (
       mine.length > 0 &&
       active &&
+      !!policy.maturityDate &&
       policy.maturityDate >= today &&
       policy.maturityDate <= window.maturityUntil
     )
       result.push({
         code: 'MATURITY',
-        values: { policyNo: policy.policyNo, date: policy.maturityDate },
+        values: { policyNo: policy.policyNo, date: policy.maturityDate! },
       });
-    if (mine.length > 0 && !active) {
+    // A policy added with its number only has no status yet, so it is not called inactive
+    if (mine.length > 0 && policy.status && !active) {
       notActive = true;
       result.push({
         code: 'NOT_ACTIVE',

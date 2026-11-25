@@ -93,8 +93,9 @@ export function AppSidebar({ me }: { me: Me }) {
         )}
       </SidebarHeader>
 
-      {/* Collapsed to icons the list can still be taller than the window, so it keeps scrolling */}
-      <SidebarContent className="gap-0 overflow-x-hidden group-data-[collapsible=icon]:overflow-y-auto">
+      {/* Collapsed to icons the list can still be taller than the window, so it keeps scrolling.
+          It scrolls without showing a bar (`scrollbar-none` in index.css) */}
+      <SidebarContent className="scrollbar-none gap-0 overflow-x-hidden group-data-[collapsible=icon]:overflow-y-auto">
         <nav aria-label={t('nav.main')}>
           {groups.map((group) =>
             !group ? (

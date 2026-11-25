@@ -30,7 +30,7 @@ import {
   MentionQueryDto,
 } from '../leads/leads.dto.js';
 import { ClientCareService } from './client-care.service.js';
-import { ClientCodePipe } from './client-code.pipe.js';
+import { IdPipe } from '../../common/pagination.js';
 import { ClientEditorService } from './client-editor.service.js';
 import {
   AssignClientsDto,
@@ -75,10 +75,10 @@ export class ClientsController {
     description:
       'MAN-1 đến MAN-5. Mã khách hàng đúng 10 chữ số. Khách và hợp đồng lưu cùng một transaction.',
   })
-  @ApiCreatedResponse({ description: '{ clientCode }' })
+  @ApiCreatedResponse({ description: '{ id }' })
   @ApiConflictResponse({
     description:
-      'client_exists (kèm clientCode nếu đã thấy khách), policy_exists, program_repeated',
+      'invalid_policy_no, policy_not_yours (hợp đồng ngoài phạm vi), holder_exists, person_on_policy',
   })
   create(@CurrentActor() actor: Actor, @Body() dto: CreateClientDto) {
     return this.editor.create(actor, dto);
@@ -106,217 +106,217 @@ export class ClientsController {
     return this.clients.counts(actor, query);
   }
 
-  @Get(':code')
+  @Get(':clientId')
   @ApiOperation({
     summary:
       'Chi tiết khách hàng, hợp đồng, gia đình, quyền lợi, cơ hội chăm sóc',
     description:
       'Ghi kiểm toán VIEW_CLIENT (CUS-9). Gia đình FAM-1, quyền lợi COV-1 đến COV-5, tín hiệu mục 10.11, ghi chú NOTE-1.',
   })
-  @ApiParam({ name: 'code', example: '0000000001' })
+  @ApiParam({ name: 'clientId', format: 'uuid' })
   @ApiNotFoundResponse({
     description: 'not_found (kể cả khách ngoài phạm vi hoặc GA khác)',
   })
   async detail(
     @CurrentActor() actor: Actor,
-    @Param('code', ClientCodePipe) code: string,
+    @Param('clientId', IdPipe) clientId: string,
   ) {
-    const detail = await this.clients.detail(actor, code);
-    return { ...detail, ...(await this.care.insights(actor, code)) };
+    const detail = await this.clients.detail(actor, clientId);
+    return { ...detail, ...(await this.care.insights(actor, clientId)) };
   }
 
-  @Patch(':code')
+  @Patch(':clientId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Sửa thông tin khách hàng',
     description:
       'MAN-6. Người sở hữu khách và Chủ GA. Trường vắng giữ nguyên, null là xóa.',
   })
-  @ApiParam({ name: 'code', example: '0000000001' })
+  @ApiParam({ name: 'clientId', format: 'uuid' })
   @ApiNoContentResponse()
   async update(
     @CurrentActor() actor: Actor,
-    @Param('code', ClientCodePipe) code: string,
+    @Param('clientId', IdPipe) clientId: string,
     @Body() dto: ClientFieldsDto,
   ): Promise<void> {
-    await this.editor.update(actor, code, dto);
+    await this.editor.update(actor, clientId, dto);
   }
 
-  @Post(':code/policies')
+  @Post(':clientId/policies')
   @ApiOperation({
     summary: 'Thêm hợp đồng bằng tay',
     description:
       'POL-1 đến POL-3. Đại lý phục vụ 100%; chương trình chỉ chọn từ danh mục.',
   })
-  @ApiParam({ name: 'code', example: '0000000001' })
+  @ApiParam({ name: 'clientId', format: 'uuid' })
   @ApiConflictResponse({ description: 'policy_exists, program_repeated' })
   addPolicy(
     @CurrentActor() actor: Actor,
-    @Param('code', ClientCodePipe) code: string,
+    @Param('clientId', IdPipe) clientId: string,
     @Body() dto: CreatePolicyDto,
   ) {
-    return this.editor.addPolicy(actor, code, dto);
+    return this.editor.addPolicy(actor, clientId, dto);
   }
 
-  @Patch(':code/policies/:policyNo')
+  @Patch(':clientId/policies/:policyNo')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Sửa hợp đồng',
     description:
       'POL-4. Thay toàn bộ chương trình khi gửi `products`. Không đổi số HĐBH và đại lý phục vụ.',
   })
-  @ApiParam({ name: 'code', example: '0000000001' })
+  @ApiParam({ name: 'clientId', format: 'uuid' })
   @ApiParam({ name: 'policyNo', example: '000000001' })
   @ApiNoContentResponse()
   async updatePolicy(
     @CurrentActor() actor: Actor,
-    @Param('code', ClientCodePipe) code: string,
+    @Param('clientId', IdPipe) clientId: string,
     @Param('policyNo') policyNo: string,
     @Body() dto: PolicyFieldsDto,
   ): Promise<void> {
-    await this.editor.updatePolicy(actor, code, policyNo, dto);
+    await this.editor.updatePolicy(actor, clientId, policyNo, dto);
   }
-  @Delete(':code/policies/:policyNo')
+  @Delete(':clientId/policies/:policyNo')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Xóa hợp đồng nhập tay sai',
     description:
       'POL-7: chỉ hợp đồng nhập tay, chưa được file Success ghi vào, trong 7 ngày sau khi nhập; người sửa được khách hàng. Lỗi: `policy_not_deletable`.',
   })
-  @ApiParam({ name: 'code', example: '0000000001' })
+  @ApiParam({ name: 'clientId', format: 'uuid' })
   @ApiParam({ name: 'policyNo', example: '000000001' })
   @ApiNoContentResponse()
   async deletePolicy(
     @CurrentActor() actor: Actor,
-    @Param('code', ClientCodePipe) code: string,
+    @Param('clientId', IdPipe) clientId: string,
     @Param('policyNo') policyNo: string,
   ): Promise<void> {
-    await this.editor.deletePolicy(actor, code, policyNo);
+    await this.editor.deletePolicy(actor, clientId, policyNo);
   }
 
-  @Post(':code/family')
+  @Post(':clientId/family')
   @ApiOperation({
     summary: 'Thêm người thân hoặc gắn nhãn quan hệ với khách khác',
     description:
       'FAM-2 đến FAM-4, FAM-8. Gửi `relatedClientCode` (khách có sẵn) hoặc `fullName` (người thân chưa là khách), không gửi cả hai.',
   })
-  @ApiParam({ name: 'code', example: '0000000001' })
+  @ApiParam({ name: 'clientId', format: 'uuid' })
   @ApiCreatedResponse({ description: '{ id }' })
   @ApiConflictResponse({ description: 'already_client' })
   @ApiNotFoundResponse({ description: 'Khách liên quan ngoài phạm vi' })
   addFamily(
     @CurrentActor() actor: Actor,
-    @Param('code', ClientCodePipe) code: string,
+    @Param('clientId', IdPipe) clientId: string,
     @Body() dto: FamilyInputDto,
   ) {
-    return this.care.addFamily(actor, code, dto);
+    return this.care.addFamily(actor, clientId, dto);
   }
 
-  @Patch(':code/family/:id')
+  @Patch(':clientId/family/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Sửa quan hệ hoặc thông tin người thân',
     description:
       'FAM-2: sửa từ phía khách bên kia thì lưu quan hệ ngược. Trường vắng giữ nguyên, null là xóa.',
   })
-  @ApiParam({ name: 'code', example: '0000000001' })
+  @ApiParam({ name: 'clientId', format: 'uuid' })
   @ApiNoContentResponse()
   async updateFamily(
     @CurrentActor() actor: Actor,
-    @Param('code', ClientCodePipe) code: string,
+    @Param('clientId', IdPipe) clientId: string,
     @Param('id') id: string,
     @Body() dto: FamilyUpdateDto,
   ): Promise<void> {
-    await this.care.updateFamily(actor, code, id, dto);
+    await this.care.updateFamily(actor, clientId, id, dto);
   }
 
-  @Delete(':code/family/:id')
+  @Delete(':clientId/family/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Xóa quan hệ gia đình', description: 'FAM-8.' })
-  @ApiParam({ name: 'code', example: '0000000001' })
+  @ApiParam({ name: 'clientId', format: 'uuid' })
   @ApiNoContentResponse()
   async removeFamily(
     @CurrentActor() actor: Actor,
-    @Param('code', ClientCodePipe) code: string,
+    @Param('clientId', IdPipe) clientId: string,
     @Param('id') id: string,
   ): Promise<void> {
-    await this.care.removeFamily(actor, code, id);
+    await this.care.removeFamily(actor, clientId, id);
   }
 
-  @Post(':code/family/:id/lead')
+  @Post(':clientId/family/:id/lead')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Tạo lead từ người thân, hoặc liên kết lead đã có',
     description:
       'FAM-6. `{leadId}` liên kết lead người gọi thấy; `{create:{phone, consent}}` tạo lead mới (nguồn Giới thiệu).',
   })
-  @ApiParam({ name: 'code', example: '0000000001' })
+  @ApiParam({ name: 'clientId', format: 'uuid' })
   familyLead(
     @CurrentActor() actor: Actor,
-    @Param('code', ClientCodePipe) code: string,
+    @Param('clientId', IdPipe) clientId: string,
     @Param('id') id: string,
     @Body() dto: FamilyLeadDto,
   ) {
-    return this.care.familyLead(actor, code, id, dto);
+    return this.care.familyLead(actor, clientId, id, dto);
   }
 
-  @Post(':code/notes')
+  @Post(':clientId/notes')
   @ApiOperation({
     summary: 'Ghi chú cho khách hàng',
     description: 'NOTE-1, NOTE-5: người sở hữu khách và Chủ GA.',
   })
-  @ApiParam({ name: 'code', example: '0000000001' })
+  @ApiParam({ name: 'clientId', format: 'uuid' })
   @ApiCreatedResponse({ description: '{ id }' })
   addNote(
     @CurrentActor() actor: Actor,
-    @Param('code', ClientCodePipe) code: string,
+    @Param('clientId', IdPipe) clientId: string,
     @Body() dto: AddNoteDto,
   ) {
-    return this.care.addNote(actor, code, dto);
+    return this.care.addNote(actor, clientId, dto);
   }
 
-  @Post(':code/comments')
+  @Post(':clientId/comments')
   @ApiOperation({
     summary: 'Góp ý trên khách hàng (CMT-5)',
     description:
       'Ai thấy khách hàng thì góp ý được (quản lý tuyến, người sở hữu). `mentions`: người được @nhắc tên, phải thấy khách hàng (`mention_not_visible`).',
   })
-  @ApiParam({ name: 'code', example: '0000000001' })
+  @ApiParam({ name: 'clientId', format: 'uuid' })
   @ApiCreatedResponse({ description: '{ id }' })
   addComment(
     @CurrentActor() actor: Actor,
-    @Param('code', ClientCodePipe) code: string,
+    @Param('clientId', IdPipe) clientId: string,
     @Body() dto: AddCommentDto,
   ) {
-    return this.care.addComment(actor, code, dto);
+    return this.care.addComment(actor, clientId, dto);
   }
 
-  @Get(':code/mentionable')
+  @Get(':clientId/mentionable')
   @ApiOperation({
     summary: 'Người có thể @nhắc tên trong góp ý (CMT-5)',
     description: 'Tối đa 8 người dùng đang hoạt động thấy khách hàng này.',
   })
-  @ApiParam({ name: 'code', example: '0000000001' })
+  @ApiParam({ name: 'clientId', format: 'uuid' })
   mentionable(
     @CurrentActor() actor: Actor,
-    @Param('code', ClientCodePipe) code: string,
+    @Param('clientId', IdPipe) clientId: string,
     @Query() query: MentionQueryDto,
   ) {
-    return this.care.mentionable(actor, code, query.q);
+    return this.care.mentionable(actor, clientId, query.q);
   }
 
-  @Post(':code/activities')
+  @Post(':clientId/activities')
   @ApiOperation({
     summary: 'Ghi nhận liên hệ với khách hàng',
     description: 'NOTE-2: thời điểm có thể ở quá khứ, không ở tương lai.',
   })
-  @ApiParam({ name: 'code', example: '0000000001' })
+  @ApiParam({ name: 'clientId', format: 'uuid' })
   @ApiCreatedResponse({ description: '{ id }' })
   addActivity(
     @CurrentActor() actor: Actor,
-    @Param('code', ClientCodePipe) code: string,
+    @Param('clientId', IdPipe) clientId: string,
     @Body() dto: AddActivityDto,
   ) {
-    return this.care.addActivity(actor, code, dto);
+    return this.care.addActivity(actor, clientId, dto);
   }
 }
