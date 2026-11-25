@@ -95,7 +95,7 @@ describe('Leads (e2e)', () => {
   });
 
   describe('creating', () => {
-    it('LEAD-3: requires name, phone, source and a consent answer', async () => {
+    it('LEAD-3: requires name, phone and source; the consent answer may come later (26/11/2026)', async () => {
       const valid = {
         fullName: 'A',
         phone: nextPhone(),
@@ -105,7 +105,6 @@ describe('Leads (e2e)', () => {
       for (const patch of [
         { fullName: ' ' },
         { source: '' },
-        { consent: undefined },
         { consent: 'có' },
         { email: 'sai' },
         { dob: '01/01/1990' },
@@ -119,6 +118,16 @@ describe('Leads (e2e)', () => {
           .send({ ...valid, ...patch })
           .expect(400);
       }
+      // No answer yet: the lead is made, without consent (PDP-5)
+      const later = (
+        await marketing
+          .post(`${API}/leads`)
+          .send({ ...valid, phone: nextPhone(), consent: undefined })
+          .expect(201)
+      ).body.id as string;
+      expect(
+        (await marketing.get(`${API}/leads/${later}`).expect(200)).body.lead,
+      ).toMatchObject({ consentMarketing: false });
       for (const phone of ['123', 'abc', '091234567']) {
         const res = await marketing
           .post(`${API}/leads`)
@@ -1347,13 +1356,24 @@ describe('Leads (e2e)', () => {
         '12_Lookups',
       ]);
       const sheet = workbook.getWorksheet('13_Leads')!;
-      const headers = (sheet.getRow(1).values as string[]).slice(1);
-      expect(headers).toContain('SỐ ĐIỆN THOẠI');
-      expect(sheet.getCell('E50').numFmt).toBe('@');
+      // Decided 25/11/2026: laid out like a GA's "Chia Lead" file, groups over two header rows;
+      // the second row names every column (a merged cell repeats its value)
+      expect(sheet.getCell('A1').value).toBe('TÊN TVV');
+      expect(sheet.getCell('N1').value).toBe('XỬ LÝ SAU');
+      expect(sheet.getCell('N2').value).toBe('10 NGÀY');
+      expect(sheet.getCell('R1').value).toBe('THÔNG TIN THÊM');
+      const headers = (sheet.getRow(2).values as string[]).slice(1);
+      expect(headers.slice(0, 4)).toEqual([
+        'TÊN TVV',
+        'NGÀY CẬP NHẬT LEAD',
+        'TÊN KHÁCH HÀNG',
+        'SỐ ĐIỆN THOẠI',
+      ]);
+      expect(sheet.getCell('D50').numFmt).toBe('@');
 
       const rows: unknown[][] = [];
       sheet.eachRow((row, number) => {
-        if (number > 1)
+        if (number > 2)
           rows.push(
             headers.map((_, index) => row.getCell(index + 1).value ?? null),
           );
@@ -1720,6 +1740,85 @@ describe('Leads (e2e)', () => {
         code: 'banned_column',
         row: 1,
       });
+    });
+
+    it('a GA file keeps its "XỬ LÝ SAU" and "CDYT" columns on the lead, and erasing the lead wipes them (PDP-6)', async () => {
+      const phone = nextPhone();
+      const headers = [
+        'TÊN KHÁCH HÀNG',
+        'SỐ ĐIỆN THOẠI',
+        'Nguồn',
+        '10 NGÀY',
+        '15 NGÀY',
+        '20 NGÀY',
+        'GHI CHÚ XỬ LÝ',
+        'CDYT - THỐNG KÊ',
+        'CDYT - TRANG CÁ NHÂN',
+      ];
+      const { id, sheets } = await start(marketing, headers);
+      expect(sheets[0]).toMatchObject({
+        status: 'READY',
+        fields: [
+          'fullName',
+          'phone',
+          'source',
+          'followUp10d',
+          'followUp15d',
+          'followUp20d',
+          'handlingNote',
+          'cdytStats',
+          'cdytProfile',
+        ],
+      });
+      await marketing
+        .post(`${API}/imports/${id}/rows`)
+        .send({
+          sheet: 'Chia Lead',
+          rows: [
+            {
+              r: 2,
+              c: [
+                'Khách Xử Lý Sau',
+                phone,
+                'Page BHN',
+                'Gọi lại lần 2',
+                'Gửi bảng minh họa',
+                null,
+                'Hẹn gặp cuối tuần',
+                '3 lượt xem',
+                'https://example.com/khach',
+              ],
+            },
+          ],
+        })
+        .expect(200);
+      await marketing.post(`${API}/imports/${id}/validate`).expect(200);
+      await marketing.post(`${API}/imports/${id}/commit`).expect(200);
+      const { lead } = await byPhone(phone);
+      expect(lead).toMatchObject({
+        followUp10d: 'Gọi lại lần 2',
+        followUp15d: 'Gửi bảng minh họa',
+        followUp20d: null,
+        handlingNote: 'Hẹn gặp cuối tuần',
+        cdytStats: '3 lượt xem',
+        cdytProfile: 'https://example.com/khach',
+      });
+      await marketing
+        .delete(`${API}/leads/${lead.id}`)
+        .send({ reason: 'Khách yêu cầu xóa dữ liệu', mode: 'PDP' })
+        .expect(204);
+      // The test shim leaves out empty columns: the texts are gone
+      const erased = await connection
+        .collection('leads')
+        .findOne({ _id: lead.id });
+      for (const field of [
+        'followUp10d',
+        'followUp15d',
+        'handlingNote',
+        'cdytStats',
+        'cdytProfile',
+      ])
+        expect(erased, field).not.toHaveProperty(field);
     });
 
     it('IMP-4: a missing required column blocks the sheet', async () => {

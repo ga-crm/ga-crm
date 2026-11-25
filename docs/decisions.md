@@ -1123,6 +1123,117 @@ Chủ dự án yêu cầu ngày 25/11/2026: tạo danh sách sản phẩm bảo 
 | Lead | Cột `leads.product_code` (khóa ngoại tới `products`) bên cạnh chữ tự do `product_interest`. Form thêm / sửa lead chọn sản phẩm (tùy chọn), danh sách lead lọc `product=`, chi tiết hiện tên sản phẩm. File 13_Leads: ô "SẢN PHẨM" trùng mã hoặc tên sản phẩm (bỏ dấu, không phân biệt hoa thường) thì nối, không thì chỉ giữ chữ. Form công khai giữ ô chữ | Khách điền form không biết tên chính xác của sản phẩm |
 | Dữ liệu mẫu | 3 mã của chương trình mặc định cũ (để dữ liệu cũ nối được) và 4 sản phẩm lấy tên từ ảnh chủ dự án gửi, **mã `DEMO-...` tự đặt**, không phải mã thật của DLVN | Cần danh mục thật từ DLVN (file 11_Products) trước go-live |
 
+## 2026-11-25: Thẻ Hợp đồng và chi tiết hợp đồng, thêm trường hợp đồng và phí (khác mục 19.4, CUS-15)
+
+Chủ dự án yêu cầu ngày 25/11/2026: phần hợp đồng của khách hàng hiện đủ các trường như màn hình hợp đồng của DLVN (ảnh "Chi tiết thông tin hợp đồng bảo hiểm" và "Thông tin Phí hợp đồng"). Đã chọn: lưu địa chỉ liên hệ nhưng che; số tiền bảo hiểm lấy từ sản phẩm chính; "Hình thức / Ngày phân công" là dữ liệu DLVN; làm trang riêng.
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Trường mới trên `policies` | `contact_address`, `sum_assured_vnd`, `grace_end_date`, `assignment_type`, `assignment_date`, `advance_premium_vnd`, `total_paid_premium_vnd`, `basic_premium_vnd`, `top_up_premium_vnd`. Migration `PolicyDetails1764432000000` | Các trường DLVN hiện trên màn hình hợp đồng mà hệ thống chưa có |
+| File 03_Policies | Thêm 9 cột không bắt buộc, tiêu đề đúng như nhãn trên màn hình DLVN ("Địa chỉ liên hệ", "Số tiền bảo hiểm", "Ngày kết thúc thời gian gia hạn đóng phí", "Hình thức phân công", "Ngày phân công", "Phí đóng trước cho kỳ tới", "Tổng phí bảo hiểm đã đóng", "Phí bảo hiểm cơ bản", "Phí bảo hiểm đóng thêm") | **Chưa đối chiếu với file Success thật**; nếu tiêu đề cột thật khác thì sửa `templates.ts` |
+| Địa chỉ liên hệ | Dữ liệu cá nhân: không trả cùng hợp đồng (chỉ `hasContactAddress`); xem qua `GET /clients/:clientId/policies/:policyNo/contact-address`, cùng phạm vi như xem khách (CUS-5, CUS-8), mỗi lần xem ghi audit `VIEW_CLIENT` entity `policy`. Lịch sử thay đổi chỉ ghi `***`. Marketing / Admin không xem được (không có sổ khách). Form sửa hợp đồng không hiện địa chỉ đã lưu: để trống là giữ nguyên | Màn hình DLVN cũng che ô này; PDP |
+| Số tiền bảo hiểm | Hiện STBH của dòng sản phẩm vai trò "Chính" (theo danh mục sản phẩm nếu có) của NĐBH chính (`mainSumAssuredVnd`); không có dòng đó thì dùng `sum_assured_vnd` từ file hoặc nhập tay | Nối với danh mục sản phẩm (TENANT-5) |
+| Ngày kết thúc gia hạn đóng phí | Chỉ lấy từ file hoặc nhập tay, **không tự tính** từ ngày đến hạn | Không tự đặt quy tắc số ngày gia hạn |
+| Hình thức / Ngày phân công | Dữ liệu DLVN giao đại lý phục vụ, chỉ từ file Success; không sửa tay | Khác ASG (phân công khách hàng trong CRM) |
+| "Phí bảo hiểm cơ bản" | Lưu riêng với "Phí định kỳ/cơ bản định kỳ" | Đang hiểu là hai số khác nhau của DLVN; cần chủ dự án xác nhận, nếu là một thì bỏ cột |
+| Giao diện | Trang khách hàng tách hai thẻ **"Khách hàng"** (hồ sơ, quyền lợi, cơ hội chăm sóc, ghi chú, góp ý) và **"Hợp đồng (n)"** (thẻ hợp đồng gọn: bên mua, NĐBH, STBH, ngày hiệu lực, phí, sản phẩm; và hồ sơ YCBH). Bấm một hợp đồng mở "Chi tiết hợp đồng" ngay trong thẻ Hợp đồng (`?tab=policies&no=<số HĐ>`, có nút quay lại danh sách): "Thông tin chi tiết hợp đồng", "Thông tin phí hợp đồng", sản phẩm, người tham gia, đại lý; sửa / xóa hợp đồng ngay ở đó. Nhãn phí đổi theo DLVN (ví dụ "Phí định kỳ/cơ bản định kỳ", "Phí cơ bản các kỳ trước chưa đóng") | CUS-15 trước đây hiện mọi trường trên thẻ |
+
+## 2026-11-25: Một kiểu thanh tab cho cả danh sách và trang chi tiết
+
+Chủ dự án yêu cầu ngày 25/11/2026: thanh tab của trang khách hàng phải giống thanh tab của danh sách lead. Trước đây trang chi tiết (khách hàng, lead) dùng tab gạch chân, danh sách dùng tab nền xanh nhạt. Nay mọi `TabBar` dùng một kiểu: tab đang chọn có nền `band-blue`, chữ `primary-deep`; kiểu gạch chân đã bỏ khỏi `components/ui.tsx`.
+
+## 2026-11-25: File lead của GA có tiêu đề hai tầng (mở rộng IMP-23, mục 19.7)
+
+Chủ dự án gửi file mẫu "Chia Lead" ngày 25/11/2026 để Dữ liệu > Nhập lead từ Excel đọc được. Các cột của file đều đã có trong mẫu 13_Leads và trong bảng `leads`; chỉ cách đặt tiêu đề làm bộ đọc chọn sai dòng tiêu đề.
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Tiêu đề hai tầng | Ô gộp nhiều cột ở dòng tiêu đề ("XỬ LÝ SAU", "THÔNG TIN THÊM") là tên nhóm; tên từng cột lấy ở tối đa 2 dòng ngay dưới. Cột để trống tiêu đề cũng được đặt tên từ dòng dưới. Chỉ nhận chữ trùng một tiêu đề đã biết (tên hoặc tên gọi khác của mục 19.8), nên giá trị dữ liệu không bao giờ thành tiêu đề | File mẫu để tên cột phụ cùng dòng với lead đầu tiên; trước đây bộ đọc chọn dòng đó làm tiêu đề vì khớp nhiều tên hơn |
+| Dòng chứa tên cột phụ | Ô tên cột bị bỏ khỏi dữ liệu; các ô khác của dòng vẫn là một lead | Lead đầu tiên của file mẫu nằm trên dòng đó |
+| Chọn dòng tiêu đề | Tính số cột khớp của cả khối tiêu đề (dòng trên + tên bên dưới); chỉ dòng tự có ít nhất một tiêu đề đã biết mới ghép được tên bên dưới | Không ghép nhầm một dòng tiêu đề trang ("DANH SÁCH LEAD THÁNG 11") với tiêu đề thật bên dưới |
+| Bắt buộc (khác mục 19.7) | Chủ dự án quyết định 25/11/2026: chỉ **TÊN KHÁCH HÀNG** và **SỐ ĐIỆN THOẠI**. "Nguồn" thành không bắt buộc: dòng để trống tạo lead mới với nguồn **"Chưa rõ nguồn"** (`UNKNOWN_SOURCE`, tự vào Danh mục Nguồn như mọi nguồn mới của file); lead đã có thì giữ nguồn cũ. Số điện thoại Excel mất số 0 đầu (9 chữ số) vẫn được thêm lại (IMP-6) | Cột `leads.source` không được trống, và báo cáo theo nguồn cần một giá trị |
+| File mẫu tải về | Sheet 13_Leads xếp cột như file "Chia Lead": TÊN TVV, NGÀY CẬP NHẬT LEAD, TÊN KHÁCH HÀNG, SỐ ĐIỆN THOẠI, NGUỒN SĐT, KHU VỰC KHÁCH HÀNG, Nguồn, Tình Trạng TVV, Trạng Thái Hiện Tại TVV, Chiến Dịch, TIẾN ĐỘ TƯ VẤN TVV, TRẠNG THÁI GỬI TIN NHẮN, LÝ DO CHỐT XỊT/ DỪNG TÌM HIỂU; nhóm **XỬ LÝ SAU** (10 NGÀY, 15 NGÀY, 20 NGÀY, GHI CHÚ XỬ LÝ); nhóm **THÔNG TIN THÊM** (NGÀY ĐĂNG KÝ … CDYT - TRANG CÁ NHÂN); cuối cùng ĐỒNG Ý LIÊN HỆ và LEAD ID. Hai dòng tiêu đề: ô gộp tên nhóm ở dòng 1, tên cột ở dòng 2, cột ngoài nhóm gộp dọc hai dòng. Cột tư vấn viên đổi tên hiển thị thành "TÊN TVV" ("Mã đại lý" thành tên gọi khác). Tình Trạng / Trạng Thái Hiện Tại có danh sách gợi ý nhưng vẫn gõ được nhãn riêng của GA. Tải về rồi nhập lại không lỗi (test IMP-11) | Người dùng điền theo đúng bố cục quen thuộc |
+| Cột mới của 13_Leads | Chủ dự án chọn **lưu** (25/11/2026): "XỬ LÝ SAU 10 NGÀY" (tên khác "10 NGÀY"), "XỬ LÝ SAU 15 NGÀY" ("15 NGÀY"), "XỬ LÝ SAU 20 NGÀY" ("20 NGÀY"), "GHI CHÚ XỬ LÝ" (≤ 4000 ký tự), "CDYT - THỐNG KÊ", "CDYT - TRANG CÁ NHÂN" (≤ 2000 ký tự), không bắt buộc. Cột `leads.follow_up_10d`, `follow_up_15d`, `follow_up_20d`, `handling_note`, `cdyt_stats`, `cdyt_profile` (migration `LeadFollowUps1764518400000`). Chỉ nhập từ file, hiện ở trang lead khi có giá trị, không sửa trên form; xóa theo PDP-6 thì xóa luôn | Chữ tự do do nhân viên ghi, có thể chứa thông tin cá nhân. Chưa rõ nghĩa của "CDYT" nên lưu nguyên chữ. Khung "ĐỊNH NGHĨA" là ghi chú hướng dẫn, không nhập |
+| Cột tư vấn viên | Cột "Cột 1" (tên mặc định của bảng Google Sheets) chứa tên TVV không tự ghép; người nhập chọn nó cho ô "Mã đại lý" trên màn hình, rồi ghép tên với đại lý (IMP-24) | "Cột 1" không phải tên có nghĩa; đặt tiêu đề "TÊN TVV" thì tự ghép |
+
+## 2026-11-26: Địa chỉ lead theo địa giới hành chính sau 1/7/2025 (Tỉnh → Xã/Phường → Địa chỉ cụ thể)
+
+Chủ dự án yêu cầu ngày 26/11/2026: modal thêm Lead chọn được tỉnh, xã và địa chỉ cụ thể để lọc dữ liệu theo khu vực. Từ 1/7/2025 Việt Nam chỉ còn hai cấp (34 tỉnh / thành phố, 3.321 xã / phường / đặc khu), **không còn cấp huyện**, nên không có ô "Huyện".
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Nguồn dữ liệu | `ThangLeQuoc/vietnamese-provinces-database` bản v5.2.0 (nghị quyết mới nhất 388/NQ-UBTVQH16, sinh ngày 20/09/2026), giấy phép MIT, đọc từ danh mục của Cục Thống kê. Sinh thành `backend/src/modules/geo/vn-units.data.ts` (ghi rõ nguồn và giấy phép, không sửa tay) | Giấy phép rõ, còn cập nhật theo từng nghị quyết. Khi địa giới đổi: sinh lại file và thêm migration cập nhật hai bảng |
+| Bảng | `provinces` (mã 2 số) và `wards` (mã 5 số, `province_code`), không có `tenant_id`, RLS bắt buộc với policy chỉ đọc `USING (true)` như bảng `products`; chỉ migration ghi. Migration `GeoUnits1764604800000`. Thêm vào danh sách miễn trừ của test TEN-2 | Dữ liệu tham chiếu chung mọi GA |
+| Lead | Cột mới `province_code`, `ward_code` (khóa ngoại), `address_line` (≤ 300 ký tự). Xã phải thuộc tỉnh đã chọn, sai thì `400 unknown_place`. Đổi tỉnh thì xã cũ bị bỏ. Chọn tỉnh thì cột chữ `province` ghi theo tên tỉnh; lead cũ có chữ tỉnh không khớp tên mới (ví dụ tỉnh đã sáp nhập) giữ nguyên chữ và hiện "Tỉnh/TP (ghi tự do)" | Lọc và báo cáo theo mã, không phụ thuộc cách viết |
+| Gắn mã tự động | Migration gắn mã cho lead cũ có chữ tỉnh trùng tên tỉnh mới (không dấu, không phân biệt hoa thường, bỏ "TP." / "Tỉnh"). Nhập file (ô TỈNH/TP) và form công khai cũng tự gắn. Nhận thêm cách viết HCM, TP HCM, Sài Gòn, HN. **Không đoán tỉnh cũ đã sáp nhập** (ví dụ Bình Dương) | Chưa có bảng chuyển 63 tỉnh cũ sang 34 tỉnh mới |
+| Giao diện | Modal thêm / sửa lead: Tỉnh / thành phố, Xã / phường (tắt cho đến khi chọn tỉnh, luôn hiện để modal không đổi chiều cao), Địa chỉ cụ thể; không bắt buộc, tìm không dấu. Trang lead hiện "Địa chỉ" ghép địa chỉ, xã, tỉnh. Danh sách lead lọc `province=` và `ward=` (trong URL) | Lọc theo khu vực dễ và đúng hơn |
+| API | `GET /geo/provinces`, `GET /geo/provinces/:code/wards` (mọi người đã đăng nhập; dữ liệu phục vụ từ bộ nhớ) | |
+| PDP-6 | Xóa lead theo yêu cầu thì xóa `address_line` và `ward_code` (kèm lịch sử); giữ `province_code` cho thống kê, như Khu vực. Gộp lead chuyển cả bộ tỉnh / xã / địa chỉ khi lead giữ lại chưa có tỉnh | Địa chỉ và xã chỉ đến người cụ thể |
+
+## 2026-11-26: Đồng ý liên hệ có thể để trống khi tạo lead (khác LEAD-3); ô Nguồn gốc dùng ô chọn của ứng dụng
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Đồng ý liên hệ | Chủ dự án yêu cầu 26/11/2026: khi thêm lead (modal "Thêm lead" và "Tạo lead" từ người thân của khách) câu trả lời đồng ý liên hệ **không bắt buộc**, có lựa chọn "Chưa hỏi, cập nhật sau". API nhận `consent` tùy chọn; để trống thì lead được lưu là **chưa đồng ý** (`consent_marketing = false`, không có thời điểm và nguồn đồng ý) cho đến khi sửa lead. Form đăng ký công khai vẫn bắt buộc đồng ý | LEAD-3 bắt buộc câu trả lời. Chưa có đồng ý thì xử lý như không đồng ý, đúng PDP-5 và LEAD-26 (không giao vào chiến dịch telesales) |
+| Ô Nguồn gốc | Modal thêm / sửa lead chọn nguồn bằng ô chọn có tìm kiếm của ứng dụng (`OptionPicker`, cùng kiểu ô Tỉnh / thành phố); gõ giá trị chưa có thì hiện "Thêm mới: …" và giá trị vào Danh mục khi lưu (OPT-13 không đổi) | Ô gõ kèm danh sách gợi ý của trình duyệt (`datalist`) hiện mũi tên và bảng chọn theo hệ điều hành, lệch giao diện tối và các ô chọn khác. Ô **Khu vực** (thêm / sửa lead) và **Lý do chốt xịt** (cập nhật trạng thái) cũng đổi sang ô chọn này; giá trị gõ thêm ở hai ô đó hiện "Dùng: …" vì chỉ là gợi ý, không vào Danh mục (quyết định cũ không đổi). Component `ListSuggestions` đã bỏ |
+
+## 2026-11-26: Báo cáo Hoạt động đại lý (R2) ghi rõ nguồn và cho xem từng hoạt động
+
+Chủ dự án hỏi 26/11/2026: làm sao biết số liệu R2 đúng, ví dụ "Đăng MXH" kiểm ở đâu. CRM không tự kiểm chứng các hoạt động này: Gọi điện, Zalo, Gặp mặt đến từ liên hệ đại lý ghi trên CRM và từ Success; Hội thảo chỉ từ CRM; Đề xuất, Đăng MXH, Check-in, Kèm cặp, Khác **chỉ từ file 07_Activities của Success**, nơi đại lý nộp và trưởng nhóm duyệt hoạt động. Ghi nhận hoạt động có bằng chứng (check-in GPS, ảnh, link bài đăng) để dành cho app sau này.
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Nguồn từng cột | Dưới tên mỗi cột loại hoạt động ghi "CRM + Success", "Chỉ CRM" hoặc "Chỉ Success"; dòng hướng dẫn nói rõ quy tắc gộp trùng và trạng thái không tính | Người xem biết phải đối chiếu ở đâu |
+| Dữ liệu Success đến đâu | Báo cáo trả `successAsOf` (ngày hoạt động mới nhất và lần nhập cuối từ `success_activities`), hiện dưới dòng hướng dẫn; chưa nhập file 07 thì nói rõ các cột "Chỉ Success" bằng 0 | Số thấp có thể do chưa nhập file, không phải đại lý không làm |
+| Xem từng hoạt động | Bấm số ở cột loại, Tổng, Từ CRM, Từ Success (dòng đại lý, dòng nhóm, dòng Tổng cộng) mở danh sách: thời điểm, đại lý, loại, nguồn, người liên quan (link sang lead / khách), nội dung, địa điểm, mã hoạt động và trạng thái duyệt trên Success, và **có được tính không** (trùng trong ngày; nháp / từ chối). `GET /reports/activities/details` (tối đa 500 dòng, mới nhất trước), cùng phạm vi RPT-3. Ô đang mở lưu trong URL (`cell=`) | Số liệu và danh sách cùng đi qua hàm `classifyActivities` nên luôn khớp |
+| Marketing / Admin | Không thấy nội dung, địa điểm, tên khách của dòng Success và tên / ghi chú liên hệ trên khách hàng (CUS-16) | Họ không có sổ khách hàng |
+| Trạng thái được tính | **Chưa đổi**: vẫn tính mọi trạng thái trừ nháp và từ chối, nên "đã nộp, chờ duyệt" và "bị trả lại" vẫn được cộng; danh sách chi tiết hiện trạng thái để đối chiếu. **Câu hỏi cho chủ dự án**: chỉ tính đã duyệt / đã khóa, hay tách cột "Chờ duyệt"? | Quy tắc nghiệp vụ, chưa có quyết định |
+
+## 2026-11-26: Tab "Khách hàng" gồm ba phần; ghi nhận chăm sóc và giới thiệu (mở rộng CUS-15)
+
+Chủ dự án yêu cầu ngày 26/11/2026: tab "Khách hàng" của trang khách hàng có ba phần (thông tin cơ bản vắn tắt; thông tin chi tiết chương trình; thông tin chăm sóc), làm nền cho hướng chăm sóc khách hàng sau này. Phần chăm sóc trả lời: khách đã yêu cầu bồi thường viện phí khi nào, ở đâu; đã dự hội thảo / khám sức khỏe tổng quát nào; đã nhận quà tặng, thăm hỏi gì; nhận gì khi ký hợp đồng (tách tiền / quà); đã giới thiệu bao nhiêu lượt, quan hệ thế nào, bao nhiêu lượt thành công, tổng phí là bao nhiêu.
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| 1. Thông tin cơ bản | Thẻ gọn: điện thoại, hạng, ngày sinh / nhóm tuổi, giới tính, hôn nhân, số hợp đồng (đang hiệu lực / tổng), tư vấn viên. Các thông tin Success bổ sung (số hợp đồng theo Success, D-Connect, eKYC, Căn cước, điểm thưởng) chỉ hiện khi có giá trị | "Vắn tắt"; không mất dữ liệu |
+| 2. Chi tiết chương trình | Một bảng mọi chương trình (dòng sản phẩm) trên các hợp đồng của khách: chương trình (link sang trang sản phẩm khi có trong danh mục), hợp đồng (mở chi tiết ở thẻ Hợp đồng), người được bảo hiểm, nhóm quyền lợi, số tiền BH, phí năm, ngày hiệu lực, tình trạng; hợp đồng đang hiệu lực trước; hợp đồng chưa có chi tiết sản phẩm vẫn có một dòng. Thẻ "Quyền lợi bảo hiểm" (COV-5) giữ ngay dưới | Lấy từ dữ liệu hợp đồng đã có, không nhập thêm |
+| 3. Thông tin chăm sóc | Bảng `client_care_records` (nhập tay): `CLAIM` bồi thường viện phí (ngày, **nơi** bắt buộc, số tiền, hợp đồng), `SEMINAR` hội thảo, `HEALTH_CHECK` khám sức khỏe tổng quát, `GIFT` quà tặng (tên quà bắt buộc), `VISIT` thăm hỏi, `SIGNING_CASH` tiền khi ký (số tiền bắt buộc), `SIGNING_GIFT` quà khi ký (tên quà bắt buộc). Hiện thành 4 khối; khối quà khi ký có tổng tách **tiền** và **quà** (số món, trị giá). Bên phải vẫn là Cơ hội chăm sóc, Ghi chú và liên hệ, Góp ý | Đặc tả chưa có các dữ liệu này; Success không cung cấp nên GA tự ghi |
+| Giới thiệu | Bảng `client_referrals` (nhập tay): người được giới thiệu, quan hệ với khách (Người thân, Bạn bè, Đồng nghiệp, Hàng xóm, Khác), ngày, kết quả (Đang theo / Thành công / Không thành công), **phí bảo hiểm của hợp đồng do giới thiệu** (chỉ khi thành công). Tổng hợp: số lượt, số thành công, "tổng phí bảo hiểm từ giới thiệu" | **Giả định cần chủ dự án xác nhận**: "tổng phí giới thiệu" hiểu là tổng phí bảo hiểm của các hợp đồng do giới thiệu thành công, không phải tiền thưởng trả cho người giới thiệu. Chưa nối lượt giới thiệu với lead (FAM-6 vẫn tạo lead từ người thân) |
+| Bồi thường và PDP | Chỉ ghi **khi nào, ở đâu**, số tiền; không có ô chẩn đoán, ô ghi chú nhắc "không ghi chẩn đoán, bệnh án hay tình trạng sức khỏe". Marketing / Admin không có sổ khách hàng nên không thấy | PDP-1 / quy tắc 5 cấm lưu dữ liệu sức khỏe từ Success; đây là dữ liệu GA tự ghi theo yêu cầu chủ dự án, giữ ở mức tối thiểu. Khi làm 8b (yêu cầu của chủ thể dữ liệu) phải xuất / xóa cả hai bảng này |
+| Quyền và audit | Ai thấy khách thì đọc (CUS-5); chỉ người phụ trách khách và Chủ GA thêm / sửa / xóa (CUS-6, như Gia đình FAM-8). Mỗi thay đổi ghi audit `CREATE` / `UPDATE` / `DELETE` với entity `client_care_record` hoặc `client_referral`. Hợp đồng ghi kèm phải là hợp đồng của khách trong phạm vi người nhập | Cùng quy tắc sở hữu của trang khách |
+| API | `POST / PATCH / DELETE /clients/:clientId/care-records[/:id]`, `.../referrals[/:id]`; danh sách và tổng hợp (`careRecords`, `signingSummary`, `referrals`, `referralSummary`) trả cùng `GET /clients/:clientId`. Migration `ClientCareRecords1764691200000` | |
+| Tab riêng cho chăm sóc | Chủ dự án yêu cầu thêm 26/11/2026: thẻ đầu đổi tên thành **"Thông tin khách hàng"** (phần 1 và 2); phần 3 thành thẻ riêng **"Thông tin chăm sóc"** đứng ngay cạnh (`?tab=care`), gồm các khối chăm sóc và Cơ hội chăm sóc, Ghi chú và liên hệ, Góp ý. Thông báo nhắc tên trong góp ý của khách và các dòng chăm sóc ở Trang chủ (đến hạn phí, sinh nhật) mở thẳng thẻ này | Trang khách dài; tách để vào thẳng phần chăm sóc |
+| Ẩn tạm 3 ô trên form khách | Form thêm / sửa khách hàng ẩn Điểm thưởng, D-Connect, Đã cập nhật Căn cước (`SHOW_SUCCESS_FLAGS` trong `ClientForms.tsx`); form không gửi 3 trường này nên giá trị từ Success giữ nguyên | Chủ dự án yêu cầu ẩn tạm 26/11/2026 |
+
+## 2026-11-26: Huy hiệu hạng khách hàng có biểu tượng và màu riêng
+
+Chủ dự án yêu cầu ngày 26/11/2026: các bậc hạng khách hàng phải dễ phân biệt. Mỗi hạng (CUS-2) có một biểu tượng và một màu riêng, hiện ở tiêu đề trang khách, thẻ Thông tin cơ bản và danh sách khách hàng (`frontend/src/components/TierBadge.tsx`).
+
+| Hạng | Biểu tượng | Màu (token) |
+|---|---|---|
+| Thân thiết | Trái tim | Hồng đỏ (`tier-member`) |
+| Bạc | Huy chương | Xám bạc (`tier-silver`) |
+| Vàng | Vương miện | Vàng (`tier-gold`) |
+| Kim Cương | Viên đá quý | Xanh ngọc (`tier-diamond`) |
+
+Màu là token riêng (`tier-*` và `tier-*-band` trong `index.css`, định nghĩa ở cả 5 giao diện), không dùng lại màu trạng thái (thành công, cảnh báo) để hạng "Vàng" không bị đọc nhầm là cảnh báo. Chữ trên nền của từng hạng đạt tương phản WCAG AA ở mọi giao diện (test `theme.test.ts`). Hạng viết khác bốn giá trị trên hiện huy hiệu trung tính.
+
+## 2026-11-26: "Người hỗ trợ" của lead: thấy lead nhưng không thấy số điện thoại (mở rộng LEAD-6, LEAD-7, PDP-3)
+
+Chủ dự án yêu cầu ngày 26/11/2026: trang lead có phần "nhân viên được phân công" hỗ trợ; người được hỗ trợ **không thấy số điện thoại** khách, thấy các trường còn lại; phải che ở backend theo quyền, không chỉ ẩn trên giao diện. Tên gọi tắt chọn: **"Người hỗ trợ"**.
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Dữ liệu | Bảng `lead_supporters` (lead, người dùng, người thêm, thời điểm), duy nhất theo (lead, người dùng). Người hỗ trợ là **người dùng** đang hoạt động của GA (có hoặc không có mã đại lý), không phải người được giao của lead. Migration `LeadSupporters1764777600000` | Một lead vẫn chỉ có một người được giao (LEAD-7); người hỗ trợ là quan hệ thêm |
+| Thấy lead (LEAD-6) | `LeadsService.visible` (điểm duy nhất giới hạn lead mỗi người thấy) nhận thêm lead mà người xem là người hỗ trợ: danh sách, bảng kanban, đếm, chi tiết, @nhắc tên đều theo | Không phải sửa từng API |
+| Che số điện thoại (PDP-3) | Không đổi quy tắc: ai **không làm việc được** trên lead (LEAD-7) thì API trả số đã che `0912***678`. Người hỗ trợ không làm việc được trên lead nên số luôn được che ở chi tiết, danh sách, kanban và lịch sử đổi số; tìm theo số điện thoại vốn chỉ dành cho người quản lý lead | Che ở backend, đúng yêu cầu; test `lead-supporters.e2e-spec.ts` kiểm tra số thật không xuất hiện trong mọi phản hồi |
+| Người hỗ trợ làm được gì | Chủ dự án làm rõ 26/11/2026: người được giao và người hỗ trợ **cùng làm việc trên một lead**, thêm người hỗ trợ không thay người được giao (ví dụ: anh B được giao liên hệ khách A, anh C làm mentor hỗ trợ anh B tư vấn). Người hỗ trợ: xem mọi trường trừ số điện thoại, **ghi chú**, **tạo / sửa / hoàn thành việc cần làm** của lead (việc vẫn đứng tên người được giao), **góp ý** (CMT-1), tự rời. Không làm: sửa thông tin lead, cập nhật Nhu cầu / Trạng thái / Giai đoạn, **ghi liên hệ** (gọi, Zalo, gặp), liên kết khách hàng, thêm / bỏ người hỗ trợ khác. API trả `canContribute` (ghi chú, việc) bên cạnh `canWork` | Ghi liên hệ chuyển lead sang "Đã liên hệ" và đóng việc "liên hệ trong 48 giờ" của người được giao (LEAD-18, LEAD-29), nên vẫn là việc của người được giao. Chủ dự án xác nhận ngày 26/11/2026: giữ như vậy, người hỗ trợ không ghi liên hệ |
+| Ai thêm / bỏ | Người làm việc được trên lead (người được giao, người quản lý lead) và quản lý tuyến có `leads.assign_line` với lead trong tuyến mình. Thêm thì báo cho người được thêm (thông báo `LEAD_SUPPORT`), ghi lịch sử lead ("Thêm người hỗ trợ" / "Bỏ người hỗ trợ" kèm tên, không phải giá trị cũ đổi thành mới) và audit `CREATE` / `DELETE` `lead_supporter` | |
+| Phân công | Lead chỉ thấy vì hỗ trợ không phải của mình để phân công: `canAssign` chỉ đúng với lead trong tuyến; "Chọn tất cả theo bộ lọc" (LEAD-24) không lấy các lead này; trên danh sách dòng đó có nhãn "Hỗ trợ" và không chọn được | Trước đây coi mọi lead quản lý tuyến thấy là lead trong tuyến |
+| Giao diện | Trang lead có thẻ "Người hỗ trợ (n)": danh sách, ô chọn người và nút thêm, bỏ / rời. Người hỗ trợ thấy dòng nhắc số điện thoại được che | |
+| API | `GET /leads/:id` trả thêm `supporters`, `supporting`, `canSupport`; `GET /leads/:id/supporters/candidates`, `POST /leads/:id/supporters {userId}`, `DELETE /leads/:id/supporters/:userId` | |
+| Chưa làm | Người hỗ trợ không tự động thấy khách hàng liên kết của lead (sổ khách hàng theo CUS-5); khi gộp lead, người hỗ trợ của lead bị gộp không chuyển sang lead giữ lại | Ngoài yêu cầu |
+
 ## Not built yet
 
 | Rule | Item | Needed before go-live |

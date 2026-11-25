@@ -33,6 +33,8 @@ export const ErrorCode = {
   UnknownProgram: 'unknown_program',
   /** TENANT-5: a product code that is not in the catalogue, or a hidden product. */
   UnknownProduct: 'unknown_product',
+  /** Decided 26/11/2026: a province or commune code that does not exist, or a commune of another province. */
+  UnknownPlace: 'unknown_place',
   ProgramRepeated: 'program_repeated',
   PolicyExists: 'policy_exists',
   ClientNotYours: 'client_not_yours',

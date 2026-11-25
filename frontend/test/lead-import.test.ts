@@ -92,3 +92,50 @@ describe('rowsToSend', () => {
     expect(headersAt(file, 1)).toEqual(['Họ tên', '', '5'])
   })
 })
+
+/**
+ * Decided 25/11/2026: a GA's "Chia Lead" file heads groups of columns with merged cells ("XỬ LÝ SAU",
+ * "THÔNG TIN THÊM") and names each column in a row below, which may also hold the first lead.
+ */
+describe('two-row headers', () => {
+  const GROUPED: LeadColumn[] = [
+    ...COLUMNS,
+    { field: 'progressNote', header: 'TIẾN ĐỘ TƯ VẤN TVV', required: false, aliases: [] },
+    { field: 'lostReason', header: 'LÝ DO CHỐT XỊT/ DỪNG TÌM HIỂU', required: false, aliases: [] },
+    { field: 'email', header: 'EMAIL', required: false, aliases: [] },
+    { field: 'extraInfo', header: 'THÔNG TIN THÊM', required: false, aliases: [] },
+  ]
+  // Columns: name, phone, source, progress, (blank), group "THÔNG TIN THÊM" over email + extra info
+  const file: RawSheet = {
+    name: 'Chia Lead',
+    hidden: false,
+    merges: [{ r: 1, s: 5, e: 6 }],
+    rows: [
+      { r: 1, cells: ['TÊN KHÁCH HÀNG', 'SỐ ĐIỆN THOẠI', 'Nguồn', 'TIẾN ĐỘ TƯ VẤN\nTVV', null, 'THÔNG TIN THÊM', null] },
+      { r: 3, cells: ['Khách Một', 900000001, 'Web', 'Đã gọi', 'LÝ DO\nCHỐT XỊT/ DỪNG TÌM HIỂU', 'EMAIL', 'THÔNG TIN THÊM'] },
+      { r: 4, cells: ['Khách Hai', '0900000002', 'Web', null, 'Đã mua bên khác', 'hai@example.com', 'Gọi buổi tối'] },
+    ],
+  }
+
+  it('IMP-23: picks the group row, with the names below it, over the row that only names part of the columns', () => {
+    expect(detectHeaderRow(file, GROUPED)).toBe(0)
+  })
+
+  it('names each grouped or blank column from the row below; the group label names nothing', () => {
+    const headers = headersAt(file, 0, GROUPED)
+    expect(headers).toEqual(['TÊN KHÁCH HÀNG', 'SỐ ĐIỆN THOẠI', 'Nguồn', 'TIẾN ĐỘ TƯ VẤN\nTVV', 'LÝ DO\nCHỐT XỊT/ DỪNG TÌM HIỂU', 'EMAIL', 'THÔNG TIN THÊM'])
+    expect(autoMapColumns(headers, GROUPED)).toEqual({ fullName: 0, phone: 1, source: 2, progressNote: 3, lostReason: 4, email: 5, extraInfo: 6 })
+  })
+
+  it('keeps the first lead on the row of the names, without the names as data', () => {
+    const rows = rowsAfter(file, 0, GROUPED)
+    expect(rows[0].cells).toEqual(['Khách Một', 900000001, 'Web', 'Đã gọi', null, null, null])
+    expect(rows[1].cells).toEqual(['Khách Hai', '0900000002', 'Web', null, 'Đã mua bên khác', 'hai@example.com', 'Gọi buổi tối'])
+  })
+
+  it('never takes a data value for a column name', () => {
+    const plain: RawSheet = { name: 's', hidden: false, rows: [{ r: 1, cells: ['TÊN KHÁCH HÀNG', null] }, { r: 2, cells: ['Khách', 'ghi chú bất kỳ'] }] }
+    expect(headersAt(plain, 0, GROUPED)).toEqual(['TÊN KHÁCH HÀNG', ''])
+    expect(rowsAfter(plain, 0, GROUPED)[0].cells).toEqual(['Khách', 'ghi chú bất kỳ'])
+  })
+})

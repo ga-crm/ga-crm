@@ -56,6 +56,12 @@ export interface RawSheet {
   name: string
   hidden: boolean
   rows: ParsedRow[]
+  /**
+   * Cells merged across columns, by Excel row number and the first and last column (as indexes of
+   * `cells`). A GA's lead file heads a group of columns this way, such as "THÔNG TIN THÊM" over
+   * EMAIL, TUỔI and SẢN PHẨM, with each column's own name in the row below.
+   */
+  merges?: { r: number; s: number; e: number }[]
 }
 
 /**
@@ -67,6 +73,9 @@ function readSheet(name: string, hidden: boolean, sheet: WorkSheet, date1904: bo
   const data = sheet['!data']
   if (!ref || !data) return { name, hidden, rows: [] }
   const range = utils.decode_range(ref)
+  const merges = (sheet['!merges'] ?? [])
+    .filter((merge) => merge.e.c > merge.s.c)
+    .map((merge) => ({ r: merge.s.r + 1, s: merge.s.c - range.s.c, e: merge.e.c - range.s.c }))
   const lastColumn = Math.min(range.e.c, range.s.c + MAX_COLUMNS - 1)
   const rows: ParsedRow[] = []
   // forEach skips the holes of a sparse array, so only rows with cells cost anything
@@ -76,7 +85,7 @@ function readSheet(name: string, hidden: boolean, sheet: WorkSheet, date1904: bo
     for (let column = range.s.c; column <= lastColumn; column++) cells.push(cellValue(line[column], date1904))
     if (cells.some((cell) => cell !== null)) rows.push({ r: row + 1, cells })
   })
-  return { name, hidden, rows }
+  return { name, hidden, rows, merges }
 }
 
 /**

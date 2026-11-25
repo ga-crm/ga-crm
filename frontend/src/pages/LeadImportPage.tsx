@@ -39,8 +39,8 @@ export function LeadImportPage() {
   const [dragging, setDragging] = useState(false)
 
   const sheet = sheets.find((item) => item.name === sheetName)
-  const headers = useMemo(() => (sheet ? headersAt(sheet, headerIndex) : []), [sheet, headerIndex])
-  const dataRows = useMemo(() => (sheet ? rowsAfter(sheet, headerIndex) : []), [sheet, headerIndex])
+  const headers = useMemo(() => (sheet ? headersAt(sheet, headerIndex, columns) : []), [sheet, headerIndex, columns])
+  const dataRows = useMemo(() => (sheet ? rowsAfter(sheet, headerIndex, columns) : []), [sheet, headerIndex, columns])
   const agentValues = useMemo(() => distinctAgentValues(dataRows, mapping.agentValue), [dataRows, mapping.agentValue])
   const missing = columns.filter((column) => column.required && mapping[column.field] === undefined)
 
@@ -48,7 +48,7 @@ export function LeadImportPage() {
     const index = detectHeaderRow(next, columns)
     setSheetName(next.name)
     setHeaderIndex(index)
-    setMapping(autoMapColumns(headersAt(next, index), columns))
+    setMapping(autoMapColumns(headersAt(next, index, columns), columns))
   }
 
   const choose = async (chosen: File | undefined) => {
@@ -222,7 +222,7 @@ export function LeadImportPage() {
                     onChange={(event) => {
                       const index = Number(event.target.value)
                       setHeaderIndex(index)
-                      setMapping(autoMapColumns(headersAt(sheet, index), columns))
+                      setMapping(autoMapColumns(headersAt(sheet, index, columns), columns))
                     }}
                   >
                     {sheet.rows.slice(0, 10).map((row, index) => (

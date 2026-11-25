@@ -8,7 +8,7 @@
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:69`
 
-Đã trích dẫn trong: `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/clients.dto.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `frontend/src/components/ClientForms.tsx`
+Đã trích dẫn trong: `backend/src/migrations/1763136000000-clients.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/clients.dto.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `frontend/src/components/ClientForms.tsx`, `frontend/src/components/PolicyParts.tsx`
 
 - **PRD-1** Mỗi dòng = một chương trình cho một người được bảo hiểm. Thứ tự trên form (trái → phải, theo yêu cầu GA): tên người được bảo hiểm, ngày sinh, giới tính, chương trình, số tiền bảo hiểm, thời hạn bảo hiểm (năm, 0-120), tình trạng sản phẩm, mức phí (phí năm), vai trò (Chính / Bổ trợ; mặc định theo danh mục), ngày bắt đầu.
 

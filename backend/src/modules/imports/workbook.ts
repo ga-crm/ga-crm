@@ -19,8 +19,13 @@ const VALIDATED_ROWS = 5000;
 const toBuffer = async (workbook: ExcelJS.Workbook): Promise<Buffer> =>
   Buffer.from(await workbook.xlsx.writeBuffer());
 
-const columnLetter = (index: number): string =>
-  String.fromCharCode('A'.charCodeAt(0) + index);
+/** A, B, ..., Z, AA, AB, ...: a lead sheet has more than 26 columns. */
+const columnLetter = (index: number): string => {
+  let letters = '';
+  for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26))
+    letters = String.fromCharCode(65 + ((n - 1) % 26)) + letters;
+  return letters;
+};
 
 /**
  * IMP-11: generated from the same column definitions the validation reads, so the two cannot drift.
@@ -61,38 +66,75 @@ export async function buildTemplate(kind: ImportKind): Promise<Buffer> {
   }
 
   for (const sheet of templates) {
+    // A sheet with groups has two header rows: the group over its columns, their names below
+    const headerRows = sheet.groups ? 2 : 1;
     const worksheet = workbook.addWorksheet(sheet.name, {
-      views: [{ state: 'frozen', ySplit: 1 }],
+      views: [{ state: 'frozen', ySplit: headerRows }],
     });
-    worksheet.columns = sheet.columns.map((column) => ({
-      header: column.header,
-      key: column.field,
-      width: Math.max(18, column.header.length + 6),
-      style: { numFmt: TEXT_FORMAT },
-    }));
-    const header = worksheet.getRow(1);
-    header.font = { bold: true };
     sheet.columns.forEach((column, index) => {
-      const cell = header.getCell(index + 1);
-      cell.fill = HEADER_FILL;
-      cell.note = column.note;
+      worksheet.getColumn(index + 1).width = Math.max(
+        18,
+        column.header.length + 6,
+      );
+      worksheet.getColumn(index + 1).numFmt = TEXT_FORMAT;
     });
+    const groupOf = (field: string) =>
+      sheet.groups?.find((group) => group.fields.includes(field));
+    sheet.columns.forEach((column, index) => {
+      const group = groupOf(column.field);
+      const top = worksheet.getCell(1, index + 1);
+      const named = worksheet.getCell(headerRows, index + 1);
+      if (group) {
+        named.value = column.subHeader ?? column.header;
+        // The group's title sits once, over its first column
+        if (group.fields[0] === column.field) top.value = group.title;
+      } else {
+        top.value = column.header;
+      }
+      for (const cell of headerRows === 2 ? [top, named] : [top]) {
+        cell.font = { bold: true };
+        cell.fill = HEADER_FILL;
+        cell.alignment = { vertical: 'middle', wrapText: true };
+      }
+      named.note = column.note;
+    });
+    if (sheet.groups) {
+      for (const group of sheet.groups) {
+        const first = sheet.columns.findIndex(
+          (column) => column.field === group.fields[0],
+        );
+        worksheet.mergeCells(1, first + 1, 1, first + group.fields.length);
+        worksheet.getCell(1, first + 1).alignment = { horizontal: 'center' };
+      }
+      // A column outside a group keeps one name over both header rows
+      sheet.columns.forEach((column, index) => {
+        if (!groupOf(column.field))
+          worksheet.mergeCells(1, index + 1, 2, index + 1);
+      });
+    }
     for (const example of sheet.examples) worksheet.addRow([...example]);
 
     sheet.columns.forEach((column, index) => {
-      if (!column.list) return;
+      const values =
+        column.list ??
+        (column.suggest
+          ? (lookupValues as Record<string, readonly string[]>)[column.suggest]
+          : undefined);
+      if (!values) return;
       const lookup = Object.values(lookupValues).findIndex(
-        (values) => values === column.list,
+        (list) => list === values,
       );
       const letter = columnLetter(lookup);
-      const formula = `'${LOOKUPS_SHEET}'!$${letter}$2:$${letter}$${column.list.length + 1}`;
+      const formula = `'${LOOKUPS_SHEET}'!$${letter}$2:$${letter}$${values.length + 1}`;
       const target = columnLetter(index);
-      for (let row = 2; row <= VALIDATED_ROWS; row++) {
+      // A suggestion leaves room for the GA's own labels; a list refuses anything else
+      const strict = !!column.list;
+      for (let row = headerRows + 1; row <= VALIDATED_ROWS; row++) {
         worksheet.getCell(`${target}${row}`).dataValidation = {
           type: 'list',
-          allowBlank: false,
+          allowBlank: !strict,
           formulae: [formula],
-          showErrorMessage: true,
+          showErrorMessage: strict,
           errorTitle: 'Giá trị không hợp lệ',
           error: column.note,
         };

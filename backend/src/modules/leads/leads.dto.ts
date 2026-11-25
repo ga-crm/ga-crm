@@ -35,6 +35,10 @@ const trim = ({ value }: { value: unknown }) =>
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const isSet = (_: unknown, value: unknown) => value !== undefined;
 
+/** Codes of the National Statistics Office list (decided 26/11/2026). */
+const PROVINCE_CODE = /^\d{2}$/;
+const WARD_CODE = /^\d{5}$/;
+
 /** LEAD-21: one assignment takes at most this many leads. */
 export const MAX_ASSIGN = 200;
 
@@ -75,6 +79,17 @@ export class ListLeadsQueryDto extends PageQueryDto {
   @IsOptional()
   @Matches(PRODUCT_KEY)
   product?: string;
+
+  /** Decided 26/11/2026: leads in this province, and in this commune of it. */
+  @ApiPropertyOptional({ example: '01' })
+  @IsOptional()
+  @Matches(PROVINCE_CODE)
+  province?: string;
+
+  @ApiPropertyOptional({ example: '00004' })
+  @IsOptional()
+  @Matches(WARD_CODE)
+  ward?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -163,9 +178,14 @@ export class CreateLeadDto {
   @MaxLength(200)
   source: string;
 
-  @ApiProperty({ description: 'Có hoặc không đều hợp lệ, nhưng phải trả lời' })
+  /**
+   * LEAD-3, changed 26/11/2026: may be left out and answered later; until then the lead counts as
+   * not consenting (PDP-5).
+   */
+  @ApiPropertyOptional({ description: 'Bỏ trống: chưa có đồng ý, cập nhật sau' })
+  @IsOptional()
   @IsBoolean()
-  consent: boolean;
+  consent?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -187,6 +207,25 @@ export class CreateLeadDto {
   @IsString()
   @MaxLength(100)
   province?: string;
+
+  /** Decided 26/11/2026: a province after 1/7/2025, by its code. */
+  @ApiPropertyOptional({ example: '01' })
+  @IsOptional()
+  @Matches(PROVINCE_CODE)
+  provinceCode?: string;
+
+  /** A commune, ward or special zone of that province. */
+  @ApiPropertyOptional({ example: '00004' })
+  @IsOptional()
+  @Matches(WARD_CODE)
+  wardCode?: string;
+
+  @ApiPropertyOptional({ example: '12 Lê Lợi' })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(300)
+  addressLine?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -263,6 +302,24 @@ export class UpdateLeadDto {
   @IsString()
   @MaxLength(100)
   province?: string | null;
+
+  /** Decided 26/11/2026; null clears it, and the commune with it. */
+  @ApiPropertyOptional({ example: '01', nullable: true })
+  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @Matches(PROVINCE_CODE)
+  provinceCode?: string | null;
+
+  @ApiPropertyOptional({ example: '00004', nullable: true })
+  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @Matches(WARD_CODE)
+  wardCode?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(300)
+  addressLine?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
@@ -488,6 +545,13 @@ export class MergeLeadsDto {
 }
 
 /** CMT-5: people who could be mentioned, by name or email. */
+/** Decided 26/11/2026: the user to add as a supporter of a lead. */
+export class AddSupporterDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  userId: string;
+}
+
 export class MentionQueryDto {
   @ApiPropertyOptional({ example: 'Trang' })
   @IsOptional()

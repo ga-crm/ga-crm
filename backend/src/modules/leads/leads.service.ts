@@ -1,4 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { In } from 'typeorm';
 import type { EntityManager, SelectQueryBuilder } from 'typeorm';
 import {
   ApiException,
@@ -20,6 +21,7 @@ import { AgentsService } from '../agents/agents.service.js';
 import { AuditAction, AuditService } from '../audit/audit.service.js';
 import type { NotificationInput } from '../notifications/notifications.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { GeoService } from '../geo/geo.service.js';
 import { ProductsService } from '../products/products.service.js';
 import { TenantsService } from '../tenants/tenants.service.js';
 import {
@@ -29,6 +31,7 @@ import {
   Interaction,
   Lead,
   LeadHistory,
+  LeadSupporter,
   Task,
 } from './infrastructure/lead.entities.js';
 import type { ExistingLead, LeadPlan } from '../imports/lead-plan.js';
@@ -59,9 +62,20 @@ import type {
   UpdateTaskDto,
 } from './leads.dto.js';
 import { MAX_ASSIGN } from './leads.dto.js';
-import { CLOSED_CARE, departedCodesSql, STOPPED_AGENT_STATUS } from '../access/departed.js';
+import {
+  CLOSED_CARE,
+  departedCodesSql,
+  STOPPED_AGENT_STATUS,
+} from '../access/departed.js';
 
 const FAR_FUTURE = '2999-01-01T00:00:00Z';
+/**
+ * Decided 26/11/2026: the viewer (`:supporterId`) is one of the lead's supporters. Part of LEAD-6,
+ * so every list, board and count that asks `visible` includes the leads a person supports.
+ */
+const SUPPORTED_BY_VIEWER = `EXISTS (SELECT 1 FROM lead_supporters supporter
+  WHERE supporter.tenant_id = lead.tenantId AND supporter.lead_id = lead.id
+    AND supporter.user_id = :supporterId)`;
 /** Section 16 kanban: cards per column; the count says how many more there are. */
 const BOARD_CARDS = 50;
 /** NOTE-8 */
@@ -105,6 +119,7 @@ export class LeadsService {
     private readonly tenants: TenantsService,
     private readonly notifications: NotificationsService,
     private readonly products: ProductsService,
+    private readonly geo: GeoService,
   ) {}
 
   private scopeOf(actor: Actor): Scope {
@@ -121,7 +136,10 @@ export class LeadsService {
    * reassigns leads among the agents of their own line. Returns that line, or null for a lead
    * manager, who reaches the whole GA (LEAD-21). Anyone else may not assign.
    */
-  private async assignLine(actor: Actor, db: EntityManager): Promise<string[] | null> {
+  private async assignLine(
+    actor: Actor,
+    db: EntityManager,
+  ): Promise<string[] | null> {
     if (this.manages(actor)) return null;
     if (!this.assignsInLine(actor)) throw forbidden();
     return this.agents.scopeCodes(actor, db);
@@ -145,13 +163,62 @@ export class LeadsService {
     builder: SelectQueryBuilder<Lead>,
     actor: Actor,
     db: EntityManager,
+    options: { reachOnly?: boolean } = {},
   ): Promise<SelectQueryBuilder<Lead>> {
     const codes = await this.access.leadAgentCodes(actor, db);
+    if (codes === null) return builder;
+    // "Select all" is for assigning, and a lead one only supports is not theirs to move
+    if (options.reachOnly)
+      return builder.andWhere('lead.assignedAgentCode = ANY(:visibleCodes)', {
+        visibleCodes: codes,
+      });
+    // Decided 26/11/2026: a supporter also sees the lead, with its phone masked (`phoneFor`)
     return codes === null
       ? builder
-      : builder.andWhere('lead.assignedAgentCode = ANY(:visibleCodes)', {
-          visibleCodes: codes,
-        });
+      : builder.andWhere(
+          `(lead.assignedAgentCode = ANY(:visibleCodes) OR ${SUPPORTED_BY_VIEWER})`,
+          { visibleCodes: codes, supporterId: actor.id },
+        );
+  }
+
+  /** LEAD-6: whether the lead is in the person's own reach, not only theirs to support. */
+  private async inReach(
+    actor: Actor,
+    lead: Pick<Lead, 'assignedAgentCode'>,
+    db: EntityManager,
+  ): Promise<boolean> {
+    const codes = await this.access.leadAgentCodes(actor, db);
+    return (
+      codes === null ||
+      (!!lead.assignedAgentCode && codes.includes(lead.assignedAgentCode))
+    );
+  }
+
+  /** Decided 26/11/2026: the leads among these that this user supports. */
+  private async supportedBy(
+    userId: string,
+    leadIds: string[],
+    db: EntityManager,
+  ): Promise<Set<string>> {
+    if (leadIds.length === 0) return new Set();
+    const rows = await db.getRepository(LeadSupporter).find({
+      where: { userId, leadId: In(leadIds) },
+      select: { leadId: true },
+    });
+    return new Set(rows.map((row) => row.leadId));
+  }
+
+  /**
+   * Decided 26/11/2026: who adds and removes a lead's supporters: whoever works the lead (LEAD-7),
+   * or a line manager for a lead of their own line.
+   */
+  async managesSupport(
+    actor: Actor,
+    lead: Pick<Lead, 'assignedAgentCode'>,
+    db: EntityManager,
+  ): Promise<boolean> {
+    if (this.canWork(actor, lead)) return true;
+    return this.assignsInLine(actor) && (await this.inReach(actor, lead, db));
   }
 
   /** Live leads of the tenant: not in the bin (LEAD-40) and not erased (PDP-6). */
@@ -260,6 +327,25 @@ export class LeadsService {
     return lead;
   }
 
+  /**
+   * Decided 26/11/2026: the assignee and the lead's supporters work on it together. A supporter
+   * (a mentor, say) writes notes and shares its tasks; the lead's own fields, its status and the
+   * record of contacts stay with whoever works it (LEAD-7), and its phone stays masked (PDP-3).
+   */
+  private async requireContributor(
+    actor: Actor,
+    id: string,
+    db: EntityManager,
+  ): Promise<Lead> {
+    const lead = await this.requireVisible(actor, id, db);
+    if (
+      !this.canWork(actor, lead) &&
+      !(await this.supportedBy(actor.id, [lead.id], db)).has(lead.id)
+    )
+      throw new ApiException(HttpStatus.FORBIDDEN, ErrorCode.LeadNotYours);
+    return lead;
+  }
+
   private async phoneConflict(
     actor: Actor,
     scope: Scope,
@@ -360,6 +446,11 @@ export class LeadsService {
           await this.products.usable(db, [
             { code: dto.productCode, path: 'productCode' },
           ]);
+        // Decided 26/11/2026: a province (or one a typed name gives) and a commune of it
+        const place = this.geo.place(
+          dto.provinceCode ?? this.geo.matchProvince(dto.province),
+          dto.wardCode ?? null,
+        );
         const leads = db.getRepository(Lead);
         const lead = await leads.save(
           leads.create({
@@ -370,7 +461,10 @@ export class LeadsService {
             source,
             email: dto.email ?? null,
             region: dto.region ?? null,
-            province: dto.province ?? null,
+            province: place.province?.name ?? dto.province ?? null,
+            provinceCode: place.province?.code ?? null,
+            wardCode: place.ward?.code ?? null,
+            addressLine: dto.addressLine ?? null,
             gender: dto.gender ?? null,
             dob: dto.dob ?? null,
             campaignId: dto.campaignId ?? null,
@@ -378,7 +472,8 @@ export class LeadsService {
             leadDate: today(now),
             stage: 'NEW',
             origin: manages ? 'GA' : 'FC_OWN',
-            consentMarketing: dto.consent,
+            // LEAD-3 (26/11/2026): no answer yet is no consent
+            consentMarketing: dto.consent ?? false,
             consentAt: dto.consent ? now : null,
             consentSource: dto.consent ? 'CRM_FORM' : null,
             createdBy: actor.id,
@@ -554,7 +649,10 @@ export class LeadsService {
             ErrorCode.AgentNotFound,
           );
         if (line && !line.includes(agentCode))
-          throw new ApiException(HttpStatus.FORBIDDEN, ErrorCode.AgentOutOfLine);
+          throw new ApiException(
+            HttpStatus.FORBIDDEN,
+            ErrorCode.AgentOutOfLine,
+          );
       }
       // Locked, so two managers assigning the same leads cannot interleave
       const found = await this.live(db, scope)
@@ -563,7 +661,13 @@ export class LeadsService {
         .getMany();
       if (found.length !== unique.length) throw notFound();
       // LEAD-6: a lead outside the line (or in the GA's pool) is not visible, so it looks missing
-      if (line && found.some((lead) => !lead.assignedAgentCode || !line.includes(lead.assignedAgentCode)))
+      if (
+        line &&
+        found.some(
+          (lead) =>
+            !lead.assignedAgentCode || !line.includes(lead.assignedAgentCode),
+        )
+      )
         throw notFound();
 
       const moving = found.filter(
@@ -579,7 +683,9 @@ export class LeadsService {
 
   async assignees(actor: Actor, q?: string) {
     const scope = this.scopeOf(actor);
-    const line = await this.tenantDb.run(scope, (db) => this.assignLine(actor, db));
+    const line = await this.tenantDb.run(scope, (db) =>
+      this.assignLine(actor, db),
+    );
     const agents = await this.agents.listForPicker(scope, q, line ?? undefined);
     const counts = await this.tenantDb.run(scope, (db) =>
       rowsOf<{ code: string; open: number }>(
@@ -610,7 +716,13 @@ export class LeadsService {
     const scope = this.scopeOf(actor);
     if (!this.manages(actor)) throw forbidden();
     const rows = await this.tenantDb.run(scope, (db) =>
-      rowsOf<{ agent_code: string; name: string | null; status: string; leads: number; clients: number }>(
+      rowsOf<{
+        agent_code: string;
+        name: string | null;
+        status: string;
+        leads: number;
+        clients: number;
+      }>(
         db,
         `WITH departed AS ${departedCodesSql('$1', '$2')}
          SELECT d.agent_code,
@@ -696,13 +808,15 @@ export class LeadsService {
     actor: Actor,
     query: ListLeadsQueryDto,
     db: EntityManager,
-    options: { allStages?: boolean } = {},
+    options: { allStages?: boolean; reachOnly?: boolean } = {},
   ) {
     const scope = this.scopeOf(actor);
     const now = new Date();
     const deadline = (await this.deadline(scope, db)).ms;
     const filtered = async () => {
-      const builder = await this.visible(this.live(db, scope), actor, db);
+      const builder = await this.visible(this.live(db, scope), actor, db, {
+        reachOnly: options.reachOnly,
+      });
       if (query.q) {
         const name = `%${escapeLike(normalizeName(query.q))}%`;
         const digits = query.q.replace(/\D/g, '');
@@ -736,6 +850,12 @@ export class LeadsService {
         builder.andWhere('lead.productCode = :product', {
           product: query.product,
         });
+      if (query.province)
+        builder.andWhere('lead.provinceCode = :province', {
+          province: query.province,
+        });
+      if (query.ward)
+        builder.andWhere('lead.wardCode = :ward', { ward: query.ward });
       if (query.campaignId)
         builder.andWhere('lead.campaignId = :campaignId', {
           campaignId: query.campaignId,
@@ -799,7 +919,9 @@ export class LeadsService {
     // LEAD-24 for whoever assigns; the list itself is already limited to what they see (LEAD-6)
     if (!this.manages(actor) && !this.assignsInLine(actor)) throw forbidden();
     return this.tenantDb.run(this.scopeOf(actor), async (db) => {
-      const { filtered, ordered } = await this.listPlan(actor, query, db);
+      const { filtered, ordered } = await this.listPlan(actor, query, db, {
+        reachOnly: true,
+      });
       const rows = await ordered(await filtered())
         .select('lead.id')
         .limit(MAX_ASSIGN)
@@ -895,10 +1017,28 @@ export class LeadsService {
       items.flatMap((lead) => lead.campaignId ?? []),
       db,
     );
+    // Decided 26/11/2026: leads the viewer sees only because they support them
+    const codes = await this.access.leadAgentCodes(actor, db);
+    const supported =
+      codes === null
+        ? new Set<string>()
+        : await this.supportedBy(
+            actor.id,
+            items
+              .filter(
+                (lead) =>
+                  !lead.assignedAgentCode ||
+                  !codes.includes(lead.assignedAgentCode),
+              )
+              .map((lead) => lead.id),
+            db,
+          );
     return items.map((lead) => ({
       id: lead.id,
       fullName: lead.fullName,
+      // PDP-3: masked for whoever cannot work on the lead, a supporter included
       phone: this.phoneFor(actor, lead),
+      supporting: supported.has(lead.id),
       source: lead.source,
       phoneSource: lead.phoneSource,
       region: lead.region,
@@ -1131,6 +1271,18 @@ export class LeadsService {
           valueVnd: numberOf(lead.valueVnd),
           refLink: lead.refLink,
           extraInfo: lead.extraInfo,
+          // Decided 26/11/2026: the place after 1/7/2025, with its names
+          provinceCode: lead.provinceCode,
+          provinceName: this.geo.province(lead.provinceCode)?.name ?? null,
+          wardCode: lead.wardCode,
+          wardName: this.geo.ward(lead.wardCode)?.name ?? null,
+          addressLine: lead.addressLine,
+          followUp10d: lead.followUp10d,
+          followUp15d: lead.followUp15d,
+          followUp20d: lead.followUp20d,
+          handlingNote: lead.handlingNote,
+          cdytStats: lead.cdytStats,
+          cdytProfile: lead.cdytProfile,
           stage: lead.stage,
           interest: lead.interest,
           careStatus: lead.careStatus,
@@ -1240,9 +1392,16 @@ export class LeadsService {
         // LEAD-32: from PROPOSAL on, or once won
         canLink: canWork && canLinkLead(lead),
         canWork,
+        // Decided 26/11/2026: notes and tasks are shared with the lead's supporters
+        canContribute:
+          canWork ||
+          (await this.supportedBy(actor.id, [lead.id], db)).has(lead.id),
         canManage: manages,
-        // Open question 4: line managers see only their line's leads, so any lead shown is theirs to move
-        canAssign: manages || this.assignsInLine(actor),
+        // Open question 4: a line manager moves the leads of their line; one they only support is
+        // not theirs to move (26/11/2026)
+        canAssign:
+          manages ||
+          (this.assignsInLine(actor) && (await this.inReach(actor, lead, db))),
         // LEAD-14: the lock follows the flag of the value in the GA's catalogue
         interestLocked:
           !manages &&
@@ -1321,6 +1480,34 @@ export class LeadsService {
         }
         for (const field of INFO_FIELDS)
           if (dto[field] !== undefined) change(field, dto[field]);
+        // Decided 26/11/2026: a new province drops a commune of the old one; the history names them
+        if (dto.provinceCode !== undefined || dto.wardCode !== undefined) {
+          const provinceCode =
+            dto.provinceCode !== undefined
+              ? dto.provinceCode
+              : lead.provinceCode;
+          const wardCode =
+            dto.wardCode !== undefined
+              ? dto.wardCode
+              : provinceCode === lead.provinceCode
+                ? lead.wardCode
+                : null;
+          const place = this.geo.place(provinceCode, wardCode);
+          if ((place.province?.code ?? null) !== lead.provinceCode) {
+            change('province', place.province?.name ?? null);
+            set('provinceCode', place.province?.code ?? null);
+          }
+          if ((place.ward?.code ?? null) !== lead.wardCode) {
+            log(
+              'ward',
+              this.geo.ward(lead.wardCode)?.name ?? null,
+              place.ward?.name ?? null,
+            );
+            set('wardCode', place.ward?.code ?? null);
+          }
+        }
+        if (dto.addressLine !== undefined)
+          change('addressLine', dto.addressLine);
         // TENANT-5: the product of interest; the one already set may stay even if hidden since
         if (dto.productCode !== undefined) {
           if (dto.productCode)
@@ -1624,7 +1811,7 @@ export class LeadsService {
 
   async addNote(actor: Actor, id: string, body: string) {
     return this.tenantDb.run(this.scopeOf(actor), async (db) => {
-      const lead = await this.requireWorkable(actor, id, db);
+      const lead = await this.requireContributor(actor, id, db);
       const now = new Date();
       const note = await db.getRepository(Interaction).save(
         db.getRepository(Interaction).create({
@@ -1722,11 +1909,9 @@ export class LeadsService {
     lead: Lead,
     db: EntityManager,
   ): Promise<boolean> {
-    const codes = await this.access.leadAgentCodes(other, db);
-    return (
-      codes === null ||
-      (!!lead.assignedAgentCode && codes.includes(lead.assignedAgentCode))
-    );
+    if (await this.inReach(other, lead, db)) return true;
+    // A supporter sees the lead too (decided 26/11/2026)
+    return (await this.supportedBy(other.id, [lead.id], db)).has(lead.id);
   }
 
   /** CMT-5: up to 8 people who see the lead, for the @ picker. */
@@ -1840,7 +2025,8 @@ export class LeadsService {
   /** TASK-2 */
   async addTask(actor: Actor, id: string, dto: AddTaskDto) {
     return this.tenantDb.run(this.scopeOf(actor), async (db) => {
-      const lead = await this.requireWorkable(actor, id, db);
+      // A supporter's task is the lead's task: it goes to the assignee's list, like any other
+      const lead = await this.requireContributor(actor, id, db);
       const task = await db.getRepository(Task).save(
         db.getRepository(Task).create({
           tenantId: lead.tenantId,
@@ -1875,7 +2061,7 @@ export class LeadsService {
     dto: UpdateTaskDto,
   ) {
     return this.tenantDb.run(this.scopeOf(actor), async (db) => {
-      const lead = await this.requireWorkable(actor, id, db);
+      const lead = await this.requireContributor(actor, id, db);
       const task = await db.getRepository(Task).findOneBy({
         id: taskId,
         tenantId: lead.tenantId,
@@ -1973,6 +2159,7 @@ export class LeadsService {
           source,
           email: input.email ?? null,
           province: input.province ?? null,
+          provinceCode: this.geo.matchProvince(input.province),
           productInterest: input.need ?? null,
           campaignId: campaign.id,
           leadDate: today(now),
@@ -2045,6 +2232,12 @@ export class LeadsService {
         write.values.productInterest &&
         productOf.get(write.values.productInterest);
       if (code) (write.values as Record<string, unknown>).productCode = code;
+    }
+    // Decided 26/11/2026: a "TỈNH/TP" cell naming a current province links the lead to it
+    for (const write of plan.writes) {
+      const provinceCode = this.geo.matchProvince(write.values.province);
+      if (provinceCode)
+        (write.values as Record<string, unknown>).provinceCode = provinceCode;
     }
 
     // IMP-28: campaigns named in the file are created when missing

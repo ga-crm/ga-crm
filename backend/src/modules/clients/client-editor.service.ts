@@ -18,7 +18,7 @@ import { AgentsService } from '../agents/agents.service.js';
 import { AuditAction, AuditService } from '../audit/audit.service.js';
 import { maskPhone } from '../leads/lead-rules.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
-import { POLICY_NO } from './client.constants.js';
+import { HIDDEN_FIELDS, POLICY_NO } from './client.constants.js';
 import {
   ageBandOf,
   birthDayMonthOf,
@@ -85,6 +85,13 @@ const POLICY_FIELDS = [
   'unpaidPremiumVnd',
   'aplDebtVnd',
   'hasBeneficiary',
+  'contactAddress',
+  'sumAssuredVnd',
+  'graceEndDate',
+  'advancePremiumVnd',
+  'totalPaidPremiumVnd',
+  'basicPremiumVnd',
+  'topUpPremiumVnd',
 ] as const;
 
 const text = (value: unknown): string | undefined =>
@@ -95,6 +102,10 @@ const text = (value: unknown): string | undefined =>
       : typeof value === 'object'
         ? JSON.stringify(value)
         : String(value as string | number | boolean);
+
+/** Personal data the change history notes without its value (decided 25/11/2026). */
+const hidden = (field: string, value: string | undefined) =>
+  value !== undefined && HIDDEN_FIELDS.has(field) ? '***' : value;
 
 /** A summary of product lines for the change history (IMP-21 style). */
 const productsText = (
@@ -825,8 +836,11 @@ export class ClientEditorService {
           entity: 'policy',
           entityKey: policyNo,
           field,
-          oldValue: text(record[field]),
-          newValue: text(built.fields[field as keyof typeof built.fields]),
+          oldValue: hidden(field, text(record[field])),
+          newValue: hidden(
+            field,
+            text(built.fields[field as keyof typeof built.fields]),
+          ),
         }));
       if (
         !keepProducts &&

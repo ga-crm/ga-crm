@@ -1,6 +1,9 @@
 import { normalizeName } from '../../common/normalize.js';
 import type { Reach } from '../../common/rbac.js';
-import type { LinkSource } from '../clients/client.constants.js';
+import {
+  HIDDEN_FIELDS,
+  type LinkSource,
+} from '../clients/client.constants.js';
 import type {
   PolicyAgent,
   PolicyClient,
@@ -56,6 +59,15 @@ export interface ParsedPolicyRow {
   unpaidPremiumVnd?: number;
   aplDebtVnd?: number;
   hasBeneficiary?: boolean;
+  contactAddress?: string;
+  sumAssuredVnd?: number;
+  graceEndDate?: string;
+  assignmentType?: string;
+  assignmentDate?: string;
+  advancePremiumVnd?: number;
+  totalPaidPremiumVnd?: number;
+  basicPremiumVnd?: number;
+  topUpPremiumVnd?: number;
 }
 
 /** Section 19.5 */
@@ -221,6 +233,15 @@ const POLICY_FIELDS = [
   'unpaidPremiumVnd',
   'aplDebtVnd',
   'hasBeneficiary',
+  'contactAddress',
+  'sumAssuredVnd',
+  'graceEndDate',
+  'assignmentType',
+  'assignmentDate',
+  'advancePremiumVnd',
+  'totalPaidPremiumVnd',
+  'basicPremiumVnd',
+  'topUpPremiumVnd',
 ] as const;
 const PRODUCT_FIELDS = [
   'productName',
@@ -329,7 +350,16 @@ export function planSuccess(input: SuccessPlanInput): SuccessPlan {
     const oldValue = asText(before);
     const newValue = asText(after);
     if (oldValue === newValue) return false;
-    plan.changes.push({ entity, entityKey, field, oldValue, newValue });
+    // Personal data: the history says it changed, without the value
+    const hide = (value: string | undefined) =>
+      value !== undefined && HIDDEN_FIELDS.has(field) ? '***' : value;
+    plan.changes.push({
+      entity,
+      entityKey,
+      field,
+      oldValue: hide(oldValue),
+      newValue: hide(newValue),
+    });
     return true;
   };
 

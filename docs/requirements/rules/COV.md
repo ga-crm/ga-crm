@@ -32,7 +32,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:95`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:96`
 
-Đã trích dẫn trong: `backend/src/modules/clients/client-insights.spec.ts`, `backend/src/modules/clients/client-insights.ts`, `backend/test/client-care.e2e-spec.ts`, `frontend/src/components/ClientCare.tsx`, `frontend/src/lib/clientLabels.ts`, `frontend/src/pages/ClientDetailPage.tsx`
+Đã trích dẫn trong: `backend/src/modules/clients/client-insights.spec.ts`, `backend/src/modules/clients/client-insights.ts`, `backend/test/client-care.e2e-spec.ts`, `frontend/src/components/ClientCare.tsx`, `frontend/src/components/ClientProgrammes.tsx`, `frontend/src/components/PolicyParts.tsx`, `frontend/src/lib/clientCare.ts`, `frontend/src/lib/clientLabels.ts`
 
 - **COV-4** Lỗ hổng = thiếu HEALTH, CI, ACCIDENT; chỉ hiện với người có chi tiết sản phẩm. Không có chi tiết sản phẩm thì chỉ biết số hợp đồng ("Chưa có chi tiết sản phẩm").
 

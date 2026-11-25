@@ -8,7 +8,7 @@
 
 Nguồn: `requirement/09-ghi-chu-gop-y-viec-can-lam.md:14`
 
-Đã trích dẫn trong: `backend/src/migrations/1763049600000-leads.ts`, `backend/src/modules/clients/client-care.service.ts`, `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/leads.e2e-spec.ts`, `frontend/src/components/CommentThread.tsx`, `frontend/src/lib/types.ts`, `frontend/src/pages/LeadDetailPage.tsx`
+Đã trích dẫn trong: `backend/src/migrations/1763049600000-leads.ts`, `backend/src/modules/clients/client-care.service.ts`, `backend/src/modules/leads/lead-supporters.service.ts`, `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/leads.e2e-spec.ts`, `frontend/src/components/CommentThread.tsx`, `frontend/src/lib/types.ts`, `frontend/src/pages/LeadDetailPage.tsx`
 
 - **CMT-1** Ai thấy lead thì được góp ý (thường là quản lý tuyến kèm cặp FC; cả người quản lý lead và FC trả lời). Góp ý là luồng trao đổi trên lead, cũ nhất ở trên, 1-2000 ký tự, có tác giả và thời điểm.
 

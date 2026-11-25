@@ -467,25 +467,22 @@ export interface TabItem {
 }
 
 /**
- * shadcn/ui Tabs as the tab row of a screen; the content below follows the URL, not the tabs. `pills`
- * for list views, `line` for the sections of a record. Arrow keys move focus; Enter or Space opens.
+ * shadcn/ui Tabs as the tab row of a screen; the content below follows the URL, not the tabs. Lists
+ * and record pages share one look (decided 25/11/2026). Arrow keys move focus; Enter or Space opens.
  */
 export function TabBar({
   label,
   value,
   items,
   onValueChange,
-  variant = 'pills',
   className,
 }: {
   label: string
   value: string
   items: TabItem[]
   onValueChange: (value: string) => void
-  variant?: 'pills' | 'line'
   className?: string
 }) {
-  const line = variant === 'line'
   const list = useRef<HTMLDivElement>(null)
   // On a phone the bar scrolls sideways: keep the selected tab in view, also when opened from the URL
   useEffect(() => {
@@ -497,8 +494,7 @@ export function TabBar({
         ref={list}
         aria-label={label}
         className={cn(
-          'flex h-auto w-full justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-none bg-transparent p-0 group-data-[orientation=horizontal]/tabs:h-auto',
-          line ? 'mb-4 border-b border-band' : 'pb-2',
+          'flex h-auto w-full justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-none bg-transparent p-0 pb-2 group-data-[orientation=horizontal]/tabs:h-auto',
           className,
         )}
       >
@@ -507,10 +503,8 @@ export function TabBar({
             key={item.value}
             value={item.value}
             className={cn(
-              'h-auto flex-none cursor-pointer text-caption font-normal whitespace-nowrap text-ink-nav after:hidden hover:text-ink data-[state=active]:font-medium data-[state=active]:text-primary-deep',
-              line
-                ? '-mb-px rounded-none border-0 border-b-2 border-transparent px-3 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent'
-                : 'rounded-md px-3 py-1.5 hover:bg-chrome data-[state=active]:bg-band-blue',
+              // One look for every tab bar: the selected tab is a light blue band
+              'h-auto flex-none cursor-pointer rounded-md px-3 py-1.5 text-caption font-normal whitespace-nowrap text-ink-nav after:hidden hover:bg-chrome hover:text-ink data-[state=active]:bg-band-blue data-[state=active]:font-medium data-[state=active]:text-primary-deep',
             )}
           >
             {item.label}

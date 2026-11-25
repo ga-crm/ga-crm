@@ -29,7 +29,7 @@ Nguồn: `requirement/08-lead-pipeline.md:5`
 
 Nguồn: `requirement/08-lead-pipeline.md:11`
 
-Đã trích dẫn trong: `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.dto.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/leads.e2e-spec.ts`, `frontend/src/pages/LeadsPage.tsx`
+Đã trích dẫn trong: `backend/src/modules/clients/clients.dto.ts`, `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.dto.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/leads.e2e-spec.ts`, `frontend/src/components/ClientFamily.tsx`, `frontend/src/pages/LeadsPage.tsx`
 
 - **LEAD-3** Bắt buộc khi tạo: họ tên, số điện thoại, nguồn (chọn từ Danh mục Nguồn, file 05), câu trả lời đồng ý liên hệ (có hoặc không đều hợp lệ). Tùy chọn: email, khu vực, tỉnh/TP, giới tính, ngày sinh, chiến dịch (chỉ người quản lý lead), ghi chú đầu tiên, người được giao (chỉ người quản lý lead). Ghi chú đầu tiên thành mục NOTE đầu tiên.
 
@@ -53,7 +53,7 @@ Nguồn: `requirement/08-lead-pipeline.md:13`
 
 Nguồn: `requirement/08-lead-pipeline.md:16`
 
-Đã trích dẫn trong: `backend/src/modules/access/access.service.ts`, `backend/src/modules/campaigns/campaigns.controller.ts`, `backend/src/modules/campaigns/campaigns.service.ts`, `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/campaigns.e2e-spec.ts`, `backend/test/lead-line-assign.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`, `frontend/src/lib/nav.ts`
+Đã trích dẫn trong: `backend/src/modules/access/access.service.ts`, `backend/src/modules/campaigns/campaigns.controller.ts`, `backend/src/modules/campaigns/campaigns.service.ts`, `backend/src/modules/leads/lead-supporters.service.ts`, `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/campaigns.e2e-spec.ts`, `backend/test/lead-line-assign.e2e-spec.ts`, `backend/test/lead-supporters.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`, `frontend/src/lib/nav.ts`
 
 - **LEAD-6** Thấy: `leads.manage` → mọi lead của tenant; còn lại → lead có người được giao thuộc scope của mình.
 
@@ -61,7 +61,7 @@ Nguồn: `requirement/08-lead-pipeline.md:16`
 
 Nguồn: `requirement/08-lead-pipeline.md:17`
 
-Đã trích dẫn trong: `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/src/modules/work/work.controller.ts`, `backend/src/modules/work/work.service.ts`, `backend/test/leads.e2e-spec.ts`
+Đã trích dẫn trong: `backend/src/modules/leads/lead-supporters.service.ts`, `backend/src/modules/leads/leads.controller.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/src/modules/work/work.controller.ts`, `backend/src/modules/work/work.service.ts`, `backend/test/lead-supporters.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`
 
 - **LEAD-7** Làm việc (sửa, đặt trạng thái, ghi liên hệ, thêm ghi chú, quản lý việc cần làm): người được giao và người quản lý lead. Người khác thấy lead (quản lý tuyến) nhận `403 lead_not_yours` với các thao tác đó, thấy số điện thoại bị che (PDP-3), không tìm theo số được, và được góp ý (file 09).
 

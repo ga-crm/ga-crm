@@ -302,7 +302,8 @@ const LEAD_ERRORS = { invalid_phone: 'phone', phone_exists: 'phone' } as const
 
 const leadSchema = z.object({
   phone: phoneField,
-  consent: z.enum(['yes', 'no'], { error: t('leads.consentRequired') }),
+  // LEAD-3, changed 26/11/2026: may stay blank and be answered later
+  consent: z.enum(['', 'yes', 'no']),
 })
 type LeadValues = z.infer<typeof leadSchema>
 
@@ -312,7 +313,7 @@ function FamilyLeadForm({ clientId, member, onClose }: { clientId: string; membe
   const form = useForm<LeadValues>({
     resolver: zodResolver(leadSchema),
     mode: 'onTouched',
-    defaultValues: { phone: '' },
+    defaultValues: { phone: '', consent: '' },
   })
   const path = `/clients/${clientId}/family/${member.linkId}/lead`
   const done = async (linked: boolean) => {
@@ -324,7 +325,7 @@ function FamilyLeadForm({ clientId, member, onClose }: { clientId: string; membe
   const create = useMutation({
     mutationFn: (values: LeadValues) =>
       api.post(path, {
-        create: { phone: values.phone, consent: values.consent === 'yes' },
+        create: { phone: values.phone, ...(values.consent && { consent: values.consent === 'yes' }) },
       }),
     onSuccess: () => done(false),
     onError: (error) => {
@@ -346,11 +347,9 @@ function FamilyLeadForm({ clientId, member, onClose }: { clientId: string; membe
         <Field label={t('leads.phone')} htmlFor="family-lead-phone" required error={errors.phone?.message}>
           <Input id="family-lead-phone" inputMode="tel" placeholder={t('agents.phonePlaceholder')} aria-invalid={!!errors.phone} {...form.register('phone')} />
         </Field>
-        <Field label={t('leads.consent')} htmlFor="family-lead-consent" required error={errors.consent?.message}>
-          <Select id="family-lead-consent" defaultValue="" aria-invalid={!!errors.consent} {...form.register('consent')}>
-            <option value="" disabled>
-              {t('leads.consentChoose')}
-            </option>
+        <Field label={t('leads.consent')} htmlFor="family-lead-consent" error={errors.consent?.message}>
+          <Select id="family-lead-consent" aria-invalid={!!errors.consent} {...form.register('consent')}>
+            <option value="">{t('leads.consentLater')}</option>
             <option value="yes">{t('leads.consentYes')}</option>
             <option value="no">{t('leads.consentNo')}</option>
           </Select>

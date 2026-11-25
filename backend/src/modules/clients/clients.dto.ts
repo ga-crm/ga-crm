@@ -213,6 +213,51 @@ export class PolicyFieldsDto {
   @IsBoolean()
   hasBeneficiary?: boolean;
 
+  /** Personal data: stored, never returned with the policy (decided 25/11/2026). */
+  @ApiPropertyOptional({ example: '12 Lê Lợi, Quận 1, TP.HCM' })
+  @IsOptional()
+  @Transform(trimmed)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(300)
+  contactAddress?: string;
+
+  /** Used only when no main product line carries a sum assured. */
+  @ApiPropertyOptional({ example: 1586000000 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sumAssuredVnd?: number;
+
+  @ApiPropertyOptional({ example: '2027-08-01' })
+  @IsOptional()
+  @IsCalendarDate()
+  graceEndDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  advancePremiumVnd?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  totalPaidPremiumVnd?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  basicPremiumVnd?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  topUpPremiumVnd?: number;
+
   /** POL-2: blank = the client is also the main insured. */
   @ApiPropertyOptional({ example: 'Nguyễn Văn Con' })
   @IsOptional()
@@ -465,9 +510,11 @@ export class FamilyNewLeadDto {
   @MaxLength(30)
   phone: string;
 
-  @ApiProperty()
+  /** LEAD-3, changed 26/11/2026: may be answered later. */
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsBoolean()
-  consent: boolean;
+  consent?: boolean;
 }
 
 /** FAM-6: link a lead the person sees, or create one for the relative. */

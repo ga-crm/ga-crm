@@ -180,6 +180,9 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
         'platform_settings',
         // TENANT-5: the DLVN product catalogue every GA reads; only crm_platform writes
         'products',
+        // Provinces and communes after 1/7/2025: reference data every GA reads; only migrations write
+        'provinces',
+        'wards',
         // TypeORM's own bookkeeping
         'migrations',
       ]);

@@ -5,6 +5,7 @@ import {
   type ParsedLeadRow,
   planLeads,
   rowInstant,
+  UNKNOWN_SOURCE,
 } from './lead-plan.js';
 import { LEADS_SHEET } from './templates.js';
 
@@ -61,6 +62,15 @@ describe('matchAgent', () => {
 });
 
 describe('planLeads: new leads', () => {
+  it('decided 25/11/2026: a row without a source makes a lead "Chưa rõ nguồn"; an existing lead keeps its own', () => {
+    // A newer row date, so the existing lead is updated (IMP-26)
+    const blank = row(2, { source: undefined, rowDate: '2026-11-05' });
+    expect(plan([blank]).writes[0].values.source).toBe(UNKNOWN_SOURCE);
+    expect(plan([blank], existing()).writes[0].values).not.toHaveProperty(
+      'source',
+    );
+  });
+
   it('IMP-28: creates the lead, assigns it and asks for a contact', () => {
     const result = plan([
       row(2, {
@@ -327,10 +337,10 @@ describe('parseLeadRow', () => {
     });
   });
 
-  it('section 19.7: requires name, phone and source', () => {
+  it('section 19.7, decided 25/11/2026: requires only the name and phone', () => {
     expect(codes(parse({ fullName: '' }))).toEqual(['required']);
     expect(codes(parse({ phone: null }))).toEqual(['required']);
-    expect(codes(parse({ source: ' ' }))).toEqual(['required']);
+    expect(codes(parse({ source: ' ' }))).toEqual([]);
   });
 
   it('section 20.5: reports each bad cell', () => {

@@ -11,6 +11,9 @@ import { useContactDeadlineHours, useMe } from '../auth/useMe'
 import { buttonClass } from '../components/buttonStyles'
 import { LeadBoard } from '../components/LeadBoard'
 import { LeadAssignDialog } from '../components/LeadAssignDialog'
+import { OptionPicker } from '../components/OptionPicker'
+import { PlaceFields } from '../components/PlaceFields'
+import { ProvincePicker, WardPicker } from '../components/PlacePicker'
 import { ProductPicker } from '../components/ProductPicker'
 import { SavedFilters } from '../components/SavedFilters'
 import { Alert, Badge, Button, Card, Checkbox, ClearFilters, Container, Dialog, EmptyState, Field, FilterBand, FilterField, FormError, Input, MODAL_FOOTER, PageHeader, Pagination, SearchInput, Segmented, Select, SortButton, Spinner, TabBar, TableScroll, Textarea, WIDE_FORM_GRID } from '../components/ui'
@@ -20,7 +23,6 @@ import { careTone, interestTone, showDate } from '../lib/leadLabels'
 import { keys, queries } from '../lib/queries'
 import { toast } from '../lib/toast'
 import { useLeadOptions } from '../lib/leadOptions'
-import { ListSuggestions } from '../components/ListSuggestions'
 import { DepartedWorkNotice } from '../components/DepartedWorkNotice'
 import { LEAD_STAGES } from '../lib/types'
 import type { LeadCounts, LeadRow } from '../lib/types'
@@ -49,10 +51,14 @@ const schema = z.object({
   phone: phoneField,
   // OPT-3: a typed value may become a catalogue label
   source: requiredText(60),
-  consent: z.enum(['yes', 'no'], { error: t('leads.consentRequired') }),
+  // LEAD-3, changed 26/11/2026: may stay blank and be answered later
+  consent: z.enum(['', 'yes', 'no']),
   email: optionalEmail,
   region: optionalText(100),
-  province: optionalText(100),
+  // Decided 26/11/2026: the province and commune after 1/7/2025, and the street address
+  provinceCode: z.string(),
+  wardCode: z.string(),
+  addressLine: optionalText(300),
   gender: optionalText(50),
   dob: optionalBirthDate,
   note: optionalText(4000),
@@ -63,7 +69,7 @@ const schema = z.object({
 })
 type FormValues = z.infer<typeof schema>
 
-const FIELD_ERRORS = { invalid_phone: 'phone', phone_exists: 'phone', agent_not_found: 'assignedAgentCode', campaign_not_found: 'campaignId', unknown_option: 'source', unknown_product: 'productCode' } as const
+const FIELD_ERRORS = { invalid_phone: 'phone', phone_exists: 'phone', agent_not_found: 'assignedAgentCode', campaign_not_found: 'campaignId', unknown_option: 'source', unknown_product: 'productCode', unknown_place: 'wardCode' } as const
 
 /** LEAD-3 */
 function CreateLeadForm({ manages, onClose, onCreated }: { manages: boolean; onClose: () => void; onCreated: (id: string) => void }) {
@@ -74,16 +80,18 @@ function CreateLeadForm({ manages, onClose, onCreated }: { manages: boolean; onC
     resolver: zodResolver(schema),
     // Errors appear when leaving a field, then update while it is being corrected
     mode: 'onTouched',
-    defaultValues: { fullName: '', phone: '', source: '', email: '', region: '', province: '', gender: '', dob: '', note: '', campaignId: '', assignedAgentCode: '', productCode: '' },
+    defaultValues: { fullName: '', phone: '', source: '', consent: '', email: '', region: '', provinceCode: '', wardCode: '', addressLine: '', gender: '', dob: '', note: '', campaignId: '', assignedAgentCode: '', productCode: '' },
   })
   const create = useMutation({
-    mutationFn: ({ consent, email, region, province, gender, dob, note, campaignId, assignedAgentCode, productCode, ...required }: FormValues) =>
+    mutationFn: ({ consent, email, region, provinceCode, wardCode, addressLine, gender, dob, note, campaignId, assignedAgentCode, productCode, ...required }: FormValues) =>
       api.post<{ id: string }>('/leads', {
         ...required,
-        consent: consent === 'yes',
+        ...(consent && { consent: consent === 'yes' }),
         email: email || undefined,
         region: region || undefined,
-        province: province || undefined,
+        provinceCode: provinceCode || undefined,
+        wardCode: wardCode || undefined,
+        addressLine: addressLine || undefined,
         gender: gender || undefined,
         dob: dob || undefined,
         note: note || undefined,
@@ -116,14 +124,17 @@ function CreateLeadForm({ manages, onClose, onCreated }: { manages: boolean; onC
         </Field>
         <Field label={t('leads.source')} htmlFor="lead-source" required error={errors.source?.message} hint={t('leads.sourceHint')}>
           {/* OPT-13 (24/11/2026): pick one of the GA's shown sources or type a new one, which joins the list */}
-          <Input id="lead-source" list="lead-source-options" maxLength={60} placeholder={t('leads.sourcePlaceholder')} aria-invalid={!!errors.source} {...form.register('source')} />
-          <ListSuggestions id="lead-source-options" kind="source" />
+          <Controller
+            control={form.control}
+            name="source"
+            render={({ field, fieldState }) => (
+              <OptionPicker ref={field.ref} kind="source" joins id="lead-source" label={t('leads.source')} maxLength={60} placeholder={t('leads.sourcePlaceholder')} value={field.value} onChange={field.onChange} onBlur={field.onBlur} invalid={fieldState.invalid} />
+            )}
+          />
         </Field>
-        <Field label={t('leads.consent')} htmlFor="lead-consent" required error={errors.consent?.message}>
-          <Select id="lead-consent" defaultValue="" aria-invalid={!!errors.consent} {...form.register('consent')}>
-            <option value="" disabled>
-              {t('leads.consentChoose')}
-            </option>
+        <Field label={t('leads.consent')} htmlFor="lead-consent" error={errors.consent?.message}>
+          <Select id="lead-consent" aria-invalid={!!errors.consent} {...form.register('consent')}>
+            <option value="">{t('leads.consentLater')}</option>
             <option value="yes">{t('leads.consentYes')}</option>
             <option value="no">{t('leads.consentNo')}</option>
           </Select>
@@ -135,12 +146,15 @@ function CreateLeadForm({ manages, onClose, onCreated }: { manages: boolean; onC
           <Input id="lead-dob" type="date" min="1900-01-01" aria-invalid={!!errors.dob} {...form.register('dob')} />
         </Field>
         <Field label={t('leads.region')} htmlFor="lead-region" error={errors.region?.message}>
-          <Input id="lead-region" list="lead-region-options" placeholder={t('leads.regionPlaceholder')} {...form.register('region')} />
-          <ListSuggestions id="lead-region-options" kind="region" />
+          <Controller
+            control={form.control}
+            name="region"
+            render={({ field, fieldState }) => (
+              <OptionPicker ref={field.ref} kind="region" id="lead-region" label={t('leads.region')} maxLength={100} emptyLabel={t('leads.noPlace')} placeholder={t('leads.regionPlaceholder')} value={field.value ?? ''} onChange={field.onChange} onBlur={field.onBlur} invalid={fieldState.invalid} />
+            )}
+          />
         </Field>
-        <Field label={t('leads.province')} htmlFor="lead-province" error={errors.province?.message}>
-          <Input id="lead-province" placeholder={t('leads.provincePlaceholder')} {...form.register('province')} />
-        </Field>
+        <PlaceFields control={form.control} setValue={form.setValue} errors={errors} idPrefix="lead" />
         <Field label={t('agents.gender')} htmlFor="lead-gender" error={errors.gender?.message}>
           <Input id="lead-gender" placeholder={t('agents.genderPlaceholder')} {...form.register('gender')} />
         </Field>
@@ -201,8 +215,10 @@ function CustomerCell({ lead }: { lead: LeadRow }) {
         {lead.fullName}
       </Link>
       <span className="block text-ink-meta tabular-nums">{lead.phone}</span>
-      {(lead.isNew || lead.newComment || lead.origin === 'FC_OWN' || lead.overdue) && (
+      {(lead.isNew || lead.newComment || lead.origin === 'FC_OWN' || lead.overdue || lead.supporting) && (
         <span className="mt-1 flex flex-wrap gap-1">
+          {/* Decided 26/11/2026: seen only as a supporter, so the phone above is masked */}
+          {lead.supporting && <Badge tone="notable">{t('leads.badgeSupporting')}</Badge>}
           {lead.overdue && <Badge tone="danger">{t('leads.badgeOverdue')}</Badge>}
           {lead.isNew && <Badge tone="info">{t('leads.badgeNew')}</Badge>}
           {lead.newComment && <Badge tone="notable">{t('leads.badgeComment')}</Badge>}
@@ -239,6 +255,9 @@ export function LeadsPage() {
   const assignee = url.get('assignee')
   // TENANT-5: leads interested in one catalogue product
   const product = url.get('product')
+  // Decided 26/11/2026: leads in a province, and in one of its communes
+  const province = url.get('province')
+  const ward = province ? url.get('ward') : ''
   const from = url.get('from')
   const to = url.get('to')
   const order = url.oneOf('order', ['asc', 'desc']) as 'asc' | 'desc' | ''
@@ -255,6 +274,8 @@ export function LeadsPage() {
     source,
     campaignId,
     product,
+    province,
+    ward,
     from,
     to,
     order,
@@ -273,7 +294,9 @@ export function LeadsPage() {
   const [assigning, setAssigning] = useState(false)
   const creating = url.get('create') === '1'
   const items = leads.data?.items ?? []
-  const allOnPage = items.length > 0 && items.every((item) => selected.has(item.id))
+  // A lead one only supports is not theirs to assign, so it cannot be selected
+  const selectable = items.filter((item) => !item.supporting)
+  const allOnPage = selectable.length > 0 && selectable.every((item) => selected.has(item.id))
   const toggleOne = (id: string) =>
     setSelected((current) => {
       const next = new Set(current)
@@ -284,7 +307,7 @@ export function LeadsPage() {
   const togglePage = () =>
     setSelected((current) => {
       const next = new Set(current)
-      for (const item of items) {
+      for (const item of selectable) {
         if (allOnPage) next.delete(item.id)
         else next.add(item.id)
       }
@@ -301,8 +324,8 @@ export function LeadsPage() {
   })
   const canSelectMore = allOnPage && total > items.length && selected.size < Math.min(total, MAX_ASSIGN)
 
-  const filtered = !!(search.input || interest || care || stage || source || campaignId || product || assignee || from || to)
-  const clearFilters = () => url.set({ q: null, interest: null, care: null, stage: null, source: null, campaign: null, product: null, assignee: null, from: null, to: null, page: null })
+  const filtered = !!(search.input || interest || care || stage || source || campaignId || product || province || assignee || from || to)
+  const clearFilters = () => url.set({ q: null, interest: null, care: null, stage: null, source: null, campaign: null, product: null, province: null, ward: null, assignee: null, from: null, to: null, page: null })
 
   return (
     <>
@@ -413,6 +436,12 @@ export function LeadsPage() {
         <FilterField label={t('leads.productInterest')} className="sm:w-56 sm:flex-none">
           <ProductPicker label={t('leads.productInterest')} placeholder={t('leads.allProducts')} emptyLabel={t('leads.allProducts')} value={product} onChange={(code) => url.set({ product: code, page: null })} />
         </FilterField>
+        <FilterField label={t('leads.province')} className="sm:w-48 sm:flex-none">
+          <ProvincePicker label={t('leads.province')} placeholder={t('leads.allProvinces')} emptyLabel={t('leads.allProvinces')} value={province} onChange={(code) => url.set({ province: code, ward: null, page: null })} />
+        </FilterField>
+        <FilterField label={t('leads.ward')} className="sm:w-48 sm:flex-none">
+          <WardPicker label={t('leads.ward')} provinceCode={province} placeholder={t('leads.allWards')} emptyLabel={t('leads.allWards')} value={ward} onChange={(code) => url.set({ ward: code, page: null })} />
+        </FilterField>
         {tab.key !== 'unassigned' && tab.key !== 'mine' && (
           <FilterField label={t('leads.assignee')} className="sm:w-48 sm:flex-none">
             <Select value={assignee} onChange={(event) => url.set({ assignee: event.target.value, page: null })}>
@@ -496,7 +525,7 @@ export function LeadsPage() {
                     <tr key={lead.id}>
                       {assigns && (
                         <td>
-                          <Checkbox aria-label={t('leads.selectOne', { name: lead.fullName })} checked={selected.has(lead.id)} onChange={() => toggleOne(lead.id)} />
+                          <Checkbox aria-label={t('leads.selectOne', { name: lead.fullName })} disabled={lead.supporting} checked={selected.has(lead.id)} onChange={() => toggleOne(lead.id)} />
                         </td>
                       )}
                       <td className="whitespace-nowrap text-ink-meta">{showDate(lead.leadDate)}</td>

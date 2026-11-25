@@ -29,6 +29,7 @@ import type { Actor } from '../../common/rbac.js';
 import {
   AddActivityDto,
   AddCommentDto,
+  AddSupporterDto,
   DeleteLeadDto,
   EditNoteDto,
   SaveFilterDto,
@@ -44,6 +45,7 @@ import {
   UpdateTaskDto,
 } from './leads.dto.js';
 import { LeadRemovalService } from './lead-removal.service.js';
+import { LeadSupportersService } from './lead-supporters.service.js';
 import { LeadsService } from './leads.service.js';
 import { SavedFiltersService } from './saved-filters.service.js';
 
@@ -57,6 +59,7 @@ export class LeadsController {
     private readonly leads: LeadsService,
     private readonly removal: LeadRemovalService,
     private readonly filters: SavedFiltersService,
+    private readonly supporters: LeadSupportersService,
   ) {}
 
   @Get()
@@ -200,8 +203,57 @@ export class LeadsController {
     summary: 'Chi tiết lead',
     description: 'Đánh dấu đã xem nếu người mở là đại lý được giao (LEAD-25).',
   })
-  detail(@CurrentActor() actor: Actor, @Param('id', IdPipe) id: string) {
-    return this.leads.detail(actor, id);
+  async detail(@CurrentActor() actor: Actor, @Param('id', IdPipe) id: string) {
+    return {
+      ...(await this.leads.detail(actor, id)),
+      // Decided 26/11/2026: who supports the lead, and whether the viewer may change that
+      ...(await this.supporters.forLead(actor, id)),
+    };
+  }
+
+  @Get(':id/supporters/candidates')
+  @ApiOperation({
+    summary: 'Người có thể thêm làm người hỗ trợ',
+    description:
+      'Tối đa 10 người dùng đang hoạt động của GA, trừ người được giao và người đã hỗ trợ. Chỉ người phụ trách lead, người quản lý lead và quản lý tuyến của lead.',
+  })
+  supporterCandidates(
+    @CurrentActor() actor: Actor,
+    @Param('id', IdPipe) id: string,
+    @Query() query: MentionQueryDto,
+  ) {
+    return this.supporters.candidates(actor, id, query.q);
+  }
+
+  @Post(':id/supporters')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Thêm người hỗ trợ cho lead',
+    description:
+      'Người hỗ trợ xem được lead nhưng số điện thoại luôn được che (PDP-3) và không sửa được lead; được góp ý. Ghi lịch sử, kiểm toán và báo cho người được thêm.',
+  })
+  @ApiNoContentResponse()
+  async addSupporter(
+    @CurrentActor() actor: Actor,
+    @Param('id', IdPipe) id: string,
+    @Body() dto: AddSupporterDto,
+  ): Promise<void> {
+    await this.supporters.add(actor, id, dto.userId);
+  }
+
+  @Delete(':id/supporters/:userId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Bỏ một người hỗ trợ',
+    description: 'Người hỗ trợ cũng tự rời được.',
+  })
+  @ApiNoContentResponse()
+  async removeSupporter(
+    @CurrentActor() actor: Actor,
+    @Param('id', IdPipe) id: string,
+    @Param('userId', IdPipe) userId: string,
+  ): Promise<void> {
+    await this.supporters.remove(actor, id, userId);
   }
 
   @Patch(':id')

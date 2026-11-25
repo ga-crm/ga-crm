@@ -50,6 +50,15 @@
   --color-stage-submitted: #d9581f;
   --color-stage-issued: #1f8a3c;
   --color-stage-lost: #d93f3e;
+  /* Client tiers (decided 26/11/2026): a hue per tier for its badge, text on its own band; never for controls */
+  --color-tier-member: #a8324f;
+  --color-tier-member-band: #fce8ed;
+  --color-tier-silver: #4a5565;
+  --color-tier-silver-band: #e9edf2;
+  --color-tier-gold: #855b00;
+  --color-tier-gold-band: #fbefc9;
+  --color-tier-diamond: #0b6477;
+  --color-tier-diamond-band: #dff4f8;
 
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -157,6 +166,14 @@
   --color-stage-submitted: #d9581f;
   --color-stage-issued: #1f8a3c;
   --color-stage-lost: #d93f3e;
+  --color-tier-member: #a8324f;
+  --color-tier-member-band: #fce8ed;
+  --color-tier-silver: #4a5565;
+  --color-tier-silver-band: #e9edf2;
+  --color-tier-gold: #855b00;
+  --color-tier-gold-band: #fbefc9;
+  --color-tier-diamond: #0b6477;
+  --color-tier-diamond-band: #dff4f8;
 }
 
 [data-theme='dark'] {
@@ -195,6 +212,14 @@
   --color-stage-submitted: #d95926;
   --color-stage-issued: #2fa84f;
   --color-stage-lost: #e66767;
+  --color-tier-member: #ff9db3;
+  --color-tier-member-band: #3d1f28;
+  --color-tier-silver: #c5ceda;
+  --color-tier-silver-band: #2a323c;
+  --color-tier-gold: #f3cf6b;
+  --color-tier-gold-band: #3a3016;
+  --color-tier-diamond: #7fdcee;
+  --color-tier-diamond-band: #143540;
 }
 
 [data-theme='midnight'] {
@@ -233,6 +258,14 @@
   --color-stage-submitted: #d95926;
   --color-stage-issued: #2fa84f;
   --color-stage-lost: #e66767;
+  --color-tier-member: #ffa6ba;
+  --color-tier-member-band: #40233a;
+  --color-tier-silver: #cbd5e3;
+  --color-tier-silver-band: #223452;
+  --color-tier-gold: #f6d47a;
+  --color-tier-gold-band: #3b3524;
+  --color-tier-diamond: #86e0f0;
+  --color-tier-diamond-band: #12394f;
 }
 
 [data-theme='soft'] {
@@ -271,6 +304,14 @@
   --color-stage-submitted: #d9581f;
   --color-stage-issued: #1f8a3c;
   --color-stage-lost: #d93f3e;
+  --color-tier-member: #9c2f4a;
+  --color-tier-member-band: #f3dfe0;
+  --color-tier-silver: #4a5360;
+  --color-tier-silver-band: #e6e4de;
+  --color-tier-gold: #7a5200;
+  --color-tier-gold-band: #f3e6bd;
+  --color-tier-diamond: #0c5f70;
+  --color-tier-diamond-band: #dcebe8;
 }
 
 [data-theme='contrast'] {
@@ -309,6 +350,14 @@
   --color-stage-submitted: #d9581f;
   --color-stage-issued: #1f8a3c;
   --color-stage-lost: #d93f3e;
+  --color-tier-member: #8a1836;
+  --color-tier-member-band: #ffe6ec;
+  --color-tier-silver: #2f3743;
+  --color-tier-silver-band: #e6eaef;
+  --color-tier-gold: #6b4700;
+  --color-tier-gold-band: #fff0c2;
+  --color-tier-diamond: #004f61;
+  --color-tier-diamond-band: #dbf5fa;
 }
 
 @layer base {
