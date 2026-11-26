@@ -378,7 +378,7 @@ function FamilyLeadForm({ clientId, member, onClose }: { clientId: string; membe
   )
 }
 
-/** FAM-7: the family tab. Owners (and GA_HEAD) change it (FAM-8); everyone in scope reads it. */
+/** FAM-7: the family tab. Owners (and GAD) change it (FAM-8); everyone in scope reads it. */
 export function FamilyTab({ detail }: { detail: ClientDetail }) {
   const url = useUrlState()
   const refresh = useRefresh()

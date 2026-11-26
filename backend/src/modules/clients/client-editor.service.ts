@@ -162,7 +162,7 @@ export class ClientEditorService {
     if (!agentCode)
       throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.AgentRequired);
     const allowed =
-      actor.roles.includes(Role.GaHead) ||
+      actor.roles.includes(Role.GAD) ||
       (await this.agents.scopeCodes(actor, db)).includes(agentCode) ||
       (!chosen && agentCode === fallback);
     const known = await this.agents.namesByCode(scope, [agentCode], db);
@@ -191,7 +191,7 @@ export class ClientEditorService {
           .getOne();
         if (!client) throw notFound();
         const owns =
-          actor.roles.includes(Role.GaHead) ||
+          actor.roles.includes(Role.GAD) ||
           (!!actor.agentCode &&
             client.ownerAgentCodes.includes(actor.agentCode));
         if (!owns)
@@ -927,7 +927,7 @@ export class ClientEditorService {
   ): Promise<{ assigned: number }> {
     // ASG-1: GA_HEAD, or someone granted clients.assign; agents never assign, even their own
     if (
-      !actor.roles.includes(Role.GaHead) &&
+      !actor.roles.includes(Role.GAD) &&
       !actor.permissions.includes(Permission.ClientsAssign)
     )
       throw forbidden();

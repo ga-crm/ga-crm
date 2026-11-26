@@ -676,7 +676,7 @@ export class ImportsService implements OnModuleInit, OnModuleDestroy {
     return {
       tenantWide:
         actor.permissions.includes(Permission.ImportsTenantWide) ||
-        actor.roles.includes(Role.GaHead),
+        actor.roles.includes(Role.GAD),
       reach: actor.reach,
       agentCode: actor.agentCode,
       scope: new Set(scope),

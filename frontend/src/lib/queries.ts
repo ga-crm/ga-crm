@@ -503,7 +503,7 @@ export const queries = {
       queryFn: ({ signal }) => api.get<PlatformSettings>('/platform/settings', undefined, { signal }),
     }),
 
-  /** Section 5.2: GA_HEAD only. `version` goes back with the save. */
+  /** Section 5.2: GAD only. `version` goes back with the save. */
   gaSettings: () =>
     queryOptions({
       queryKey: keys.gaSettings,

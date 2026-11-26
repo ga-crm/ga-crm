@@ -52,7 +52,7 @@ describe('GA settings (e2e)', () => {
   });
 
   it('section 5.2: only GA_HEAD reads or changes the settings; the API refuses everyone else', async () => {
-    for (const key of ['admin', 'marketing', 'fc']) {
+    for (const key of ['admin', 'fc']) {
       const agent = await as(key);
       await agent.get(`${API}/settings`).expect(403);
       await agent
@@ -148,7 +148,7 @@ describe('GA settings (e2e)', () => {
   });
 
   it("LEAD-29 + LEAD-22: the GA's contact deadline drives overdue leads and the automatic task", async () => {
-    const marketing = await as('marketing');
+    const marketing = await as('admin');
     const { version } = await read(head);
     await head
       .put(`${API}/settings`)

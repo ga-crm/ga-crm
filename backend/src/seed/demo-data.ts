@@ -18,9 +18,9 @@ const HIERARCHY: {
   roles: Role[];
   agentSuffix?: string;
 }[] = [
-  { key: 'head', name: 'Chủ GA', roles: [Role.GaHead] },
+  // Decided 27/11/2026: the former GA head is a GA director without an agent code
+  { key: 'head', name: 'Giám đốc điều hành', roles: [Role.GAD] },
   { key: 'admin', name: 'Quản trị viên', roles: [Role.Admin] },
-  { key: 'marketing', name: 'Marketing', roles: [Role.Marketing] },
   { key: 'gad', name: 'Giám đốc GA', roles: [Role.GAD], agentSuffix: '01' },
   { key: 'bm', name: 'Trưởng ban', roles: [Role.BM], agentSuffix: '02' },
   {

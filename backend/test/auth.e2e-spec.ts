@@ -242,12 +242,12 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const admin = await signIn(demoEmail(1, 'admin'));
       await admin
         .post(`${API}/users/invite`)
-        .send({ email: 'head2@test.local', name: 'H', roles: ['GA_HEAD'] })
+        .send({ email: 'head2@test.local', name: 'H', roles: ['GAD'] })
         .expect(403);
 
       const { body } = await admin
         .get(`${API}/users`)
-        .query({ role: 'GA_HEAD' })
+        .query({ role: 'GAD' })
         .expect(200);
       await admin
         .patch(`${API}/users/${body.items[0].id}`)
@@ -330,11 +330,23 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
         expect(self.body.error).toBe('cannot_disable_self');
       }
 
+      // The demo GA has a second director (gad); while they remain, one may step down
+      const other = (
+        await head.get(`${API}/users`).query({ q: demoEmail(1, 'gad') })
+      ).body.items[0] as { id: string };
+      await head
+        .patch(`${API}/users/${other.id}`)
+        .send({ roles: ['BM'] })
+        .expect(200);
       const demote = await head
         .patch(`${API}/users/${me.id}`)
         .send({ roles: ['ADMIN'] })
         .expect(409);
       expect(demote.body.error).toBe('last_ga_head');
+      await head
+        .patch(`${API}/users/${other.id}`)
+        .send({ roles: ['GAD'] })
+        .expect(200);
     });
 
     it('USER-10: disabling applies immediately and deletes all sessions', async () => {
@@ -405,7 +417,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const head = await signIn(demoEmail(ga, 'head'));
       const invited = await head
         .post(`${API}/users/invite`)
-        .send({ email, name: 'Vòng đời', roles: ['MARKETING'], ...body })
+        .send({ email, name: 'Vòng đời', roles: ['ADMIN'], ...body })
         .expect(201);
       const device = request.agent(app.getHttpServer());
       await device
@@ -643,7 +655,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       // A GA_HEAD may archive another GA_HEAD while one active GA_HEAD remains
       const second = await activated(
         'second.head@test.local',
-        { roles: ['GA_HEAD'] },
+        { roles: ['GAD'] },
         2,
       );
       await ownHead
@@ -653,10 +665,11 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       expect(
         await connection.collection('users').countDocuments({
           tenantId: (await storedUser(me.id))!.tenantId,
-          roles: 'GA_HEAD',
+          roles: 'GAD',
           status: 'ACTIVE',
         }),
-      ).toBe(1);
+        // The demo GA's two directors (head and gad)
+      ).toBe(2);
     });
 
     it('TEN-7: GA-1 gets 404 for every lifecycle action on a GA-2 user', async () => {
@@ -665,7 +678,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const target = (
         await head2
           .get(`${API}/users`)
-          .query({ q: demoEmail(2, 'marketing') })
+          .query({ q: demoEmail(2, 'admin') })
           .expect(200)
       ).body.items[0];
       for (const action of ['disable', 'archive', 'reactivate']) {
@@ -684,7 +697,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const head = await signIn(demoEmail(1, 'head'));
       const invited = await head
         .post(`${API}/users/invite`)
-        .send({ email: 'new.user@test.local', name: 'N', roles: ['MARKETING'] })
+        .send({ email: 'new.user@test.local', name: 'N', roles: ['ADMIN'] })
         .expect(201);
       const first = inviteToken(invited.body.inviteUrl);
 
@@ -751,9 +764,9 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
   describe('permission matrix', () => {
     it('section 23.2 #11: edits apply on the next request, are audited, and stay per tenant', async () => {
       const head1 = await signIn(demoEmail(1, 'head'));
-      const marketing1 = await signIn(demoEmail(1, 'marketing'));
-      const marketing2 = await signIn(demoEmail(2, 'marketing'));
-      await marketing1.get(`${API}/users`).expect(403);
+      const um1 = await signIn(demoEmail(1, 'um'));
+      const um2 = await signIn(demoEmail(2, 'um'));
+      await um1.get(`${API}/users`).expect(403);
 
       const { grants } = (await head1.get(`${API}/permissions`).expect(200))
         .body;
@@ -762,24 +775,24 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
         .send({
           grants: {
             ...grants,
-            MARKETING: [...grants.MARKETING, 'users.manage'],
+            UM: [...grants.UM, 'users.manage'],
           },
         })
         .expect(204);
 
-      await marketing1.get(`${API}/users`).expect(200);
-      await marketing2.get(`${API}/users`).expect(403);
+      await um1.get(`${API}/users`).expect(200);
+      await um2.get(`${API}/users`).expect(403);
 
       const audit = await head1
         .get(`${API}/audit`)
         .query({ action: 'PERMISSION_CHANGE' })
         .expect(200);
-      expect(audit.body.items[0].meta.after.MARKETING).toContain(
+      expect(audit.body.items[0].meta.after.UM).toContain(
         'users.manage',
       );
 
       await head1.put(`${API}/permissions`).send({ grants }).expect(204);
-      await marketing1.get(`${API}/users`).expect(403);
+      await um1.get(`${API}/users`).expect(403);
     });
 
     it('rejects unknown permissions', async () => {
@@ -812,7 +825,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
         .expect(201);
       expect(body.tenant.gaCode).toBe('GA-NEW-1');
       expect(body.head.status).toBe('INVITED');
-      expect(body.head.roles).toEqual(['GA_HEAD']);
+      expect(body.head.roles).toEqual(['GAD']);
 
       const again = await admin
         .post(`${API}/platform/tenants`)
@@ -999,7 +1012,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const head = await signIn(demoEmail(1, 'head'));
       const { body } = await head
         .post(`${API}/users/invite`)
-        .send({ email, name: 'Managed', roles: ['MARKETING'] })
+        .send({ email, name: 'Managed', roles: ['ADMIN'] })
         .expect(201);
       const device = request.agent(app.getHttpServer());
       await device
@@ -1040,7 +1053,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const admin = await signIn(demoEmail(1, 'admin'));
       const heads = await admin
         .get(`${API}/users`)
-        .query({ role: 'GA_HEAD' })
+        .query({ role: 'GAD' })
         .expect(200);
       const headId = heads.body.items[0].id;
       await admin
@@ -1296,7 +1309,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
 
       await head
         .patch(`${API}/users/${id}`)
-        .send({ roles: ['GA_HEAD'] })
+        .send({ roles: ['GAD'] })
         .expect(200);
       await http()
         .post(`${API}/invites/accept`)
@@ -1331,7 +1344,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const me = (await admin.get(`${API}/me`).expect(200)).body.user;
       const refused = await admin
         .patch(`${API}/users/${me.id}`)
-        .send({ roles: ['ADMIN', 'MARKETING'] })
+        .send({ roles: ['ADMIN', 'FC'], agentCode: '00200099' })
         .expect(403);
       expect(refused.body).toEqual({ error: 'forbidden' });
       await admin
@@ -1410,7 +1423,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
     });
 
     it('sessions: renewal cannot pass the absolute limit', async () => {
-      const email = demoEmail(1, 'marketing');
+      const email = demoEmail(1, 'admin');
       const agent = await signIn(email);
       const user = await connection.collection('users').findOne({ email });
       const absolute = new Date(Date.now() + 2 * 86_400_000);
@@ -1565,12 +1578,15 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
         0,
       );
 
-      const byRole = await list({ role: 'GA_HEAD', pageSize: 50 });
+      const byRole = await list({ role: 'GAD', pageSize: 50 });
       expect(byRole.total).toBeGreaterThan(0);
+      // The demo GA's two directors
       for (const event of byRole.items) {
-        expect(event.actor.email).toBe(demoEmail(1, 'head'));
+        expect([demoEmail(1, 'head'), demoEmail(1, 'gad')]).toContain(
+          event.actor.email,
+        );
       }
-      const both = await list({ role: 'GA_HEAD', action: 'LOGIN', ip: part });
+      const both = await list({ role: 'GAD', action: 'LOGIN', ip: part });
       expect(both.total).toBeGreaterThan(0);
       expect((await list({ role: 'PLATFORM_ADMIN' })).total).toBe(0);
       await head.get(`${API}/audit`).query({ role: 'BOSS' }).expect(400);
@@ -1705,7 +1721,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const created = (await list({ action: 'CREATE', entity: 'user' }))[0];
       expect(created.actor).toEqual({
         kind: 'user',
-        name: 'Chủ GA 1',
+        name: 'Giám đốc điều hành 1',
         email: demoEmail(1, 'head'),
       });
       expect(created.target).toEqual({

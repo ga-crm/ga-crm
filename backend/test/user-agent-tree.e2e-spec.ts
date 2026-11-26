@@ -152,7 +152,7 @@ describe('Accounts added by hand join the agent tree (e2e)', () => {
     const staff = await invite(head, {
       email: 'nhan.vien@test.local',
       name: 'Nhân Viên Văn Phòng',
-      roles: ['MARKETING'],
+      roles: ['ADMIN'],
       agentCode: '00100093',
     }).expect(201);
     expect(staff.body.addedToTree).toBe(false);
@@ -166,7 +166,7 @@ describe('Accounts added by hand join the agent tree (e2e)', () => {
       await invite(head, {
         email: 'sau.nay@test.local',
         name: 'Trưởng Nhóm Sau Này',
-        roles: ['MARKETING'],
+        roles: ['ADMIN'],
       }).expect(201)
     ).body.user.id as string;
 

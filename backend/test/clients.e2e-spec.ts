@@ -477,7 +477,7 @@ describe('Clients from Success files (e2e)', () => {
         }),
     ).toBeGreaterThan(0);
 
-    for (const key of ['marketing', 'admin']) {
+    for (const key of ['admin']) {
       const agent = await as(key);
       await agent.get(`${API}/clients`).expect(403);
       await open(agent, '1000000001', 403);

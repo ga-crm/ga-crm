@@ -79,16 +79,16 @@ function LabelInput({
   );
 }
 
-/** Section 16.8: Danh mục. GA_HEAD edits (PERM-3); Admin sees it read-only. */
+/** Section 16.8: Danh mục. GAD edits (PERM-3); Admin sees it read-only. */
 export function CatalogPage() {
   const { data: me } = useMe();
   const queryClient = useQueryClient();
   const url = useUrlState();
-  // Section 4.3: lead lists are for GA_HEAD (edit) and Admin (read). Products are the platform's (TENANT-5)
+  // Section 4.3: lead lists are for GAD (edit) and Admin (read). Products are the platform's (TENANT-5)
   const tabs = LEAD_OPTION_KINDS;
   const tab = url.oneOf("kind", tabs) || tabs[0];
   const kind = tab as LeadOptionKind;
-  const canEdit = hasRole(me, "GA_HEAD");
+  const canEdit = hasRole(me, "GAD");
   const [newLabel, setNewLabel] = useState("");
   const [deleting, setDeleting] = useState<LeadOption | null>(null);
 

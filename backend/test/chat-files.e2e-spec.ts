@@ -76,10 +76,10 @@ describe('Chat files, search and notices (e2e)', () => {
     const { rows } = await ownerDb().query<{ id: string; email: string; tenant_id: string }>(
       `SELECT id, email, tenant_id FROM users WHERE email LIKE '%.gacrm.local'`,
     );
-    for (const key of ['head', 'admin', 'bm', 'um', 'fc', 'gad', 'marketing'])
+    for (const key of ['head', 'admin', 'bm', 'um', 'fc', 'gad'])
       ids[key] = rows.find((row) => row.email === demoEmail(1, key))!.id;
     tenantId = rows.find((row) => row.email === demoEmail(1, 'fc'))!.tenant_id;
-    for (const key of ['head', 'admin', 'bm', 'um', 'fc', 'gad', 'marketing']) cookies[key] = await signIn(key);
+    for (const key of ['head', 'admin', 'bm', 'um', 'fc', 'gad']) cookies[key] = await signIn(key);
     cookies.head2 = await signIn('head', 2);
   });
 
@@ -147,16 +147,16 @@ describe('Chat files, search and notices (e2e)', () => {
     });
 
     it('PDP: recalling a message deletes its files from storage', async () => {
-      const id = await direct('fc', 'marketing');
+      const id = await direct('fc', 'bm');
       const [file] = (await upload('fc', id, [[PDF, 'cccd.pdf']]).expect(201)).body.items as { id: string }[];
       const message = await send('fc', id, 'giấy tờ', { fileIds: [file.id] });
       const { rows } = await ownerDb().query<{ storage_key: string }>(`SELECT storage_key FROM chat_files WHERE id = $1`, [file.id]);
 
       await as('fc').delete(`/chat/conversations/${id}/messages/${message.seq}`).expect(204);
 
-      await as('marketing').get(`/chat/files/${file.id}`).expect(404);
+      await as('bm').get(`/chat/files/${file.id}`).expect(404);
       await expect(app.get(ObjectStorage).get(rows[0].storage_key)).rejects.toThrow();
-      const [stored] = (await as('marketing').get(`/chat/conversations/${id}/messages`).expect(200)).body.items as Message[];
+      const [stored] = (await as('bm').get(`/chat/conversations/${id}/messages`).expect(200)).body.items as Message[];
       expect(stored.data.files).toBeUndefined();
     });
 
@@ -217,7 +217,7 @@ describe('Chat files, search and notices (e2e)', () => {
       ]);
 
     it('tells a member once about messages unread for 5 minutes, and again only after new ones', async () => {
-      const id = await direct('gad', 'marketing');
+      const id = await direct('gad', 'admin');
       await send('gad', id, 'một');
       await send('gad', id, 'hai');
       const notices = app.get(ChatNoticesService);
@@ -238,7 +238,7 @@ describe('Chat files, search and notices (e2e)', () => {
       expect((await noticesFor()).at(-1)!.data).toEqual({ count: 1, userId: ids.gad });
 
       async function noticesFor() {
-        return (await notices_('marketing')).filter((row) => row.link === `/chat?c=${id}`);
+        return (await notices_('admin')).filter((row) => row.link === `/chat?c=${id}`);
       }
     });
 

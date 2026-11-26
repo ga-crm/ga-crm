@@ -40,7 +40,7 @@ describe('Policy details (e2e)', () => {
     [fc, head, marketing, head2] = await Promise.all([
       as(demoEmail(1, 'fc')),
       as(demoEmail(1, 'head')),
-      as(demoEmail(1, 'marketing')),
+      as(demoEmail(1, 'admin')),
       as(demoEmail(2, 'head')),
     ]);
     clientId = (

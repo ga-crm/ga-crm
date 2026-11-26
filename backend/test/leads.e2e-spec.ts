@@ -73,7 +73,7 @@ describe('Leads (e2e)', () => {
     await seedDemoData(app, PASSWORD);
 
     head = await as('head');
-    marketing = await as('marketing');
+    marketing = await as('admin');
     fc = await as('fc');
     um = await as('um');
     // A peer of the demo FC under another UM, so "not in my branch" can be tested
@@ -288,7 +288,7 @@ describe('Leads (e2e)', () => {
     it('TEN-1: the same phone can be a lead in two GAs', async () => {
       const phone = nextPhone();
       await newLead(fc, { phone });
-      const otherGa = await as('marketing', 2);
+      const otherGa = await as('admin', 2);
       await newLead(otherGa, { phone });
     });
 
@@ -367,7 +367,7 @@ describe('Leads (e2e)', () => {
 
     it('TEN-7: GA-2 gets 404 for a lead of GA-1 everywhere', async () => {
       const { id } = await newLead(marketing);
-      const other = await as('marketing', 2);
+      const other = await as('admin', 2);
       await other.get(`${API}/leads/${id}`).expect(404);
       await update(other, id, { fullName: 'X' }).expect(404);
       await other
@@ -394,7 +394,7 @@ describe('Leads (e2e)', () => {
     it('TEN-5: a search cannot leave the tenant', async () => {
       const name = 'Khách Riêng Ga Một';
       await newLead(marketing, { fullName: name });
-      const other = await as('marketing', 2);
+      const other = await as('admin', 2);
       expect((await list(other, { q: name })).total).toBe(0);
       expect((await list(marketing, { q: 'khach rieng ga mot' })).total).toBe(
         1,
@@ -1384,7 +1384,7 @@ describe('Leads (e2e)', () => {
       const productColumn = headers.indexOf('SẢN PHẨM');
       expect(productColumn).toBeGreaterThan(-1);
       rows[0][productColumn] = 'an tam song hanh';
-      const other = await as('marketing', 2);
+      const other = await as('admin', 2);
       const { id, sheets } = (
         await other
           .post(`${API}/imports`)
@@ -1901,7 +1901,7 @@ describe('Leads (e2e)', () => {
 
     it('TEN-7: a lead file of GA-1 is invisible to GA-2, and assigning needs an agent of this GA', async () => {
       const { id } = await run(marketing, [fileRow(nextPhone())]);
-      const other = await as('marketing', 2);
+      const other = await as('admin', 2);
       await other.get(`${API}/imports/${id}`).expect(404);
       await other.post(`${API}/imports/${id}/commit`).expect(404);
       await marketing.post(`${API}/imports/${id}/cancel`).expect(204);

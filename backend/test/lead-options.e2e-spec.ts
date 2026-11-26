@@ -76,7 +76,7 @@ describe('Lead catalogue (e2e)', () => {
     head = await as('head');
     admin = await as('admin');
     fc = await as('fc');
-    marketing = await as('marketing');
+    marketing = await as('admin');
   });
 
   afterAll(async () => {

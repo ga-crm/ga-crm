@@ -38,18 +38,18 @@ export const canImport = (me: Me) => hasPermission(me, 'imports.upload')
 export const canReadImports = (me: Me) => canImport(me) || hasPermission(me, 'imports.view_all') || hasPermission(me, 'leads.import')
 /** LEAD-2 and LEAD-6: lead managers, and anyone with an agent code. */
 export const canUseLeads = (me: Me) => hasPermission(me, 'leads.manage') || !!me.user.agentCode
-/** RPT-3: agents see their line; GA_HEAD, reports.view_all and lead managers see the GA. */
-export const canSeeReports = (me: Me) => !!me.tenant && (!!me.user.agentCode || hasRole(me, 'GA_HEAD') || hasPermission(me, 'reports.view_all') || hasPermission(me, 'leads.manage'))
+/** RPT-3: agents see their line; GAD, reports.view_all and lead managers see the GA. */
+export const canSeeReports = (me: Me) => !!me.tenant && (!!me.user.agentCode || hasRole(me, 'GAD') || hasPermission(me, 'reports.view_all') || hasPermission(me, 'leads.manage'))
 export const canImportLeads = (me: Me) => hasPermission(me, 'leads.import')
 /** LEAD-21 for lead managers; open question 4: line managers within their line (`leads.assign_line`). */
 export const canAssignLeads = (me: Me) => hasPermission(me, 'leads.manage') || (hasPermission(me, 'leads.assign_line') && me.reach === 'DOWNLINE' && !!me.user.agentCode)
-/** CUS-5: GA_HEAD, managers and agents have a client book; Marketing and Admin do not. */
+/** CUS-5: GAD, managers and agents have a client book; Admin does not. */
 export const canUseClients = (me: Me) => !!me.tenant && me.reach !== 'NONE'
 /**
- * Section 16.8 + 4.3: GA_HEAD edits the lead catalogue, Admin reads it. `catalog.manage` alone no
+ * Section 16.8 + 4.3: GAD edits the lead catalogue, Admin reads it. `catalog.manage` alone no
  * longer opens it: its only tab, the GA's programmes, gave way to the shared products (TENANT-5).
  */
-export const canSeeCatalog = (me: Me) => hasRole(me, 'GA_HEAD') || hasRole(me, 'ADMIN')
+export const canSeeCatalog = (me: Me) => hasRole(me, 'GAD') || hasRole(me, 'ADMIN')
 /** TENANT-5: the shared product catalogue is read by everyone in a GA and kept by the Platform Admin. */
 export const canManageProducts = (me: Me) => hasRole(me, 'PLATFORM_ADMIN')
 
@@ -77,18 +77,18 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/agents', label: 'nav.agents', icon: Network, group: 'nav.groupTeam', visible: inTenant, chunk: pages.agents, prefetch: () => queries.agentTree() },
   { to: '/users', label: 'nav.users', icon: Users, group: 'nav.groupTeam', visible: (me) => hasPermission(me, 'users.manage'), chunk: pages.users, prefetch: () => queries.users(FIRST_PAGE_WITH_FILTERS.users) },
   { to: '/users/activity', label: 'nav.userActivity', icon: Activity, group: 'nav.groupTeam', visible: (me) => !!me.tenant && hasPermission(me, 'users.manage'), chunk: pages.userActivity, prefetch: queries.activeUsers },
-  { to: '/permissions', label: 'nav.permissions', icon: ShieldCheck, group: 'nav.groupTeam', visible: (me) => hasRole(me, 'GA_HEAD'), chunk: pages.permissions, prefetch: () => queries.permissions() },
+  { to: '/permissions', label: 'nav.permissions', icon: ShieldCheck, group: 'nav.groupTeam', visible: (me) => hasRole(me, 'GAD'), chunk: pages.permissions, prefetch: () => queries.permissions() },
   // Files coming in. "Nhập dữ liệu" opens from a button on the agent tree and the history: not a row
   { to: '/leads/import', label: 'nav.leadImport', icon: FileInput, group: 'nav.groupData', visible: canImportLeads, chunk: pages.leadImport },
   { to: '/imports/new', label: 'nav.importNew', icon: FileUp, group: 'nav.groupData', visible: canImport, chunk: pages.importNew, parent: '/imports' },
   { to: '/imports', label: 'nav.imports', icon: History, group: 'nav.groupData', visible: canReadImports, chunk: pages.imports, prefetch: () => queries.imports(FIRST_PAGE_WITH_FILTERS.imports) },
   // Looking back at what was done
   { to: '/audit', label: 'nav.audit', icon: ScrollText, group: 'nav.groupOversight', visible: (me) => hasPermission(me, 'audit.view'), chunk: pages.audit },
-  { to: '/chat/review', label: 'nav.chatReview', icon: MessagesSquare, group: 'nav.groupOversight', visible: (me) => hasRole(me, 'GA_HEAD'), chunk: pages.chatReview },
+  { to: '/chat/review', label: 'nav.chatReview', icon: MessagesSquare, group: 'nav.groupOversight', visible: (me) => hasRole(me, 'GAD'), chunk: pages.chatReview },
   // How the GA is set up
   { to: '/catalog', label: 'nav.catalog', icon: ListChecks, group: 'nav.groupSetup', visible: canSeeCatalog, chunk: pages.catalog, prefetch: () => queries.leadOptions() },
   { to: '/ai', label: 'nav.ai', icon: Bot, group: 'nav.groupSetup', visible: (me) => !!me.tenant && hasPermission(me, 'ai.manage'), chunk: pages.aiAdmin, prefetch: () => queries.aiSettings() },
-  { to: '/ga-settings', label: 'nav.settingsGa', icon: Settings2, group: 'nav.groupSetup', visible: (me) => hasRole(me, 'GA_HEAD'), chunk: pages.gaSettings, prefetch: () => queries.gaSettings() },
+  { to: '/ga-settings', label: 'nav.settingsGa', icon: Settings2, group: 'nav.groupSetup', visible: (me) => hasRole(me, 'GAD'), chunk: pages.gaSettings, prefetch: () => queries.gaSettings() },
   { to: '/platform/tenants', label: 'nav.tenants', icon: Building2, group: 'nav.groupPlatform', visible: (me) => hasRole(me, 'PLATFORM_ADMIN'), chunk: pages.tenants, prefetch: () => queries.tenants(FIRST_PAGE_WITH_FILTERS.tenants) },
   { to: '/platform/products', label: 'nav.platformProducts', icon: Package, group: 'nav.groupPlatform', visible: canManageProducts, chunk: pages.platformProducts, prefetch: queries.platformProducts },
   { to: '/platform/settings', label: 'nav.platformSettings', icon: Settings2, group: 'nav.groupPlatform', visible: (me) => hasRole(me, 'PLATFORM_ADMIN'), chunk: pages.platformSettings, prefetch: () => queries.platformSettings() },

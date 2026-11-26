@@ -138,7 +138,7 @@ export class WorkService {
     );
     const leadOf = new Map(leads.map((lead) => [lead.id, lead]));
     const clientOf = new Map(clients.map((client) => [client.id, client]));
-    const isHead = actor.roles.includes(Role.GaHead);
+    const isHead = actor.roles.includes(Role.GAD);
     return items.map((task) => {
       const lead = task.leadId ? leadOf.get(task.leadId) : undefined;
       const client = task.clientId ? clientOf.get(task.clientId) : undefined;
@@ -405,7 +405,7 @@ export class WorkService {
         manages,
         newLeadsToday,
         uploads:
-          manages || actor.roles.includes(Role.GaHead)
+          manages || actor.roles.includes(Role.GAD)
             ? await this.uploads(db, scope, now)
             : null,
       };

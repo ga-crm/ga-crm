@@ -46,10 +46,10 @@ describe('Comments on clients and mentions (e2e)', () => {
       as('head'),
       as('fc'),
       as('um'),
-      as('marketing'),
+      as('admin'),
       as('head', 2),
     ]);
-    for (const key of ['head', 'fc', 'um', 'marketing'])
+    for (const key of ['head', 'fc', 'um', 'admin'])
       ids[key] = (await user(key))._id.toString();
     ids.head2 = (await user('head', 2))._id.toString();
     CLIENT = (
@@ -121,7 +121,7 @@ describe('Comments on clients and mentions (e2e)', () => {
     const clientIds = onClient.map((item) => item.id);
     expect(clientIds).toEqual(expect.arrayContaining([ids.head, ids.fc]));
     expect(clientIds).not.toContain(ids.um);
-    expect(clientIds).not.toContain(ids.marketing);
+    expect(clientIds).not.toContain(ids.admin);
 
     const searched = (
       await um
@@ -173,7 +173,7 @@ describe('Comments on clients and mentions (e2e)', () => {
   });
 
   it('CMT-5: mentioning someone who cannot see the record is refused', async () => {
-    for (const mention of [ids.marketing, ids.head2]) {
+    for (const mention of [ids.admin, ids.head2]) {
       const { body } = await um
         .post(`${API}/clients/${CLIENT}/comments`)
         .send({ body: '@ai đó', mentions: [mention] })

@@ -57,10 +57,10 @@ const statusBadge = (status: UserStatus) => (
   </Badge>
 )
 
-/** ROLE-4: only a GA_HEAD is offered the GA_HEAD role. The API enforces the same rule. */
+/** ROLE-4: only a GAD is offered the GAD role. The API enforces the same rule. */
 function useRoleOptions() {
   const { data: me } = useMe()
-  return TENANT_ROLES.filter((role) => role !== 'GA_HEAD' || hasRole(me, 'GA_HEAD')).map((role) => ({
+  return TENANT_ROLES.filter((role) => role !== 'GAD' || hasRole(me, 'GAD')).map((role) => ({
     value: role,
     label: tDynamic(`role.${role}`, role),
   }))
@@ -388,8 +388,8 @@ export function UsersPage() {
     reactivate: 'users.confirmReactivate',
     revoke: 'users.confirmRevoke',
   }
-  // ROLE-4: only a GA_HEAD can act on a GA_HEAD account
-  const canManage = (user: User) => !user.roles.includes('GA_HEAD') || hasRole(me, 'GA_HEAD')
+  // ROLE-4: only a GAD can act on a GAD account
+  const canManage = (user: User) => !user.roles.includes('GAD') || hasRole(me, 'GAD')
 
   const manageable = target.data && canManage(target.data) ? target.data : null
   const editing = editId ? manageable : null

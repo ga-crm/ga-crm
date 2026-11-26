@@ -35,7 +35,7 @@ const SEATS_SQL = `SELECT count(*)::int AS seats FROM users WHERE tenant_id = $1
  */
 const PERMISSION_STEPS: { version: number; permission: Permission; roles: string[] }[] = [
   { version: 1, permission: Permission.CatalogManage, roles: ['ADMIN'] },
-  { version: 2, permission: Permission.LeadsAssignLine, roles: ['GAD', 'BM', 'UM'] },
+  { version: 2, permission: Permission.LeadsAssignLine, roles: ['BM', 'UM'] },
 ];
 
 /** Raised each time a permission joins DEFAULT_GRANTS; see onModuleInit. */

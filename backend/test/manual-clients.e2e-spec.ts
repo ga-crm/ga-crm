@@ -42,7 +42,6 @@ describe('Clients and policies entered by hand (e2e)', () => {
   let admin: Agent;
   let fc: Agent;
   let um: Agent;
-  let marketing: Agent;
 
   const as = async (key: string, ga = 1) => {
     const agent = request.agent(app.getHttpServer());
@@ -84,8 +83,8 @@ describe('Clients and policies entered by hand (e2e)', () => {
   beforeAll(async () => {
     app = await startApp();
     await seedDemoData(app, PASSWORD);
-    [head, admin, fc, um, marketing] = await Promise.all(
-      ['head', 'admin', 'fc', 'um', 'marketing'].map((key) => as(key)),
+    [head, admin, fc, um] = await Promise.all(
+      ['head', 'admin', 'fc', 'um'].map((key) => as(key)),
     );
     ga1 = (await connection
       .collection('users')
@@ -116,7 +115,7 @@ describe('Clients and policies entered by hand (e2e)', () => {
         ['BH_CHAM_SOC_SUC_KHOE', 'Bổ trợ'],
         ['BH_TAI_NAN_CAO_CAP', 'Bổ trợ'],
       ]);
-      for (const agent of [fc, um, marketing]) {
+      for (const agent of [fc, um]) {
         await agent
           .post(`${API}/programs`)
           .send({ label: 'Thử', productRole: 'Chính' })
@@ -460,7 +459,7 @@ describe('Clients and policies entered by hand (e2e)', () => {
         name: 'Vợ Khách Nhánh Khác',
       });
       expect((await stored(spouse))?.ownerAgentCodes).toEqual([PEER]);
-      for (const agent of [marketing, admin])
+      for (const agent of [admin])
         await create(agent, {
           policyNo: '500000014',
           role: 'PO',
@@ -553,7 +552,7 @@ describe('Clients and policies entered by hand (e2e)', () => {
         .patch(`${API}/clients/${ids.peer}`)
         .send({ tier: 'Bạc' })
         .expect(404);
-      for (const agent of [marketing, admin])
+      for (const agent of [admin])
         await agent
           .patch(`${API}/clients/${ids.holder}`)
           .send({ tier: 'Bạc' })

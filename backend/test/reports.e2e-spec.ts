@@ -57,7 +57,7 @@ describe('Reports (e2e)', () => {
       as('head'),
       as('fc'),
       as('um'),
-      as('marketing'),
+      as('admin'),
       as('head', 2),
     ]);
     await head

@@ -272,7 +272,8 @@ export async function seedShowcase(
       );
     };
     const head = await actorFor('head');
-    const marketing = await actorFor('marketing');
+    // Decided 26/11/2026: Admin does what Marketing did (leads, campaigns, lead files)
+    const marketing = await actorFor('admin');
 
     // Agents: fill what the fixture left empty, and add the rest of the tree
     for (const seed of AGENTS) {
@@ -353,7 +354,6 @@ export async function seedShowcase(
     const signedIn = [
       'head',
       'admin',
-      'marketing',
       'gad',
       'bm',
       'um',

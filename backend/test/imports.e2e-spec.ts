@@ -191,7 +191,7 @@ describe('Agent tree and imports (e2e)', () => {
       expect(bm).toContain('00100091');
       expect(bm).not.toContain('00100001');
       // Marketing and Admin hold agents.view_all by default
-      expect(await codes(demoEmail(1, 'marketing'))).toContain('00100001');
+      expect(await codes(demoEmail(1, 'admin'))).toContain('00100001');
       expect(await codes(demoEmail(1, 'head'))).toContain('00100091');
 
       const um = await signIn(demoEmail(1, 'um'));
@@ -243,7 +243,7 @@ describe('Agent tree and imports (e2e)', () => {
       const admin = await signIn(demoEmail(1, 'admin'));
       expect(await getAgent(admin, '00100004')).toHaveProperty('phone');
 
-      for (const key of ['marketing', 'um', 'fc']) {
+      for (const key of ['um', 'fc']) {
         const body = await getAgent(
           await signIn(demoEmail(1, key)),
           '00100004',
@@ -268,7 +268,7 @@ describe('Agent tree and imports (e2e)', () => {
         status: ACTIVE,
         startDate: '2024-01-01',
       };
-      for (const key of ['fc', 'um', 'marketing']) {
+      for (const key of ['fc', 'um']) {
         const agent = await signIn(demoEmail(1, key));
         await agent.post(`${API}/agents`).send(valid).expect(403);
         await agent
@@ -892,16 +892,35 @@ describe('Agent tree and imports (e2e)', () => {
     });
 
     it('AGT-4: someone with no code and no tree permission cannot import this sheet', async () => {
-      const marketing = await signIn(demoEmail(1, 'marketing'));
-      const { id, sheets } = await startImport(marketing);
-      expect(sheets[0]).toMatchObject({
-        status: 'BLOCKED',
-        reason: 'sheet_not_allowed',
-      });
-      await marketing
-        .post(`${API}/imports/${id}/rows`)
-        .send({ sheet: SHEET, rows: [] })
-        .expect(409);
+      // Admin has no agent code; the GA takes the tree permission away from the role for a moment
+      const head = await signIn(demoEmail(1, 'head'));
+      const { grants } = (await head.get(`${API}/permissions`).expect(200))
+        .body as { grants: Record<string, string[]> };
+      await head
+        .put(`${API}/permissions`)
+        .send({
+          grants: {
+            ...grants,
+            ADMIN: grants.ADMIN.filter(
+              (permission) => permission !== 'imports.agent_tree',
+            ),
+          },
+        })
+        .expect(204);
+      try {
+        const admin = await signIn(demoEmail(1, 'admin'));
+        const { id, sheets } = await startImport(admin);
+        expect(sheets[0]).toMatchObject({
+          status: 'BLOCKED',
+          reason: 'sheet_not_allowed',
+        });
+        await admin
+          .post(`${API}/imports/${id}/rows`)
+          .send({ sheet: SHEET, rows: [] })
+          .expect(409);
+      } finally {
+        await head.put(`${API}/permissions`).send({ grants }).expect(204);
+      }
     });
   });
 

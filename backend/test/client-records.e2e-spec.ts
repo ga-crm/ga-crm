@@ -54,7 +54,7 @@ describe('Client care records and referrals (e2e)', () => {
       as('fc'),
       as('um'),
       as('head'),
-      as('marketing'),
+      as('admin'),
       as('head', 2),
     ]);
     clientId = (

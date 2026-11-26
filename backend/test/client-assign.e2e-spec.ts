@@ -161,7 +161,7 @@ describe('Client assignment, history and Success activities (e2e)', () => {
 
   describe('assignment', () => {
     it('ASG-1 + ASG-7: only GA_HEAD or clients.assign; an agent cannot, even for their own client; Marketing and Admin never', async () => {
-      for (const agent of [fc, um, await as('marketing'), await as('admin')])
+      for (const agent of [fc, um, await as('admin'), await as('admin')])
         await assign(agent, {
           clientIds: [NO_POLICY],
           agentCode: FC2,
@@ -348,7 +348,7 @@ describe('Client assignment, history and Success activities (e2e)', () => {
       ]);
       expect(rows[0].fileName).toBe('success.xlsx');
       expect(rows[1].fileName).toBeNull();
-      expect(body.userNames[rows[0].changedBy]).toBe('Chủ GA 1');
+      expect(body.userNames[rows[0].changedBy]).toBe('Giám đốc điều hành 1');
       expect(body.userNames[rows[1].changedBy]).toBe('Tư vấn viên 1');
       await head2.get(`${API}/clients/${WITH_POLICY}`).expect(404);
     });

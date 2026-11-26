@@ -856,7 +856,7 @@ export class ClientsService {
 
       // CUS-6: owners and GA_HEAD may change the client
       const canEdit =
-        actor.roles.includes(Role.GaHead) ||
+        actor.roles.includes(Role.GAD) ||
         (!!actor.agentCode && client.ownerAgentCodes.includes(actor.agentCode));
       return {
         client: {

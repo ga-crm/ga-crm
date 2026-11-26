@@ -167,7 +167,7 @@ export function ProductDetailPage() {
       <div className="max-w-3xl">
         <ProductInfo product={product} />
       </div>
-      {/* CUS-5: Marketing and Admin have no client book, so the API sends no policies */}
+      {/* CUS-5: Admin has no client book, so the API sends no policies */}
       {policies && <ProductPolicies policies={policies} />}
     </Container>
   )

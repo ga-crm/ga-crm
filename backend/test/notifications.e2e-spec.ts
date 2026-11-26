@@ -364,7 +364,7 @@ describe('Notifications (e2e)', () => {
         .send({
           email: 'moi.thongbao@ga1.gacrm.local',
           name: 'Người Mới',
-          roles: ['MARKETING'],
+          roles: ['ADMIN'],
         })
         .expect(201)
     ).body as { inviteUrl: string };

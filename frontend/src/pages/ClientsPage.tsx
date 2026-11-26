@@ -86,8 +86,8 @@ export function ClientsPage() {
   useLeaveEmptyPage(url, clients.data?.items.length)
 
   const items = clients.data?.items ?? []
-  // ASG-1: GA_HEAD or clients.assign; the API checks it again (PERM-4)
-  const canAssign = hasRole(me, 'GA_HEAD') || hasPermission(me, 'clients.assign')
+  // ASG-1: GAD or clients.assign; the API checks it again (PERM-4)
+  const canAssign = hasRole(me, 'GAD') || hasPermission(me, 'clients.assign')
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [assigning, setAssigning] = useState(false)
   const allOnPage = items.length > 0 && items.every((item) => selected.has(item.id))

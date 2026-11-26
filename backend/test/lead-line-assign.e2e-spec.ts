@@ -127,17 +127,17 @@ describe('Lead assignment within a line (e2e)', () => {
     await head.put(`${API}/permissions`).send({ grants }).expect((res) => expect(res.status).toBeLessThan(300));
   });
 
-  it('test 11 + PERM-2: GAs from before get leads.assign_line for GAD, BM and UM once', async () => {
+  it('test 11 + PERM-2: GAs from before get leads.assign_line for BM and UM once', async () => {
+    // Decided 27/11/2026: the GA director holds every permission, outside the matrix
     const owner = ownerDb();
     const drop = `UPDATE tenant_settings SET grants = grants
-      || jsonb_build_object('GAD', (grants -> 'GAD') - 'leads.assign_line')
       || jsonb_build_object('BM', (grants -> 'BM') - 'leads.assign_line')
       || jsonb_build_object('UM', (grants -> 'UM') - 'leads.assign_line')`;
     await owner.query(`${drop}, permissions_version = 1`);
     await app.get(TenantsService).onModuleInit();
     const { rows } = await owner.query<{ grants: Record<string, string[]> }>('SELECT grants FROM tenant_settings');
     for (const { grants } of rows)
-      for (const role of ['GAD', 'BM', 'UM']) expect(grants[role]).toContain('leads.assign_line');
+      for (const role of ['BM', 'UM']) expect(grants[role]).toContain('leads.assign_line');
     // A GA that takes it away afterwards keeps its choice
     await owner.query(drop);
     await app.get(TenantsService).onModuleInit();

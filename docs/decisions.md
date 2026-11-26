@@ -1261,6 +1261,22 @@ Chủ dự án báo ngày 26/11/2026: tạo tài khoản tư vấn viên bằng 
 | Ô chọn đại lý | Ô chọn đại lý (thêm khách hàng, lọc khách theo người phụ trách, quản lý trực tiếp) xếp **theo thứ tự cây** và thụt lề bằng khoảng trắng không ngắt | Trước đây xếp theo mã: đại lý thêm sau có mã lớn hơn nằm cuối danh sách dưới sai người; thụt lề bằng dấu cách thường bị trình duyệt gộp mất |
 | Tài khoản đã tạo trước đây | Không tự thêm vào cây. Mở tài khoản ở Người dùng, bấm Sửa, chọn quản lý trực tiếp rồi Lưu là người đó vào cây | Tránh đưa vào cây một mã gõ nhầm |
 
+## 2026-11-27: Vai trò là nhân viên kinh doanh; số điện thoại khách chỉ người phụ trách thấy (thay mục 4, SCOPE-1..3, CUS-5, PDP-3, ASG)
+
+Chủ dự án yêu cầu ngày 26-27/11/2026, trả lời các câu hỏi làm rõ cùng ngày. Đang triển khai theo 4 phần; mục "Trạng thái" ghi phần nào đã xong.
+
+| Điểm | Quyết định |
+|---|---|
+| Vai trò | Giám đốc GA → Quản trị viên → Trưởng ban → Trưởng nhóm → Tư vấn viên. **Bỏ Marketing** (Quản trị viên nhận việc của Marketing). **Gộp Chủ GA vào Giám đốc GA** (mã `GAD`): quyền cao nhất. Quản trị viên nền tảng giữ nguyên |
+| Mọi vai trò là nhân viên kinh doanh | Ai cũng có thể có khách riêng (lead, khách có hợp đồng) theo mã đại lý của mình, kể cả Quản trị viên |
+| Thấy khách | Giám đốc: tất cả. Quản trị viên: tất cả nhưng chỉ phần mô tả. Trưởng ban, Trưởng nhóm, Tư vấn viên: **chỉ khách của mình**; quản lý tuyến xem số liệu báo cáo của tuyến, không xem khách của tuyến dưới |
+| Số điện thoại khách | Chỉ **người phụ trách khách** và **Giám đốc** thấy; mọi người khác (kể cả Quản trị viên, người hỗ trợ) nhận số đã che từ API |
+| Bỏ khách | Lead 30 ngày không được chăm sóc (Giám đốc đổi số ngày trong Cài đặt GA), hoặc được đánh dấu Chốt xịt / Không quan tâm, rời người phụ trách về **kho chờ phân công**. Giám đốc và Quản trị viên thấy kho |
+| Phân công | Giám đốc phân công có hiệu lực ngay. Quản trị viên, Trưởng ban, Trưởng nhóm phân công thành **yêu cầu chờ Giám đốc duyệt**; trong lúc chờ, khách vẫn ở chỗ cũ. Người nhận khách thấy số điện thoại từ khi phân công có hiệu lực |
+| Quản trị viên bị hạn chế | Không sửa Cài đặt GA, Ma trận phân quyền, Cài đặt trợ lý AI; không xem Nhật ký, Tra cứu trò chuyện; không duyệt phân công |
+| Phần 1 (xong 27/11/2026) | Migration `DropMarketingRole`: tài khoản Marketing thành Quản trị viên, quyền của Marketing trong ma trận gộp vào Quản trị viên. Migration `GaDirector`: tài khoản Chủ GA (`GA_HEAD`) thành Giám đốc GA (`GAD`); Giám đốc GA luôn có mọi quyền, thấy toàn GA, không còn trong ma trận; mã đại lý **không bắt buộc** với Giám đốc GA (Chủ GA cũ chưa có mã; có mã thì nằm trong cây hạng SUM). Mã lỗi `last_ga_head` giữ tên, nghĩa là "GA phải còn ít nhất một Giám đốc GA đang hoạt động". Tài khoản Marketing cũ giờ là Quản trị viên nên phải cài xác thực hai lớp (USER-16) |
+| Phần 2-4 | Chưa làm: phạm vi thấy khách và số điện thoại, kho khách bị bỏ, duyệt phân công. Cho tới khi xong, Quản trị viên vẫn thấy lead như Marketing trước đây và quản lý tuyến vẫn thấy khách của tuyến dưới |
+
 ## Not built yet
 
 | Rule | Item | Needed before go-live |

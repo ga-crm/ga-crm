@@ -102,7 +102,7 @@ export class ReportsService {
     if (!actor.tenantId) throw forbidden();
     const tenantId = actor.tenantId;
     const all =
-      actor.roles.includes(Role.GaHead) ||
+      actor.roles.includes(Role.GAD) ||
       actor.permissions.includes(Permission.ReportsViewAll) ||
       actor.permissions.includes(Permission.LeadsManage);
     if (all) return { tenantId, all, codes: [] };

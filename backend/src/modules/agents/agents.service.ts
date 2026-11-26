@@ -81,7 +81,7 @@ export class AgentsService {
   /** AGT-6: date of birth and phone are for GA_HEAD and ADMIN only. */
   private seesPersonalData(actor: Actor): boolean {
     return (
-      actor.roles.includes(Role.GaHead) || actor.roles.includes(Role.Admin)
+      actor.roles.includes(Role.GAD) || actor.roles.includes(Role.Admin)
     );
   }
 

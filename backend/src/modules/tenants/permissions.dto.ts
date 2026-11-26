@@ -17,16 +17,6 @@ export class GrantsDto {
   @IsEnum(Permission, { each: true })
   ADMIN: Permission[];
 
-  @permissionList(DEFAULT_GRANTS.MARKETING)
-  @IsArray()
-  @IsEnum(Permission, { each: true })
-  MARKETING: Permission[];
-
-  @permissionList(DEFAULT_GRANTS.GAD)
-  @IsArray()
-  @IsEnum(Permission, { each: true })
-  GAD: Permission[];
-
   @permissionList(DEFAULT_GRANTS.BM)
   @IsArray()
   @IsEnum(Permission, { each: true })

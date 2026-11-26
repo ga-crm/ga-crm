@@ -1,7 +1,8 @@
-// Highest first, as the owner reads them (26/11/2026): the GA's own staff, then the agent ladder, then Marketing
-export const TENANT_ROLES = ['GA_HEAD', 'ADMIN', 'GAD', 'BM', 'UM', 'FC', 'MARKETING'] as const
-export const AGENT_ROLES: readonly string[] = ['FC', 'UM', 'BM', 'GAD']
-export const CONFIGURABLE_ROLES = ['ADMIN', 'MARKETING', 'GAD', 'BM', 'UM', 'FC'] as const
+// Highest first (decided 26-27/11/2026): Marketing was dropped (Admin does its work) and the GA head
+// became the GA director (GAD), whose agent code is optional
+export const TENANT_ROLES = ['GAD', 'ADMIN', 'BM', 'UM', 'FC'] as const
+export const AGENT_ROLES: readonly string[] = ['FC', 'UM', 'BM']
+export const CONFIGURABLE_ROLES = ['ADMIN', 'BM', 'UM', 'FC'] as const
 
 export type Role = (typeof TENANT_ROLES)[number] | 'PLATFORM_ADMIN'
 export type UserStatus = 'INVITED' | 'ACTIVE' | 'DISABLED' | 'ARCHIVED'
@@ -30,7 +31,7 @@ export interface AgentDetail extends Omit<AgentNode, 'userId'> {
   startDate: string | null
   endDate: string | null
   officeCode: string | null
-  /** AGT-6: absent unless the viewer is GA_HEAD or ADMIN. */
+  /** AGT-6: absent unless the viewer is GAD or ADMIN. */
   dob?: string | null
   phone?: string | null
 }
@@ -263,7 +264,7 @@ export interface Me {
   mfa?: { enabled: boolean; required: boolean; setupRequired: boolean }
 }
 
-/** Section 5.2: the GA settings screen (GA_HEAD only). */
+/** Section 5.2: the GA settings screen (GAD only). */
 export interface GaSettings {
   version: number
   gaCode: string
@@ -650,7 +651,7 @@ export interface ProductPolicy {
   lines: { insuredName: string | null; sumAssuredVnd: number | null; annualPremiumVnd: number | null }[]
 }
 
-/** `policies` is null for Marketing and Admin, who have no client book (CUS-5). */
+/** `policies` is null for Admin, who has no client book (CUS-5). */
 export interface ProductDetail {
   product: ProductView
   policies: ProductPolicy[] | null

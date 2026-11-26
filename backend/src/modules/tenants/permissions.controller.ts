@@ -26,7 +26,7 @@ import { TenantsService } from './tenants.service.js';
 @ApiTags('Permissions')
 @ApiCookieAuth(SESSION_COOKIE)
 @ApiForbiddenResponse({ description: 'forbidden: chỉ Chủ GA' })
-@RequireRoles(Role.GaHead)
+@RequireRoles(Role.GAD)
 @Controller('permissions')
 export class PermissionsController {
   constructor(private readonly tenants: TenantsService) {}

@@ -56,8 +56,8 @@ function assertCanManageHead(
   actor: Actor,
   ...roleSets: readonly (readonly string[] | undefined)[]
 ): void {
-  const touchesHead = roleSets.some((roles) => roles?.includes(Role.GaHead));
-  if (touchesHead && !actor.roles.includes(Role.GaHead)) throw forbidden();
+  const touchesHead = roleSets.some((roles) => roles?.includes(Role.GAD));
+  if (touchesHead && !actor.roles.includes(Role.GAD)) throw forbidden();
 }
 
 /** USER-9, USER-10: the two ways to take an account out of use. */
@@ -277,13 +277,13 @@ export class UsersService {
         if (
           user.id === actor.id &&
           accessChanged &&
-          !actor.roles.includes(Role.GaHead)
+          !actor.roles.includes(Role.GAD)
         )
           throw forbidden();
 
         const wasActiveHead =
-          user.status === UserStatus.Active && user.roles.includes(Role.GaHead);
-        if (wasActiveHead && !roles.includes(Role.GaHead))
+          user.status === UserStatus.Active && user.roles.includes(Role.GAD);
+        if (wasActiveHead && !roles.includes(Role.GAD))
           await this.assertAnotherActiveHead(scope, user, db);
 
         const before = {
@@ -440,7 +440,7 @@ export class UsersService {
           throw new ApiException(HttpStatus.CONFLICT, ErrorCode.InvitePending);
         if (
           user.status === UserStatus.Active &&
-          user.roles.includes(Role.GaHead)
+          user.roles.includes(Role.GAD)
         )
           await this.assertAnotherActiveHead(scope, user, db);
 
@@ -564,7 +564,7 @@ export class UsersService {
     // Whoever did it sees it on screen; the other heads hear about it
     const heads = await rowsOf<{ id: string }>(
       db,
-      `SELECT id FROM users WHERE tenant_id = $1 AND status = 'ACTIVE' AND 'GA_HEAD' = ANY(roles) AND id <> $2`,
+      `SELECT id FROM users WHERE tenant_id = $1 AND status = 'ACTIVE' AND 'GAD' = ANY(roles) AND id <> $2`,
       [scope.tenantId, actor.id],
     );
     await this.notifications.notify(
@@ -734,7 +734,7 @@ export class UsersService {
     const [row] = (await db.query(
       `SELECT count(*)::int AS others FROM users
         WHERE tenant_id = $1 AND id <> $2 AND $3 = ANY(roles) AND status = $4`,
-      [scope.tenantId, user.id, Role.GaHead, UserStatus.Active],
+      [scope.tenantId, user.id, Role.GAD, UserStatus.Active],
     )) as { others: number }[];
     if (row.others === 0)
       throw new ApiException(HttpStatus.CONFLICT, ErrorCode.LastGaHead);

@@ -46,7 +46,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-/** Section 5.2 + 16.16: Cài đặt GA (GA_HEAD). Lists and the working calendar come with their features. */
+/** Section 5.2 + 16.16: Cài đặt GA (GAD). Lists and the working calendar come with their features. */
 export function GaSettingsPage() {
   const queryClient = useQueryClient()
   const settings = useQuery(queries.gaSettings())
@@ -141,7 +141,7 @@ export function GaSettingsPage() {
                   </Field>
                 </div>
               </Section>
-              {/* USER-16: GA_HEAD and ADMIN always; everyone when ticked */}
+              {/* USER-16: GAD and ADMIN always; everyone when ticked */}
               <Section title={t('settingsGa.security')}>
                 <label className="flex items-start gap-3">
                   <Controller control={form.control} name="mfaForAll" render={({ field }) => <Checkbox ref={field.ref} className="mt-1" checked={!!field.value} onChange={field.onChange} onBlur={field.onBlur} />} />

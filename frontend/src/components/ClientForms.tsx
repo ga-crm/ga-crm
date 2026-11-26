@@ -446,7 +446,7 @@ const CLIENT_ERRORS = {
 export function CreateClientForm({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const { data: me } = useMe()
   const queryClient = useQueryClient()
-  // MAN-3: managers and GA_HEAD pick the agent from the tree (AGT-9); a FC's client is theirs
+  // MAN-3: managers and GAD pick the agent from the tree (AGT-9); a FC's client is theirs
   const picksAgent = me?.reach === 'TENANT' || me?.reach === 'DOWNLINE'
   const tree = useQuery({ ...queries.agentTree(), enabled: picksAgent })
   const form = useForm<CreateValues>({

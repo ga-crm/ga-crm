@@ -41,8 +41,8 @@ describe('Lead address (e2e)', () => {
     app = await startApp();
     await seedDemoData(app, PASSWORD);
     [marketing, marketing2] = await Promise.all([
-      as(demoEmail(1, 'marketing')),
-      as(demoEmail(2, 'marketing')),
+      as(demoEmail(1, 'admin')),
+      as(demoEmail(2, 'admin')),
     ]);
   });
 
