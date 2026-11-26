@@ -136,6 +136,19 @@ describe('headers', () => {
     expect(match.missingRequired).toEqual([]);
   });
 
+  it('decided 26/11/2026: a "Chia Lead" region column feeds the province, and the first one wins', () => {
+    const match = matchColumns(
+      LEADS_SHEET,
+      ['TÊN KHÁCH HÀNG', 'SỐ ĐIỆN THOẠI', 'KHU VỰC\nKHÁCH HÀNG', 'TỈNH/TP'],
+      'LEADS',
+    );
+    expect(match.fields).toEqual(['fullName', 'phone', 'province']);
+    expect(match.present).toEqual([0, 1, 2]);
+    expect(LEADS_SHEET.columns.map((column) => column.field)).not.toContain(
+      'region',
+    );
+  });
+
   it('IMP-1: never maps a banned column, and reports it', () => {
     const match = matchColumns(AGENTS_SHEET, [
       'Tư vấn tài chính',

@@ -80,7 +80,7 @@ const SUPPORTED_BY_VIEWER = `EXISTS (SELECT 1 FROM lead_supporters supporter
 const BOARD_CARDS = 50;
 /** NOTE-8 */
 const NOTE_EDIT_MS = 24 * 3_600_000;
-const INFO_FIELDS = ['dob', 'region', 'province', 'email'] as const;
+const INFO_FIELDS = ['dob', 'province', 'email'] as const;
 
 /** History values are text (LEAD-20). */
 const text = (
@@ -460,7 +460,6 @@ export class LeadsService {
             phone,
             source,
             email: dto.email ?? null,
-            region: dto.region ?? null,
             province: place.province?.name ?? dto.province ?? null,
             provinceCode: place.province?.code ?? null,
             wardCode: place.ward?.code ?? null,
@@ -1041,7 +1040,6 @@ export class LeadsService {
       supporting: supported.has(lead.id),
       source: lead.source,
       phoneSource: lead.phoneSource,
-      region: lead.region,
       leadDate: lead.leadDate,
       stage: lead.stage,
       interest: lead.interest,
@@ -1254,7 +1252,6 @@ export class LeadsService {
           dob: lead.dob,
           age: lead.age,
           province: lead.province,
-          region: lead.region,
           source: lead.source,
           phoneSource: lead.phoneSource,
           leadDate: lead.leadDate,

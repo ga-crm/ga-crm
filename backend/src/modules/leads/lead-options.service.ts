@@ -57,7 +57,6 @@ const LEAD_COLUMN: Record<LeadOptionKind, string> = {
   interest: 'interest',
   care_status: 'care_status',
   source: 'source',
-  region: 'region',
   phone_source: 'phone_source',
   lost_reason: 'lost_reason',
 };

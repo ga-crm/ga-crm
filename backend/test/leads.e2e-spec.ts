@@ -449,7 +449,6 @@ describe('Leads (e2e)', () => {
       const { id } = await newLead(fc);
       await update(fc, id, {
         fullName: 'Tên Mới',
-        region: 'Miền Bắc',
         email: 'a@b.vn',
         dob: '1990-01-15',
         consent: true,
@@ -457,19 +456,20 @@ describe('Leads (e2e)', () => {
       const { lead, history } = await open(fc, id);
       expect(lead).toMatchObject({
         fullName: 'Tên Mới',
-        region: 'Miền Bắc',
         consentMarketing: true,
       });
+      // Decided 26/11/2026: "Khu vực" is gone; the province and commune say where a lead is
+      expect(lead).not.toHaveProperty('region');
       expect(history.map((item: { field: string }) => item.field)).toEqual(
         expect.arrayContaining([
           'fullName',
-          'region',
           'email',
           'dob',
           'consent',
         ]),
       );
 
+      await update(fc, id, { region: 'Miền Bắc' }).expect(400);
       await update(fc, id, { source: 'Khác' }).expect(403);
       await update(fc, id, { campaignId: null }).expect(403);
       await update(marketing, id, { source: 'Khác' }).expect(200);
@@ -1359,10 +1359,12 @@ describe('Leads (e2e)', () => {
       // Decided 25/11/2026: laid out like a GA's "Chia Lead" file, groups over two header rows;
       // the second row names every column (a merged cell repeats its value)
       expect(sheet.getCell('A1').value).toBe('TÊN TVV');
-      expect(sheet.getCell('N1').value).toBe('XỬ LÝ SAU');
-      expect(sheet.getCell('N2').value).toBe('10 NGÀY');
-      expect(sheet.getCell('R1').value).toBe('THÔNG TIN THÊM');
+      // Decided 26/11/2026: no "KHU VỰC KHÁCH HÀNG" column any more
+      expect(sheet.getCell('M1').value).toBe('XỬ LÝ SAU');
+      expect(sheet.getCell('M2').value).toBe('10 NGÀY');
+      expect(sheet.getCell('Q1').value).toBe('THÔNG TIN THÊM');
       const headers = (sheet.getRow(2).values as string[]).slice(1);
+      expect(headers).not.toContain('KHU VỰC KHÁCH HÀNG');
       expect(headers.slice(0, 4)).toEqual([
         'TÊN TVV',
         'NGÀY CẬP NHẬT LEAD',

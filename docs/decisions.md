@@ -1234,6 +1234,18 @@ Chủ dự án yêu cầu ngày 26/11/2026: trang lead có phần "nhân viên �
 | API | `GET /leads/:id` trả thêm `supporters`, `supporting`, `canSupport`; `GET /leads/:id/supporters/candidates`, `POST /leads/:id/supporters {userId}`, `DELETE /leads/:id/supporters/:userId` | |
 | Chưa làm | Người hỗ trợ không tự động thấy khách hàng liên kết của lead (sổ khách hàng theo CUS-5); khi gộp lead, người hỗ trợ của lead bị gộp không chuyển sang lead giữ lại | Ngoài yêu cầu |
 
+## 2026-11-26: Bỏ "Khu vực" của lead (khác LEAD-8, mục 5.2, mục 19.7)
+
+Chủ dự án yêu cầu ngày 26/11/2026: bỏ ô "Khu vực" (ví dụ "Miền Bắc") ở cả backend và frontend. Từ khi lead có Tỉnh / thành phố, Xã / phường và địa chỉ cụ thể (quyết định cùng ngày), khu vực gõ tay trùng ý và khó lọc.
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Dữ liệu | Migration `DropLeadRegion` xóa cột `leads.region`, xóa danh sách "Khu vực" (`lead_options` loại `region`) và bỏ loại này khỏi ràng buộc. Trước khi xóa, lead chưa có tỉnh mà khu vực ghi đúng tên một tỉnh hiện nay (ví dụ "Hà Nội") được chuyển sang tỉnh và nối với danh mục tỉnh | Khu vực kiểu "Miền Bắc" mất hẳn; `down` chỉ tạo lại cột và loại danh sách, không lấy lại dữ liệu. **Sao lưu database staging trước khi "Promote to staging"** |
+| API | `POST /leads` và `PATCH /leads/:id` không còn nhận `region` (gửi lên thì `400 invalid_input`); danh sách và chi tiết lead không trả `region`; `POST /lead-options/bulk` không nhận loại `region` | Lịch sử lead vẫn giữ các lần đổi khu vực cũ, hiện nhãn "Khu vực" |
+| Nhập file 13_Leads | Bỏ cột "KHU VỰC KHÁCH HÀNG" khỏi file mẫu tải về. File của GA còn cột này ("KHU VỰC KHÁCH HÀNG" hoặc "KHU VỰC") thì cột được đọc vào **Tỉnh/TP** | File "Chia Lead" mẫu ghi tên tỉnh ở cột này. Nếu file có cả hai cột, cột đứng trước được dùng (quy tắc chung khi một cột lặp lại) |
+| Giao diện | Bỏ ô Khu vực ở modal thêm lead, form sửa lead và phần thông tin trang lead; Danh mục không còn danh sách "Khu vực" | |
+| Chưa làm | LEAD-27 (tự phân công theo khu vực) khi làm sẽ dựa vào tỉnh thay cho khu vực | Ngoài yêu cầu |
+
 ## Not built yet
 
 | Rule | Item | Needed before go-live |

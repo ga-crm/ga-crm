@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { startApp, stopApp } from './support/app.js';
 import { connection } from './support/collections.js';
+import { withinOneMinuteWindow } from './support/minute-window.js';
 import { ownerDb } from './support/owner-db.js';
 import { getDataSourceToken } from '@nestjs/typeorm';
 import type { DataSource } from 'typeorm';
@@ -1188,6 +1189,8 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const email = demoEmail(1, 'bm');
       for (let i = 0; i < 8; i++) await attempt(email, PASSWORD).expect(200);
 
+      // The 6 failures must land in one minute window, or the 6th starts a new count
+      await withinOneMinuteWindow();
       for (let i = 0; i < 5; i++)
         await attempt(email, 'wrong-password').expect(401);
       const limited = await attempt(email, 'wrong-password').expect(429);

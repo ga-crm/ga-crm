@@ -199,13 +199,6 @@ export class CreateLeadDto {
   @Transform(trim)
   @IsString()
   @MaxLength(100)
-  region?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MaxLength(100)
   province?: string;
 
   /** Decided 26/11/2026: a province after 1/7/2025, by its code. */
@@ -288,13 +281,6 @@ export class UpdateLeadDto {
   @IsOptional()
   @IsBirthDate()
   dob?: string | null;
-
-  @ApiPropertyOptional({ nullable: true })
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MaxLength(100)
-  region?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()

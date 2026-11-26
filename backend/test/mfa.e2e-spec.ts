@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { startApp, stopApp } from './support/app.js';
 import { connection } from './support/collections.js';
+import { withinOneMinuteWindow } from './support/minute-window.js';
 import { base32Decode, timeStep, totpAt } from '../src/common/totp.js';
 import { demoEmail, seedDemoData } from '../src/seed/demo-data.js';
 
@@ -331,6 +332,8 @@ describe('MFA (e2e)', () => {
   it('USER-16: wrong codes count like wrong passwords and lock for a while', async () => {
     const { agent } = await signIn('admin');
     const statuses: number[] = [];
+    // All 7 codes must land in one minute window, or the count starts again mid-run
+    await withinOneMinuteWindow();
     for (let attempt = 0; attempt < 7; attempt += 1)
       statuses.push(
         (await agent.post(`${API}/auth/mfa/verify`).send({ code: '000000' }))

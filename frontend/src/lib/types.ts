@@ -36,7 +36,7 @@ export interface AgentDetail extends Omit<AgentNode, 'userId'> {
 
 /** OPT-1: a GA's lead catalogue. Interest and care status codes are no longer a fixed list. */
 /** OPT-1, then the GA's own lists of section 5.2 (open question D: they start empty). */
-export const LEAD_OPTION_KINDS = ['interest', 'care_status', 'source', 'region', 'phone_source', 'lost_reason'] as const
+export const LEAD_OPTION_KINDS = ['interest', 'care_status', 'source', 'phone_source', 'lost_reason'] as const
 export type LeadOptionKind = (typeof LEAD_OPTION_KINDS)[number]
 export interface LeadOption {
   id: string
@@ -60,7 +60,6 @@ export interface LeadRow {
   phone: string
   source: string
   phoneSource: string | null
-  region: string | null
   leadDate: string
   stage: LeadStage
   interest: string | null

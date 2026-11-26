@@ -218,14 +218,6 @@ export const LEADS_SHEET: SheetTemplate = {
       note: 'Không bắt buộc.',
     },
     {
-      header: 'KHU VỰC KHÁCH HÀNG',
-      field: 'region',
-      type: 'text',
-      requiredColumn: false,
-      aliases: ['KHU VỰC'],
-      note: 'Không bắt buộc.',
-    },
-    {
       header: 'Nguồn',
       field: 'source',
       type: 'text',
@@ -353,6 +345,8 @@ export const LEADS_SHEET: SheetTemplate = {
       field: 'province',
       type: 'text',
       requiredColumn: false,
+      // Decided 26/11/2026: "Khu vực" is gone; a GA's "Chia Lead" file names the province there
+      aliases: ['KHU VỰC KHÁCH HÀNG', 'KHU VỰC'],
       note: 'Không bắt buộc.',
     },
     {
@@ -452,7 +446,6 @@ export const LEADS_SHEET: SheetTemplate = {
       'Nguyễn Văn Mẫu',
       '0900000101',
       'Quảng cáo',
-      'Miền Bắc',
       'Facebook',
       'Chưa xác định',
       'Đang chăm sóc',
@@ -485,7 +478,6 @@ export const LEADS_SHEET: SheetTemplate = {
       'Trần Thị Mẫu',
       '0900000102',
       'Giới thiệu',
-      'Miền Nam',
       'Giới thiệu',
       '',
       '',

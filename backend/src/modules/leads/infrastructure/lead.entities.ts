@@ -94,7 +94,6 @@ export class Lead {
   @text() dob: string | null;
   @Column({ type: 'integer', nullable: true }) age: number | null;
   @text() province: string | null;
-  @text() region: string | null;
   /** Decided 26/11/2026: the province and commune after 1/7/2025, and the street address. */
   @text() provinceCode: string | null;
   @text() wardCode: string | null;
@@ -283,12 +282,14 @@ export class SavedFilter {
   @Column({ type: 'timestamptz' }) createdAt: Date;
 }
 
-/** OPT-1, and the GA's own lists of section 5.2 (region, phone source, lost reason). */
+/**
+ * OPT-1, and the GA's own lists of section 5.2 (phone source, lost reason). The region list was
+ * dropped on 26/11/2026: the province and commune say where a lead is.
+ */
 export const LEAD_OPTION_KINDS = [
   'interest',
   'care_status',
   'source',
-  'region',
   'phone_source',
   'lost_reason',
 ] as const;
@@ -296,9 +297,9 @@ export const LEAD_OPTION_KINDS = [
 /**
  * Lists whose code is the label itself, because files and free text carry the words (OPT-3 for
  * sources). The section 5.2 lists start empty (open question D) and only suggest values: a lead may
- * still carry a region or reason the GA has not listed.
+ * still carry a reason the GA has not listed.
  */
-export const TEXT_CODE_KINDS: readonly string[] = ['source', 'region', 'phone_source', 'lost_reason'];
+export const TEXT_CODE_KINDS: readonly string[] = ['source', 'phone_source', 'lost_reason'];
 export type LeadOptionKind = (typeof LEAD_OPTION_KINDS)[number];
 
 /** OPT-1: one value of a GA's lead catalogue. */
