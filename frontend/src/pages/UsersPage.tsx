@@ -99,6 +99,14 @@ function ManagerField({ form }: { form: ReturnType<typeof useForm<InviteValues>>
   useEffect(() => {
     if (picked && !onTree && !choices.some((row) => row.agent.agentCode === picked)) form.setValue('managerCode', '')
   }, [picked, onTree, choices, form])
+  // Decided 27/11/2026: the person adding the account is its manager unless someone else is picked,
+  // when they are on the tree above the new rank. A choice by hand (even "none") stays.
+  const [chosenByHand, setChosenByHand] = useState(false)
+  const mine = me?.user.agentCode ?? null
+  useEffect(() => {
+    if (joins && !chosenByHand && !picked && mine && choices.some((row) => row.agent.agentCode === mine)) form.setValue('managerCode', mine)
+  }, [joins, chosenByHand, picked, mine, choices, form])
+  const registered = form.register('managerCode')
   const hint = !canEditTree
     ? t('users.managerNoRight')
     : onTree
@@ -113,7 +121,11 @@ function ManagerField({ form }: { form: ReturnType<typeof useForm<InviteValues>>
         id="user-manager"
         disabled={!joins}
         aria-invalid={!!errors.managerCode}
-        {...form.register('managerCode')}
+        {...registered}
+        onChange={(event) => {
+          setChosenByHand(true)
+          void registered.onChange(event)
+        }}
         value={onTree ? (onTree.managerCode ?? '') : picked}
       >
         <option value="">{t('users.managerNone')}</option>

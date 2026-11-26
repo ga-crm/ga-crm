@@ -1254,7 +1254,7 @@ Chủ dự án báo ngày 26/11/2026: tạo tài khoản tư vấn viên bằng 
 |---|---|---|
 | Khi nào thêm vào cây | Mời hoặc sửa tài khoản có vai trò đại lý (FC, UM, BM, GAD) mà mã đại lý **chưa có trong cây**: thêm đại lý vào cây trong cùng giao dịch với tài khoản, ghi audit `CREATE agent` (`meta.from = 'user'`) | Một lần lưu là người đó chọn được ở mọi ô tư vấn viên, nhận được khách / lead và nằm trong nhánh quản lý |
 | Hạng, tên, trạng thái | Hạng theo vai trò đại lý cao nhất: GAD → SUM, BM → BM, UM → UM, FC → FC. Tên lấy theo tài khoản, trạng thái "Đang hoạt động" | Sau này nhập 01_Agents có mã này thì đại lý được cập nhật như mọi đại lý khác |
-| Quản lý trực tiếp | Form tài khoản có ô "Quản lý trực tiếp" (chọn trong cây). Để trống thì đại lý đứng đầu một nhánh. Mã quản lý không có trong GA → `400 manager_not_found`, không lưu gì | |
+| Quản lý trực tiếp | Form tài khoản có ô "Quản lý trực tiếp" (chọn trong cây, chỉ những người cấp cao hơn vai trò của tài khoản). Mặc định là người đang tạo tài khoản, nếu họ có mã đại lý trong cây và cấp cao hơn (chủ dự án yêu cầu 27/11/2026); chọn tay (kể cả "Không có") thì giữ lựa chọn đó. Để trống thì đại lý đứng đầu một nhánh. Mã quản lý không có trong GA → `400 manager_not_found`, không lưu gì | |
 | Mã đã có trong cây | Không đổi gì trên cây (tên, hạng, quản lý giữ như cây); ô quản lý bị khóa và hiện tên đại lý trong cây | Đổi quản lý vẫn làm ở trang Cây đại lý (AGT-5) |
 | Quyền | Chỉ thêm vào cây khi người lưu có `agents.edit_tree` (mặc định Chủ GA, Admin). Không có quyền thì như trước: chỉ tạo tài khoản, danh sách người dùng cảnh báo mã chưa có trong cây | Không vượt quyền sửa cây |
 | API | `POST /users/invite` và `PATCH /users/:id` nhận thêm `managerCode`, trả thêm `addedToTree` | |
