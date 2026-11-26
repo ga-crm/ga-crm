@@ -3,7 +3,6 @@ import {
   AGENT_STATUSES,
 } from '../agents/infrastructure/agent.entity.js';
 import {
-  AGE_BANDS,
   APPLICATION_STATUSES,
   CLIENT_TIERS,
   MARITAL_STATUSES,
@@ -618,14 +617,6 @@ export const CLIENTS_SHEET: SheetTemplate = {
       requiredColumn: false,
       note: 'Ngày-tháng sinh dạng dd/mm. Không bắt buộc.',
     },
-    {
-      header: 'age_band',
-      field: 'ageBand',
-      type: 'list',
-      requiredColumn: false,
-      list: AGE_BANDS,
-      note: '<18, 18-29, 30-39, 40-49, 50-59 hoặc 60+. Không bắt buộc.',
-    },
   ],
   examples: [
     [
@@ -644,7 +635,6 @@ export const CLIENTS_SHEET: SheetTemplate = {
       'Có',
       '15/03/2024 10:00',
       '12/05',
-      '40-49',
     ],
   ],
 };
@@ -1317,7 +1307,6 @@ export const LOOKUPS = {
   'Cấp bậc (RANK)': AGENT_RANKS,
   'Nhóm khách hàng': CLIENT_TIERS,
   'Tình trạng hôn nhân': MARITAL_STATUSES,
-  'Nhóm tuổi': AGE_BANDS,
   'Định kỳ đóng phí': PREMIUM_FREQUENCIES,
   'Vai trò sản phẩm': PRODUCT_ROLES,
   'Tình trạng hồ sơ YCBH': APPLICATION_STATUSES,

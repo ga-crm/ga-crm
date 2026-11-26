@@ -227,7 +227,7 @@ export function ClientsPage() {
                         <td>
                           <ClientCell client={client} />
                         </td>
-                        <td className="text-ink-meta">{[client.ageBand, client.gender].filter(Boolean).join(' · ') || '-'}</td>
+                        <td className="text-ink-meta">{client.gender || '-'}</td>
                         <td className="text-right tabular-nums">{client.activePolicies}</td>
                         <td className="whitespace-nowrap">{showDate(client.nextDue) ?? '-'}</td>
                         <td title={names} className="truncate">

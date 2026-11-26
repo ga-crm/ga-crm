@@ -187,7 +187,6 @@ export interface LinkSuggestion {
   clientId: string
   name: string
   gender: string | null
-  ageBand: string | null
   score: number
   reasons: ('NAME' | 'PHONE' | 'GENDER' | 'AGE' | 'APPLICATION')[]
   policies: { policyNo: string; status: string | null }[]
@@ -349,7 +348,6 @@ export type ClientRow = {
   name: string
   phone: string | null
   tier: string | null
-  ageBand: string | null
   gender: string | null
   /** The policies the client is on, with their roles there. */
   policies: { policyNo: string; roles: PolicyRole[] }[]
@@ -541,7 +539,6 @@ export interface ClientDetail {
     ekycRegistered: boolean | null
     ekycRegisteredAt: string | null
     birthDayMonth: string | null
-    ageBand: string | null
     manual: boolean
     agents: { agentCode: string; name: string | null }[]
   }
@@ -599,7 +596,6 @@ export const PRODUCT_ROLES = ['Chính', 'Bổ trợ'] as const
 /** MAN-2 */
 export const GENDERS = ['Nam', 'Nữ'] as const
 export const MARITAL_STATUSES = ['Độc thân', 'Đã kết hôn', 'Ly hôn'] as const
-export const AGE_BANDS = ['<18', '18-29', '30-39', '40-49', '50-59', '60+'] as const
 export const PREMIUM_FREQUENCIES = ['Năm', 'Nửa năm', 'Quý', 'Tháng'] as const
 
 /** TENANT-5: a product of the shared catalogue, as everyone in a GA sees it. */

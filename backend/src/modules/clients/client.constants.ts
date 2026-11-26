@@ -4,15 +4,6 @@
 export const CLIENT_TIERS = ['Thân thiết', 'Bạc', 'Vàng', 'Kim Cương'] as const;
 /** CUS-2 */
 export const MARITAL_STATUSES = ['Độc thân', 'Đã kết hôn', 'Ly hôn'] as const;
-/** CUS-2 */
-export const AGE_BANDS = [
-  '<18',
-  '18-29',
-  '30-39',
-  '40-49',
-  '50-59',
-  '60+',
-] as const;
 /** MAN-2 */
 export const GENDERS = ['Nam', 'Nữ'] as const;
 /** CUS-10 */

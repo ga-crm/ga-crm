@@ -262,7 +262,6 @@ describe('Clients and policies entered by hand (e2e)', () => {
         phone: '0912345678',
         birthDayMonth: '01/02',
         birthMonth: 2,
-        ageBand: '30-39',
         ownerAgentCodes: [FC],
       });
       expect(client?.successCode).toBeUndefined();
@@ -300,13 +299,18 @@ describe('Clients and policies entered by hand (e2e)', () => {
         policyNo: '500000001',
         role: 'PO',
       });
-      // An age band entered by hand is kept
+      // Decided 27/11/2026: there is no age band any more
+      await create(fc, {
+        policyNo: '500000002',
+        role: 'PO',
+        name: 'Có Nhóm Tuổi',
+        ageBand: '40-49',
+      }).expect(400);
       ids.second = await add(fc, '500000002', 'PO', {
         name: 'Có Nhóm Tuổi',
         dob: '1990-02-01',
-        ageBand: '40-49',
       });
-      expect((await stored(ids.second))?.ageBand).toBe('40-49');
+      expect(await stored(ids.second)).not.toHaveProperty('ageBand');
       const { body } = await fc.get(`${API}/clients/${ids.holder}`).expect(200);
       expect(body.client).toMatchObject({
         id: ids.holder,
@@ -515,7 +519,6 @@ describe('Clients and policies entered by hand (e2e)', () => {
         name: 'Phạm Thị Tay Mới',
         nameNorm: 'PHAM THI TAY MOI',
         birthDayMonth: '31/12',
-        ageBand: '50-59',
         gender: 'Nữ',
       });
       expect(client?.phone).toBeUndefined();

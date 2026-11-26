@@ -151,7 +151,6 @@ export class LeadLinkService implements OnModuleInit {
             clientId: client.id,
             name: client.name,
             gender: client.gender,
-            ageBand: client.ageBand,
             score,
             reasons,
             policies: policies

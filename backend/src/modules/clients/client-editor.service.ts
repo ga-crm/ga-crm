@@ -24,7 +24,6 @@ import { maskPhone } from '../leads/lead-rules.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { HIDDEN_FIELDS, POLICY_NO } from './client.constants.js';
 import {
-  ageBandOf,
   birthDayMonthOf,
   buildProductLines,
   policyDeletable,
@@ -67,7 +66,6 @@ const CLIENT_FIELDS = [
   'phone',
   'tier',
   'dob',
-  'ageBand',
   'gender',
   'maritalStatus',
   'loyaltyPoints',
@@ -255,10 +253,6 @@ export class ClientEditorService {
         set.birthMonth = Number(dob.slice(5, 7));
       } else {
         unset.push('birthDayMonth', 'birthMonth');
-      }
-      if (dto.ageBand === undefined) {
-        if (dob) set.ageBand = ageBandOf(dob, todayInVietnam());
-        else unset.push('ageBand');
       }
     }
     return { set, unset };

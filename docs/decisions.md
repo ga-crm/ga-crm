@@ -1294,6 +1294,17 @@ Chủ dự án yêu cầu ngày 27/11/2026: thêm nhập khách hàng bằng Exc
 | Danh sách khách hàng | Nút **"Nhập từ Excel"** cạnh "Thêm khách hàng", cho người có `imports.upload` | |
 | File Success đủ sheet | Màn `/imports/new` vẫn còn, mở từ nút ở Lịch sử nhập | Một file Success đầy đủ vẫn nhập được một lần |
 
+## 2026-11-27: Bỏ "Nhóm tuổi" của khách hàng (khác MAN-2, mục 19.3)
+
+Chủ dự án yêu cầu ngày 27/11/2026: bỏ ô "Nhóm tuổi" ở cả backend và frontend.
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Dữ liệu | Migration `DropClientAgeBand` xóa cột `clients.age_band` | Không lấy lại được; `down` chỉ tạo lại cột trống. Sao lưu database staging trước khi "Promote to staging" |
+| API và giao diện | Form thêm / sửa khách không còn ô Nhóm tuổi (gửi `ageBand` thì `400 invalid_input`); danh sách, trang khách, gợi ý liên kết lead, ô chọn người trong gia đình không còn hiện nhóm tuổi. Trang khách ghi "Ngày sinh" (ngày sinh đầy đủ, hoặc ngày-tháng khi chỉ có vậy) | Lịch sử thay đổi cũ vẫn hiện nhãn "Nhóm tuổi" |
+| File Success 02_Clients | Bỏ cột `age_band` khỏi file mẫu và khỏi danh mục giá trị; file thật còn cột này thì cột bị bỏ qua | |
+| Gợi ý lead thành khách (LEAD-32) | Điểm "cùng tuổi" (0,1) chỉ còn khi khách có ngày sinh đầy đủ (lệch không quá 3 tuổi); trước đây khách chỉ có nhóm tuổi cũng được tính | Gợi ý cho khách nhập từ Success (thường chỉ có ngày-tháng sinh) bớt một tiêu chí |
+
 ## Not built yet
 
 | Rule | Item | Needed before go-live |

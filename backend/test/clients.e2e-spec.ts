@@ -226,7 +226,6 @@ describe('Clients from Success files (e2e)', () => {
       usesDconnect: true,
       idUpdated: true,
       birthDayMonth: '12/05',
-      ageBand: '40-49',
       manual: false,
     });
     expect(body.policies).toHaveLength(1);

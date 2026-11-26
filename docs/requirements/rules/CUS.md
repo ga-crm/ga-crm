@@ -19,7 +19,7 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:14`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:18`
 
-Đã trích dẫn trong: `backend/src/modules/clients/client-insights.ts`, `backend/src/modules/clients/client-rules.ts`, `backend/src/modules/clients/client.constants.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `backend/src/modules/clients/lead-link.ts`, `backend/src/modules/imports/success-plan.ts`, `frontend/src/components/TierBadge.tsx`, `frontend/src/lib/types.ts`
+Đã trích dẫn trong: `backend/src/modules/clients/client-insights.ts`, `backend/src/modules/clients/client.constants.ts`, `backend/src/modules/clients/infrastructure/client.entities.ts`, `backend/src/modules/imports/success-plan.ts`, `frontend/src/components/TierBadge.tsx`, `frontend/src/lib/types.ts`
 
 - **CUS-2** Trường khách hàng từ Success: mã, tên, hạng (Thân thiết, Bạc, Vàng, Kim Cương), số HĐ còn / mất hiệu lực, ngày sinh, giới tính, hôn nhân (Độc thân, Đã kết hôn, Ly hôn), điểm thưởng, dùng D-Connect + lần đăng nhập gần nhất, "Đã cập nhật Căn cước" (chỉ cờ Có / Chưa, không bao giờ lưu số), đăng ký eKYC + thời điểm, ngày-tháng sinh (`dd/mm`), nhóm tuổi (<18, 18-29, 30-39, 40-49, 50-59, 60+).
 

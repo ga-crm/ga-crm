@@ -647,7 +647,6 @@ export class ClientsService {
             name: client.name,
             phone: this.phoneOf(actor, client),
             tier: client.tier,
-            ageBand: client.ageBand,
             // The policies the client is on and in which role, shown under the name
             policies: mine.map((policy) => ({
               policyNo: policy.policyNo,
@@ -899,7 +898,6 @@ export class ClientsService {
           ekycRegistered: client.ekycRegistered,
           ekycRegisteredAt: client.ekycRegisteredAt,
           birthDayMonth: client.birthDayMonth,
-          ageBand: client.ageBand,
           manual: client.origin === 'MANUAL',
           agents: client.ownerAgentCodes.map((code) => ({
             agentCode: code,

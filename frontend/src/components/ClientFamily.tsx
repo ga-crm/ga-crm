@@ -256,7 +256,7 @@ function RelationForm({ clientId, member, onClose }: { clientId: string; member?
             options={options.map((item) => ({
               value: item.id,
               label: item.name,
-              meta: [...item.policies.map((policy) => t('clients.policyNo', { no: policy.policyNo })), item.ageBand, item.gender].filter(Boolean).join(' · '),
+              meta: [...item.policies.map((policy) => t('clients.policyNo', { no: policy.policyNo })), item.gender].filter(Boolean).join(' · '),
             }))}
             value={picked?.id ?? null}
             onChange={(id) => {
