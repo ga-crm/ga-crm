@@ -2333,5 +2333,18 @@
   "leads.noProduct": "Không chọn",
   "leads.allProducts": "Mọi sản phẩm",
   "leads.productNote": "Sản phẩm (ghi chú)",
-  "historyField.productCode": "Sản phẩm quan tâm"
+  "historyField.productCode": "Sản phẩm quan tâm",
+  "leads.tabReleased": "Khách bị bỏ",
+  "leads.bySystem": "Hệ thống",
+  "leads.releaseReason.IDLE": "Quá hạn chăm sóc",
+  "leads.releaseReason.DROPPED": "Chốt xịt",
+  "leads.releaseReason.NOT_INTERESTED": "Không quan tâm",
+  "leads.released": "Lead về kho chờ phân công ngày {at}, trước đó do {agent} phụ trách. Lý do: {reason}.",
+  "historyField.released": "Về kho chờ phân công",
+  "toast.leadReleased": "Lead {name} đã về kho chờ phân công.",
+  "toast.leadReleasedDetail": "Giám đốc GA hoặc Quản trị viên sẽ giao lead cho người khác.",
+  "settingsGa.abandonDays": "Số ngày không chăm sóc thì lead về kho",
+  "settingsGa.abandonDaysHint": "Tính từ lần liên hệ gần nhất hoặc lúc được giao.",
+  "placeholder.days": "Số ngày",
+  "validation.days": "Nhập số ngày từ 1 đến 365."
 }

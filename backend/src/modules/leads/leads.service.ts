@@ -31,6 +31,7 @@ import {
   Interaction,
   Lead,
   LeadHistory,
+  type LeadReleaseReason,
   LeadSupporter,
   Task,
 } from './infrastructure/lead.entities.js';
@@ -549,6 +550,12 @@ export class LeadsService {
         assignedAgentCode: agentCode,
         assignedBy: agentCode ? actor.id : null,
         assignedAt: agentCode ? now : null,
+        // Decided 27/11/2026: an assignee takes the lead out of the pool
+        ...(agentCode && {
+          releasedAt: null,
+          releasedFrom: null,
+          releaseReason: null,
+        }),
         ...(!options.keepSeen && {
           assigneeSeenAt: null,
           assigneeViewedAt: null,
@@ -620,6 +627,107 @@ export class LeadsService {
         assignedNotice(ids),
         { except: actor.id, db },
       );
+  }
+
+  /**
+   * Decided 27/11/2026: leads their agent dropped or left without care go back to the GA's pool,
+   * where the GA director and Admin see them and give them to someone else. The agent's open tasks
+   * on them are cancelled. A self-sourced lead whose creator still works here stays (LEAD-9).
+   * `actor` is null for the daily round. Returns the leads that went back.
+   */
+  async release(
+    scope: Scope,
+    leads: Lead[],
+    reason: LeadReleaseReason,
+    actor: Actor | null,
+    now: Date,
+    db: EntityManager,
+  ): Promise<string[]> {
+    const locked = await this.lockedOwnLeads(scope, leads, db);
+    const going = leads.filter(
+      (lead) => lead.assignedAgentCode && !locked.has(lead.id),
+    );
+    if (going.length === 0) return [];
+    const ids = going.map((lead) => lead.id);
+    for (const lead of going)
+      await db.getRepository(Lead).update(
+        { id: lead.id, tenantId: scope.tenantId },
+        {
+          updatedAt: now,
+          assignedAgentCode: null,
+          assignedBy: null,
+          assignedAt: null,
+          assigneeSeenAt: null,
+          assigneeViewedAt: null,
+          releasedAt: now,
+          releasedFrom: lead.assignedAgentCode,
+          releaseReason: reason,
+        },
+      );
+    await this.reassigned(scope, ids, now, db);
+    await db.query(
+      `UPDATE tasks SET status = 'CANCELLED'
+        WHERE tenant_id = $1 AND lead_id = ANY($2::uuid[]) AND status = 'OPEN'`,
+      [scope.tenantId, ids],
+    );
+    await db.getRepository(LeadHistory).insert(
+      going.flatMap((lead) => [
+        {
+          tenantId: scope.tenantId,
+          leadId: lead.id,
+          field: 'assignee',
+          oldValue: lead.assignedAgentCode,
+          newValue: null,
+          changedBy: actor?.id ?? null,
+          changedAt: now,
+        },
+        {
+          tenantId: scope.tenantId,
+          leadId: lead.id,
+          field: 'released',
+          oldValue: null,
+          newValue: reason,
+          changedBy: actor?.id ?? null,
+          changedAt: now,
+        },
+      ]),
+    );
+    for (const lead of going)
+      await this.audit.record(
+        {
+          tenantId: scope.tenantId,
+          userId: actor?.id,
+          action: AuditAction.Assign,
+          entity: 'lead',
+          entityId: lead.id,
+          meta: { from: lead.assignedAgentCode, to: null, released: reason },
+        },
+        db,
+      );
+    return ids;
+  }
+
+  /**
+   * Decided 27/11/2026: the daily round. An assigned lead still open (no care status, or "Đang
+   * chăm sóc") with no contact for the GA's number of days (since its last contact, or since it
+   * was assigned when nobody called yet) goes back to the pool.
+   */
+  async releaseIdle(scope: Scope, now: Date): Promise<string[]> {
+    const { abandonDays } = await this.tenants.leadRules(scope);
+    const before = new Date(now.getTime() - abandonDays * 86_400_000);
+    return this.tenantDb.run(scope, async (db) => {
+      const idle = await this.live(db, scope)
+        .andWhere('lead.assignedAgentCode IS NOT NULL')
+        .andWhere(
+          "(lead.careStatus IS NULL OR lead.careStatus NOT IN ('WON', 'DROPPED', 'NOT_INTERESTED'))",
+        )
+        .andWhere('coalesce(lead.lastContactAt, lead.assignedAt) < :before', {
+          before,
+        })
+        .setLock('pessimistic_write')
+        .getMany();
+      return this.release(scope, idle, 'IDLE', null, now, db);
+    });
   }
 
   /** AGT-7 + LEAD-9: self-sourced leads whose creator still works here cannot move. */
@@ -891,6 +999,11 @@ export class LeadsService {
       if (query.from)
         builder.andWhere('lead.leadDate >= :from', { from: query.from });
       if (query.to) builder.andWhere('lead.leadDate <= :to', { to: query.to });
+      // Decided 27/11/2026: the pool of leads their agent dropped or left without care
+      if (query.released)
+        builder.andWhere(
+          'lead.releasedAt IS NOT NULL AND lead.assignedAgentCode IS NULL',
+        );
       if (query.overdue) this.overdue(builder, now, deadline);
       if (query.isNew) this.newlyAssigned(builder, actor);
       if (query.newComment) this.newComment(builder, actor);
@@ -1061,6 +1174,7 @@ export class LeadsService {
       interest: lead.interest,
       careStatus: lead.careStatus,
       assignedAgentCode: lead.assignedAgentCode,
+      releaseReason: lead.releaseReason,
       agentName: lead.assignedAgentCode
         ? (agentNames.get(lead.assignedAgentCode) ?? null)
         : null,
@@ -1150,7 +1264,17 @@ export class LeadsService {
       ).getCount();
       const isNew = await this.newlyAssigned(await base(), actor).getCount();
       const newComment = await this.newComment(await base(), actor).getCount();
-      return { all, mine, unassigned, overdue, isNew, newComment };
+      // Decided 27/11/2026: the pool, for those who see unassigned leads
+      const released = manages || actor.roles.includes(Role.GAD)
+        ? await (
+            await base()
+          )
+            .andWhere(
+              'lead.releasedAt IS NOT NULL AND lead.assignedAgentCode IS NULL',
+            )
+            .getCount()
+        : 0;
+      return { all, mine, unassigned, overdue, isNew, newComment, released };
     });
   }
 
@@ -1304,6 +1428,9 @@ export class LeadsService {
           origin: lead.origin,
           assignedAgentCode: lead.assignedAgentCode,
           assignedAt: lead.assignedAt,
+          releasedAt: lead.releasedAt,
+          releasedFrom: lead.releasedFrom,
+          releaseReason: lead.releaseReason,
           firstContactAt: lead.firstContactAt,
           lastContactAt: lead.lastContactAt,
           nextActionAt: lead.nextActionAt,
@@ -1710,11 +1837,26 @@ export class LeadsService {
             db,
           );
         }
+        // Decided 27/11/2026: a lead marked "Chốt xịt" or "Không quan tâm" goes back to the pool
+        const reason: LeadReleaseReason | null =
+          lead.careStatus !== careBefore && lead.careStatus === 'DROPPED'
+            ? 'DROPPED'
+            : (lead.careStatus !== careBefore &&
+                  lead.careStatus === 'NOT_INTERESTED') ||
+                (lead.interest !== interestBefore &&
+                  lead.interest === 'NOT_INTERESTED')
+              ? 'NOT_INTERESTED'
+              : null;
+        const released = reason
+          ? (await this.release(scope, [lead], reason, actor, now, db))
+              .length > 0
+          : false;
         return {
           id,
           stage: lead.stage,
           interest: lead.interest,
           careStatus: lead.careStatus,
+          released,
         };
       });
     } catch (error) {

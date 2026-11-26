@@ -31,7 +31,7 @@ import { usePrefetchNextPage } from '../lib/usePrefetchNextPage'
 import { useLeaveEmptyPage, useUrlState } from '../lib/useUrlState'
 import { optionalBirthDate, optionalEmail, optionalText, phoneField, requiredText } from '../lib/validation'
 
-type TabKey = 'mine' | 'isNew' | 'newComment' | 'overdue' | 'all' | 'unassigned'
+type TabKey = 'mine' | 'isNew' | 'newComment' | 'overdue' | 'all' | 'unassigned' | 'released'
 
 /** LEAD-36 */
 const TABS: { key: TabKey; label: Parameters<typeof t>[0]; count: keyof LeadCounts; managerOnly?: boolean; query: Record<string, string> }[] = [
@@ -41,6 +41,8 @@ const TABS: { key: TabKey; label: Parameters<typeof t>[0]; count: keyof LeadCoun
   { key: 'newComment', label: 'leads.tabComment', count: 'newComment', query: { newComment: '1' } },
   { key: 'overdue', label: 'leads.tabOverdue', count: 'overdue', query: { overdue: '1' } },
   { key: 'unassigned', label: 'leads.tabUnassigned', count: 'unassigned', managerOnly: true, query: { assignee: 'NONE' } },
+  // Decided 27/11/2026: leads their agent dropped or left without care, waiting for someone else
+  { key: 'released', label: 'leads.tabReleased', count: 'released', managerOnly: true, query: { released: '1' } },
 ]
 
 /** LEAD-21: one assignment takes at most this many leads. */

@@ -77,7 +77,7 @@ Nguồn: `requirement/08-lead-pipeline.md:18`
 
 Nguồn: `requirement/08-lead-pipeline.md:19`
 
-Đã trích dẫn trong: `backend/src/migrations/1764172800000-single-lead-source.ts`, `backend/src/modules/access/departed.ts`, `backend/src/modules/imports/lead-plan.spec.ts`, `backend/src/modules/imports/lead-plan.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/lead-line-assign.e2e-spec.ts`, `backend/test/lead-link.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`
+Đã trích dẫn trong: `backend/src/migrations/1764172800000-single-lead-source.ts`, `backend/src/modules/access/departed.ts`, `backend/src/modules/imports/lead-plan.spec.ts`, `backend/src/modules/imports/lead-plan.ts`, `backend/src/modules/leads/leads.service.ts`, `backend/test/lead-line-assign.e2e-spec.ts`, `backend/test/lead-link.e2e-spec.ts`, `backend/test/lead-release.e2e-spec.ts`, `backend/test/leads.e2e-spec.ts`
 
 - **LEAD-9** Khóa lead tự khai thác: lead FC_OWN không được giao cho người khác (bằng tay hay bằng file) khi người tạo còn làm việc cho GA (AGT-7) → `409 own_lead_locked` (dòng file bị từ chối cùng mã). Khi người tạo nghỉ (đại lý ngưng hoạt động / có ngày chấm dứt, hoặc tài khoản bị khóa / lưu trữ), người quản lý lead được phân công lại.
 

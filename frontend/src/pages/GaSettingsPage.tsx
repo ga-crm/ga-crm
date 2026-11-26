@@ -12,6 +12,8 @@ import type { GaSettings } from '../lib/types'
 import { optionalText } from '../lib/validation'
 
 const hours = z.coerce.number<string>().int(t('validation.hours')).min(1, t('validation.hours')).max(720, t('validation.hours'))
+// Decided 27/11/2026: days without care before a lead goes back to the pool
+const days = z.coerce.number<string>().int(t('validation.days')).min(1, t('validation.days')).max(365, t('validation.days'))
 
 const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, t('validation.time'))
 
@@ -20,6 +22,7 @@ const schema = z.object({
   address: optionalText(300),
   contactDeadlineHours: hours,
   contactedInTimeHours: hours,
+  abandonDays: days,
   quietFrom: clock,
   quietTo: clock,
   mfaForAll: z.boolean(),
@@ -32,6 +35,7 @@ const toValues = (settings: GaSettings): Values => ({
   address: settings.profile.address,
   contactDeadlineHours: String(settings.leadRules.contactDeadlineHours),
   contactedInTimeHours: String(settings.leadRules.contactedInTimeHours),
+  abandonDays: String(settings.leadRules.abandonDays),
   quietFrom: settings.notifications.quietHours.from,
   quietTo: settings.notifications.quietHours.to,
   mfaForAll: settings.security.mfaForAll,
@@ -71,7 +75,7 @@ export function GaSettingsPage() {
         // Section 5.2: the version the form was opened with, so a newer save is never overwritten
         version: openedVersion.current,
         profile: { displayName: values.displayName, address: values.address },
-        leadRules: { contactDeadlineHours: values.contactDeadlineHours, contactedInTimeHours: values.contactedInTimeHours },
+        leadRules: { contactDeadlineHours: values.contactDeadlineHours, contactedInTimeHours: values.contactedInTimeHours, abandonDays: values.abandonDays },
         notifications: { quietHours: { from: values.quietFrom, to: values.quietTo } },
         security: { mfaForAll: values.mfaForAll },
       }),
@@ -127,6 +131,9 @@ export function GaSettingsPage() {
                   </Field>
                   <Field label={t('settingsGa.inTime')} htmlFor="settings-in-time" required error={errors.contactedInTimeHours?.message} hint={t('settingsGa.inTimeHint')}>
                     <Input id="settings-in-time" type="number" min={1} max={720} inputMode="numeric" placeholder={t('placeholder.hours')} aria-invalid={!!errors.contactedInTimeHours} {...form.register('contactedInTimeHours')} />
+                  </Field>
+                  <Field label={t('settingsGa.abandonDays')} htmlFor="settings-abandon" required error={errors.abandonDays?.message} hint={t('settingsGa.abandonDaysHint')}>
+                    <Input id="settings-abandon" type="number" min={1} max={365} inputMode="numeric" placeholder={t('placeholder.days')} aria-invalid={!!errors.abandonDays} {...form.register('abandonDays')} />
                   </Field>
                 </div>
               </Section>

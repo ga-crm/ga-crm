@@ -234,6 +234,8 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
     await this.careSignals(scope, today);
     // LEAD-40: leads deleted more than 30 days ago go for good
     await this.removal.purge(scope, now);
+    // Decided 27/11/2026: leads left without care go back to the GA's pool
+    await this.leads.releaseIdle(scope, now);
   }
 
   /** TASK-7: what is still open from before today, one notice per person. */

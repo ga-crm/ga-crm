@@ -56,10 +56,14 @@ export type LeadStage = (typeof LEAD_STAGES)[number]
 /** LEAD-19: where a lead can be moved by hand. */
 export const LEAD_WORK_STAGES: readonly LeadStage[] = ['CONTACTED', 'APPOINTMENT', 'MET', 'PROPOSAL', 'SUBMITTED', 'LOST']
 
+/** Decided 27/11/2026: why a lead went back to the GA's pool. */
+export type LeadReleaseReason = 'IDLE' | 'DROPPED' | 'NOT_INTERESTED'
+
 export interface LeadRow {
   id: string
   fullName: string
   phone: string
+  releaseReason: LeadReleaseReason | null
   source: string
   phoneSource: string | null
   leadDate: string
@@ -90,6 +94,8 @@ export interface LeadCounts {
   overdue: number
   isNew: number
   newComment: number
+  /** Decided 27/11/2026: leads back in the pool (director and Admin). */
+  released: number
 }
 
 export interface LeadTask {
@@ -120,6 +126,8 @@ export interface LeadSupporter {
 
 export interface LeadDetail {
   lead: Omit<LeadRow, 'agentName' | 'campaignName' | 'assignedAt'> & {
+    releasedAt: string | null
+    releasedFrom: string | null
     email: string | null
     gender: string | null
     dob: string | null
@@ -152,7 +160,7 @@ export interface LeadDetail {
   interactions: { id: string; type: string; note: string; outcome: string | null; occurredAt: string; initial: boolean; createdBy: string | null; source: string; editedAt: string | null }[]
   comments: ThreadComment[]
   tasks: LeadTask[]
-  history: { id: string; field: string; oldValue: string | null; newValue: string | null; note?: string | null; imported: boolean; changedBy: string; changedAt: string }[]
+  history: { id: string; field: string; oldValue: string | null; newValue: string | null; note?: string | null; imported: boolean; changedBy: string | null; changedAt: string }[]
   userNames: Record<string, string>
   agentNames: Record<string, string>
   /** LEAD-28: oldest first; `to` is null for the current holder. */
@@ -270,7 +278,7 @@ export interface GaSettings {
   gaCode: string
   gaName: string
   profile: { displayName: string; address: string }
-  leadRules: { contactDeadlineHours: number; contactedInTimeHours: number; managersMayReassign: boolean; consentForTelesales: boolean }
+  leadRules: { contactDeadlineHours: number; contactedInTimeHours: number; managersMayReassign: boolean; consentForTelesales: boolean; abandonDays: number }
   notifications: { quietHours: { from: string; to: string } }
   security: { mfaForAll: boolean }
   plan: { name: string; users: number; limits: TenantLimits }
