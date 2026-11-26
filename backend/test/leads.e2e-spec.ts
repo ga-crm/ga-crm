@@ -449,7 +449,6 @@ describe('Leads (e2e)', () => {
       const { id } = await newLead(fc);
       await update(fc, id, {
         fullName: 'Tên Mới',
-        region: 'Miền Bắc',
         email: 'a@b.vn',
         dob: '1990-01-15',
         consent: true,
@@ -457,19 +456,20 @@ describe('Leads (e2e)', () => {
       const { lead, history } = await open(fc, id);
       expect(lead).toMatchObject({
         fullName: 'Tên Mới',
-        region: 'Miền Bắc',
         consentMarketing: true,
       });
+      // Decided 26/11/2026: "Khu vực" is gone; the province and commune say where a lead is
+      expect(lead).not.toHaveProperty('region');
       expect(history.map((item: { field: string }) => item.field)).toEqual(
         expect.arrayContaining([
           'fullName',
-          'region',
           'email',
           'dob',
           'consent',
         ]),
       );
 
+      await update(fc, id, { region: 'Miền Bắc' }).expect(400);
       await update(fc, id, { source: 'Khác' }).expect(403);
       await update(fc, id, { campaignId: null }).expect(403);
       await update(marketing, id, { source: 'Khác' }).expect(200);

@@ -218,7 +218,6 @@ describe('Demo seed (e2e)', () => {
       'email',
       'dob',
       'gender',
-      'region',
       'province',
       'phoneSource',
       'productInterest',

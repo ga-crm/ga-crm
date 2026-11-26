@@ -16,7 +16,6 @@ export interface ParsedLeadRow {
   agentValue?: string;
   externalId?: string;
   phoneSource?: string;
-  region?: string;
   interest?: LeadInterest;
   careStatus?: LeadCareStatus;
   campaignName?: string;
@@ -143,7 +142,6 @@ const COPIED = [
   'source',
   'externalId',
   'phoneSource',
-  'region',
   'lostReason',
   'messageStatus',
   'followUp10d',

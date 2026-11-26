@@ -48,7 +48,6 @@ const editSchema = z.object({
   fullName: requiredText(200),
   phone: phoneField,
   dob: optionalBirthDate,
-  region: optionalText(100),
   // Decided 26/11/2026: the province and commune after 1/7/2025, and the street address
   provinceCode: z.string(),
   wardCode: z.string(),
@@ -78,7 +77,6 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
       fullName: lead.fullName,
       phone: lead.phone,
       dob: lead.dob ?? '',
-      region: lead.region ?? '',
       provinceCode: lead.provinceCode ?? '',
       wardCode: lead.wardCode ?? '',
       addressLine: lead.addressLine ?? '',
@@ -93,12 +91,11 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
   const { errors, dirtyFields } = form.formState
   const sourceChanged = !!dirtyFields.source
   const save = useMutation({
-    mutationFn: ({ consent, dob, region, provinceCode, wardCode, addressLine, email, source, campaignId, productCode, ...rest }: EditValues) =>
+    mutationFn: ({ consent, dob, provinceCode, wardCode, addressLine, email, source, campaignId, productCode, ...rest }: EditValues) =>
       api.patch(`/leads/${lead.id}`, {
         ...rest,
         consent: consent === 'yes',
         dob: dob || null,
-        region: region || null,
         // Sent only when changed, so an older typed province stays until a province is chosen
         ...((dirtyFields.provinceCode || dirtyFields.wardCode) && { provinceCode: provinceCode || null, wardCode: wardCode || null }),
         ...(dirtyFields.addressLine && { addressLine: addressLine || null }),
@@ -133,15 +130,6 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
         </Field>
         <Field label={t('leads.dob')} htmlFor="edit-dob" error={errors.dob?.message}>
           <Input id="edit-dob" type="date" min="1900-01-01" aria-invalid={!!errors.dob} {...form.register('dob')} />
-        </Field>
-        <Field label={t('leads.region')} htmlFor="edit-region" error={errors.region?.message}>
-          <Controller
-            control={form.control}
-            name="region"
-            render={({ field, fieldState }) => (
-              <OptionPicker ref={field.ref} kind="region" id="edit-region" label={t('leads.region')} maxLength={100} emptyLabel={t('leads.noPlace')} placeholder={t('leads.regionPlaceholder')} value={field.value ?? ''} onChange={field.onChange} onBlur={field.onBlur} invalid={fieldState.invalid} />
-            )}
-          />
         </Field>
         <PlaceFields control={form.control} setValue={form.setValue} errors={errors} idPrefix="edit" />
         <Field label={t('leads.productInterest')} htmlFor="edit-product" error={errors.productCode?.message}>
@@ -454,7 +442,6 @@ function InfoTab({ detail, onEdit }: { detail: LeadDetail; onEdit: () => void })
           <Fact label={t('leads.email')} value={lead.email} />
           <Fact label={t('leads.dob')} value={showDate(lead.dob)} />
           <Fact label={t('agents.gender')} value={lead.gender} />
-          <Fact label={t('leads.region')} value={lead.region} />
           {/* Decided 26/11/2026: the place by its current names; an older typed province shows as written */}
           <Fact label={t('leads.address')} value={[lead.addressLine, lead.wardName, lead.provinceName].filter(Boolean).join(', ') || null} />
           {!lead.provinceCode && lead.province && <Fact label={t('leads.provinceOld')} value={lead.province} />}

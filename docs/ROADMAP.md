@@ -24,7 +24,7 @@ Việc chưa làm, xếp theo thứ tự ưu tiên: [viec-con-lai.md](viec-con-l
 | Việc | Từ câu | Trạng thái |
 |---|---|---|
 | Trạng thái trực tuyến kèm thời gian: "trực tuyến từ 08:15", "hoạt động 12 phút trước" | K5 | Xong 14/11/2026 |
-| Danh mục: "Thêm nhiều giá trị" (dán danh sách mỗi dòng một giá trị, hoặc tải file) cho các danh sách phụ của Cài đặt GA | D | Xong 14/11/2026: Khu vực, Nguồn SĐT, Lý do chốt xịt; còn Nhu cầu chi tiết, Loại chiến dịch |
+| Danh mục: "Thêm nhiều giá trị" (dán danh sách mỗi dòng một giá trị, hoặc tải file) cho các danh sách phụ của Cài đặt GA | D | Xong 14/11/2026: Nguồn SĐT, Lý do chốt xịt (Khu vực bỏ 26/11/2026); còn Nhu cầu chi tiết, Loại chiến dịch |
 | Nhập file từ 2.000 dòng theo từng lô, lô lỗi không chặn lô khác, báo dòng lỗi; dưới 2.000 dòng giữ tất cả hoặc không có gì | I | Xong 14/11/2026 (ghi nền trong tiến trình API, lô 500 dòng, tiến độ qua WebSocket; chuyển sang hàng đợi BullMQ ở giai đoạn 3) |
 | Quản lý tuyến (GAD, BM, UM) phân công lại lead trong tuyến của mình | 4 | Xong 14/11/2026 (quyền `leads.assign_line`) |
 | Nhắc Chủ GA "còn N lead / khách của người đã nghỉ" khi lưu trữ người dùng, kèm lối tắt phân công lại | 12e | Xong 14/11/2026 |
@@ -127,7 +127,7 @@ Thiết kế ở [thiet-ke-he-thong.md](thiet-ke-he-thong.md), cách chuyển �
 | 5a | Tự chuyển giai đoạn sau nhập Success | Xong | LEAD-33 |
 | 5b | Chiến dịch: tạo / sửa, kết thúc, trang chiến dịch có số liệu; hội thảo và thành viên | Xong | CMP-1, 2, 3, 5. Màn hình `/campaigns`, `/campaigns/:id` |
 | 5c | Form lead công khai: link, QR, đồng ý, chống bot, rate limit | Xong | CMP-4. Trang `/f/:slug`. Cần khóa Turnstile thật trước khi chạy production (câu E) |
-| - | Tự phân công lead từ form / file (chia vòng, theo khu vực) | Chưa làm | LEAD-27, mặc định tắt |
+| - | Tự phân công lead từ form / file (chia vòng, theo tỉnh) | Chưa làm | LEAD-27, mặc định tắt; khu vực của lead đã bỏ 26/11/2026 |
 
 ## Lát cắt 6: chi tiết
 

@@ -10,8 +10,9 @@ type Agent = ReturnType<typeof request.agent>;
 type Option = { id: string; kind: string; code: string; label: string; isOpportunity: boolean; sortOrder: number };
 
 /**
- * Section 5.2 + open question D (decided 14/11/2026): the GA's own lists (region, phone source, lost
- * reason) start empty, and the GA head can add a whole list at once to any catalogue list.
+ * Section 5.2 + open question D (decided 14/11/2026): the GA's own lists (phone source, lost reason)
+ * start empty, and the GA head can add a whole list at once to any catalogue list. The region list
+ * was dropped on 26/11/2026.
  */
 describe('GA lists and adding many values (e2e)', () => {
   let app: INestApplication;
@@ -38,28 +39,39 @@ describe('GA lists and adding many values (e2e)', () => {
   });
 
   it('D: the section 5.2 lists start empty; the GA head fills them', async () => {
-    for (const kind of ['region', 'phone_source', 'lost_reason']) expect(await listOf(head, kind)).toEqual([]);
+    for (const kind of ['phone_source', 'lost_reason']) expect(await listOf(head, kind)).toEqual([]);
+  });
+
+  it('decided 26/11/2026: there is no region list any more', async () => {
+    await head.post(`${API}/lead-options/bulk`).send({ kind: 'region', labels: ['Miền Bắc'] }).expect(400);
+    await head
+      .post(`${API}/leads`)
+      .send({ fullName: 'Khách miền Bắc', phone: '0912777009', source: 'Facebook', consent: true, region: 'Miền Bắc' })
+      .expect(400);
   });
 
   it('adds a pasted list in order, skipping what is already there or repeated (OPT-4)', async () => {
     const first = await head
       .post(`${API}/lead-options/bulk`)
-      .send({ kind: 'region', labels: ['Miền Bắc', ' Miền Trung ', 'miền bắc', 'Mien Trung', 'Miền Nam'] })
+      .send({ kind: 'lost_reason', labels: ['Đã mua bên khác', ' Không còn nhu cầu ', 'đã mua bên khác', 'Khong con nhu cau', 'Phí cao'] })
       .expect(201);
-    expect(first.body).toEqual({ created: ['Miền Bắc', 'Miền Trung', 'Miền Nam'], skipped: ['miền bắc', 'Mien Trung'] });
+    expect(first.body).toEqual({
+      created: ['Đã mua bên khác', 'Không còn nhu cầu', 'Phí cao'],
+      skipped: ['đã mua bên khác', 'Khong con nhu cau'],
+    });
 
-    const again = await head.post(`${API}/lead-options/bulk`).send({ kind: 'region', labels: ['Miền Nam', 'Tây Nguyên'] }).expect(201);
-    expect(again.body).toEqual({ created: ['Tây Nguyên'], skipped: ['Miền Nam'] });
+    const again = await head.post(`${API}/lead-options/bulk`).send({ kind: 'lost_reason', labels: ['Phí cao', 'Không liên lạc được'] }).expect(201);
+    expect(again.body).toEqual({ created: ['Không liên lạc được'], skipped: ['Phí cao'] });
 
-    const regions = await listOf(head, 'region');
-    expect(regions.map((item) => [item.label, item.code])).toEqual([
-      ['Miền Bắc', 'Miền Bắc'],
-      ['Miền Trung', 'Miền Trung'],
-      ['Miền Nam', 'Miền Nam'],
-      ['Tây Nguyên', 'Tây Nguyên'],
+    const reasons = await listOf(head, 'lost_reason');
+    expect(reasons.map((item) => [item.label, item.code])).toEqual([
+      ['Đã mua bên khác', 'Đã mua bên khác'],
+      ['Không còn nhu cầu', 'Không còn nhu cầu'],
+      ['Phí cao', 'Phí cao'],
+      ['Không liên lạc được', 'Không liên lạc được'],
     ]);
     const { rows } = await ownerDb().query(
-      `SELECT count(*)::int AS n FROM audit_events WHERE entity = 'lead_option' AND action = 'CREATE' AND meta ->> 'kind' = 'region'`,
+      `SELECT count(*)::int AS n FROM audit_events WHERE entity = 'lead_option' AND action = 'CREATE' AND meta ->> 'kind' = 'lost_reason'`,
     );
     expect(rows[0].n).toBe(4);
   });
@@ -75,35 +87,34 @@ describe('GA lists and adding many values (e2e)', () => {
   });
 
   it('only the GA head adds; labels over 60 characters, empty lists and more than 200 are refused', async () => {
-    await admin.post(`${API}/lead-options/bulk`).send({ kind: 'region', labels: ['Hà Nội'] }).expect(403);
-    await head.post(`${API}/lead-options/bulk`).send({ kind: 'region', labels: ['x'.repeat(61)] }).expect(400);
-    await head.post(`${API}/lead-options/bulk`).send({ kind: 'region', labels: [] }).expect(400);
+    await admin.post(`${API}/lead-options/bulk`).send({ kind: 'phone_source', labels: ['Quảng cáo'] }).expect(403);
+    await head.post(`${API}/lead-options/bulk`).send({ kind: 'phone_source', labels: ['x'.repeat(61)] }).expect(400);
+    await head.post(`${API}/lead-options/bulk`).send({ kind: 'phone_source', labels: [] }).expect(400);
     await head
       .post(`${API}/lead-options/bulk`)
-      .send({ kind: 'region', labels: Array.from({ length: 201 }, (_, index) => `Vùng ${index}`) })
+      .send({ kind: 'phone_source', labels: Array.from({ length: 201 }, (_, index) => `Nguồn ${index}`) })
       .expect(400);
     await head.post(`${API}/lead-options/bulk`).send({ kind: 'colour', labels: ['Đỏ'] }).expect(400);
   });
 
   it('a value a lead uses can only be hidden (OPT-5); a lead may still carry a value the GA has not listed', async () => {
-    const created = await head
-      .post(`${API}/leads`)
-      .send({ fullName: 'Khách miền Bắc', phone: '0912777001', source: 'Facebook', consent: true, region: 'Miền Bắc' })
-      .expect(201);
-    expect(created.body.id).toBeTruthy();
-    await head
-      .post(`${API}/leads`)
-      .send({ fullName: 'Khách nơi khác', phone: '0912777002', source: 'Facebook', consent: true, region: 'Đảo Phú Quốc' })
-      .expect(201);
-    const regions = await listOf(head, 'region');
-    const north = regions.find((item) => item.label === 'Miền Bắc')!;
-    const res = await head.delete(`${API}/lead-options/${north.id}`).expect(409);
+    const drop = async (phone: string, lostReason: string) => {
+      const { id } = (
+        await head.post(`${API}/leads`).send({ fullName: 'Khách chốt xịt', phone, source: 'Facebook', consent: true }).expect(201)
+      ).body as { id: string };
+      await head.patch(`${API}/leads/${id}`).send({ careStatus: 'DROPPED', lostReason }).expect(200);
+    };
+    await drop('0912777001', 'Phí cao');
+    await drop('0912777002', 'Chuyển công tác');
+    const reasons = await listOf(head, 'lost_reason');
+    const used = reasons.find((item) => item.label === 'Phí cao')!;
+    const res = await head.delete(`${API}/lead-options/${used.id}`).expect(409);
     expect(res.body.error).toBe('option_in_use');
-    const highlands = regions.find((item) => item.label === 'Tây Nguyên')!;
-    await head.delete(`${API}/lead-options/${highlands.id}`).expect(204);
+    const unused = reasons.find((item) => item.label === 'Không liên lạc được')!;
+    await head.delete(`${API}/lead-options/${unused.id}`).expect(204);
   });
 
   it('TEN-7: another GA has its own lists', async () => {
-    expect(await listOf(head2, 'region')).toEqual([]);
+    expect(await listOf(head2, 'lost_reason')).toEqual([]);
   });
 });

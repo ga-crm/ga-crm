@@ -147,13 +147,7 @@ const CAMPAIGNS = [
   { name: 'Khách giới thiệu 2026', type: 'REFERRAL' },
 ];
 const SOURCES = ['Facebook', 'Zalo', 'Giới thiệu', 'Hội thảo', 'Website'];
-const PLACES = [
-  ['Miền Bắc', 'Hà Nội'],
-  ['Miền Bắc', 'Hải Phòng'],
-  ['Miền Trung', 'Đà Nẵng'],
-  ['Miền Nam', 'TP.HCM'],
-  ['Miền Nam', 'Cần Thơ'],
-];
+const PLACES = ['Hà Nội', 'Hải Phòng', 'Đà Nẵng', 'TP.HCM', 'Cần Thơ'];
 const FAMILY = [
   'Nguyễn',
   'Trần',
@@ -395,7 +389,7 @@ export async function seedShowcase(
 
     for (const [index, scenario] of SCENARIOS.entries()) {
       const person = personOf(index + number);
-      const [region, province] = PLACES[index % PLACES.length];
+      const province = PLACES[index % PLACES.length];
       const source = SOURCES[index % SOURCES.length];
       const campaign = campaigns[index % campaigns.length];
       const birthYear = 1965 + ((index * 3) % 35);
@@ -408,7 +402,6 @@ export async function seedShowcase(
         source,
         consent: index % 3 !== 0,
         email: `khach${number}${index}@example.com`,
-        region,
         province,
         gender: person.female ? 'Nữ' : 'Nam',
         dob: `${birthYear}-${String((index % 12) + 1).padStart(2, '0')}-15`,

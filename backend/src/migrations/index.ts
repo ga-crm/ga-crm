@@ -21,6 +21,7 @@ import { LeadFollowUps1764518400000 } from './1764518400000-lead-follow-ups.js';
 import { GeoUnits1764604800000 } from './1764604800000-geo-units.js';
 import { ClientCareRecords1764691200000 } from './1764691200000-client-care-records.js';
 import { LeadSupporters1764777600000 } from './1764777600000-lead-supporters.js';
+import { DropLeadRegion1764864000000 } from './1764864000000-drop-lead-region.js';
 
 /** In order. Listed rather than globbed, so the ESM build loads them without file scanning. */
 export const MIGRATIONS = [
@@ -47,4 +48,5 @@ export const MIGRATIONS = [
   GeoUnits1764604800000,
   ClientCareRecords1764691200000,
   LeadSupporters1764777600000,
+  DropLeadRegion1764864000000,
 ];

@@ -11,9 +11,9 @@ describe('adding many catalogue values (open question D)', () => {
   })
 
   it('drops a header row that names the list or says what the column holds', () => {
-    expect(dropHeader(['Khu vực', 'Miền Bắc'], 'Khu vực')).toEqual(['Miền Bắc'])
-    expect(dropHeader(['Giá trị', 'Miền Bắc'], 'Khu vực')).toEqual(['Miền Bắc'])
-    expect(dropHeader(['Miền Bắc', 'Miền Nam'], 'Khu vực')).toEqual(['Miền Bắc', 'Miền Nam'])
+    expect(dropHeader(['Lý do chốt xịt', 'Phí cao'], 'Lý do chốt xịt')).toEqual(['Phí cao'])
+    expect(dropHeader(['Giá trị', 'Phí cao'], 'Lý do chốt xịt')).toEqual(['Phí cao'])
+    expect(dropHeader(['Phí cao', 'Đã mua bên khác'], 'Lý do chốt xịt')).toEqual(['Phí cao', 'Đã mua bên khác'])
   })
 
   it('keeps new labels in order and sets aside duplicates (any case or diacritics) and labels over 60 characters', () => {
