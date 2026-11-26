@@ -72,6 +72,6 @@ Nguồn: `requirement/07-cay-dai-ly.md:10`
 
 Nguồn: `requirement/07-cay-dai-ly.md:11`
 
-Đã trích dẫn trong: `frontend/src/components/ClientForms.tsx`, `frontend/src/pages/ClientsPage.tsx`
+Đã trích dẫn trong: `backend/src/modules/agents/agents.service.ts`, `backend/test/user-agent-tree.e2e-spec.ts`, `frontend/src/components/ClientForms.tsx`, `frontend/src/lib/agentTree.ts`
 
 - **AGT-9** Ô chọn đại lý trên các form (thêm khách hàng, phân công khách hàng, đại lý phục vụ hợp đồng) hiển thị đại lý theo cây (thụt lề theo cấp), có ô tìm [Cooked].

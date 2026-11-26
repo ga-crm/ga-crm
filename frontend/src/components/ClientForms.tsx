@@ -14,6 +14,7 @@ import type { ClientDetail, ClientPolicy, PolicyRole } from '../lib/types'
 import { optionalBirthDate, optionalDate, optionalText, requiredText } from '../lib/validation'
 import { ProductPicker } from './ProductPicker'
 import { Button, Field, FormError, IconButton, Input, MODAL_FOOTER, Select, WIDE_FORM_GRID } from './ui'
+import { pickerLabel, pickerRows } from '../lib/agentTree'
 
 const money = z.string().trim().regex(/^\d*$/, t('validation.money'))
 // POL-2: exactly 9 digits, kept as a string so leading zeros stay
@@ -492,9 +493,9 @@ export function CreateClientForm({ onClose, onCreated }: { onClose: () => void; 
           <Field label={t('clients.belongsTo')} htmlFor="client-agent" required={!me?.user.agentCode} error={errors.agentCode?.message}>
             <Select id="client-agent" aria-invalid={!!errors.agentCode} {...form.register('agentCode')}>
               <option value="">{me?.user.agentCode ? t('clients.belongsToMe') : t('clients.chooseAgent')}</option>
-              {(tree.data?.items ?? []).map((agent) => (
-                <option key={agent.agentCode} value={agent.agentCode}>
-                  {`${'  '.repeat(agent.depth)}${agent.name} (${agent.agentCode})`}
+              {pickerRows(tree.data?.items ?? []).map((row) => (
+                <option key={row.agent.agentCode} value={row.agent.agentCode}>
+                  {pickerLabel(row)}
                 </option>
               ))}
             </Select>

@@ -1246,6 +1246,21 @@ Chủ dự án yêu cầu ngày 26/11/2026: bỏ ô "Khu vực" (ví dụ "Miề
 | Giao diện | Bỏ ô Khu vực ở modal thêm lead, form sửa lead và phần thông tin trang lead; Danh mục không còn danh sách "Khu vực" | |
 | Chưa làm | LEAD-27 (tự phân công theo khu vực) khi làm sẽ dựa vào tỉnh thay cho khu vực | Ngoài yêu cầu |
 
+## 2026-11-26: Tài khoản đại lý tạo tay được thêm vào Cây đại lý (khác AGT-2, USER-7)
+
+Chủ dự án báo ngày 26/11/2026: tạo tài khoản tư vấn viên bằng tay xong, ô "Khách hàng sẽ thuộc tư vấn viên" không có người đó; chỉ đại lý nhập từ Excel mới hiện. Nguyên nhân: mọi ô chọn đại lý (AGT-9), quyền sở hữu khách / lead và nhánh của quản lý (SCOPE-1) đều đọc **Cây đại lý** (bảng `agents`), còn tạo tài khoản chỉ ghi mã đại lý vào tài khoản. Đặc tả coi cây là dữ liệu từ file 01_Agents và chỉ yêu cầu cảnh báo khi mã chưa có trong cây (USER-7).
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Khi nào thêm vào cây | Mời hoặc sửa tài khoản có vai trò đại lý (FC, UM, BM, GAD) mà mã đại lý **chưa có trong cây**: thêm đại lý vào cây trong cùng giao dịch với tài khoản, ghi audit `CREATE agent` (`meta.from = 'user'`) | Một lần lưu là người đó chọn được ở mọi ô tư vấn viên, nhận được khách / lead và nằm trong nhánh quản lý |
+| Hạng, tên, trạng thái | Hạng theo vai trò đại lý cao nhất: GAD → SUM, BM → BM, UM → UM, FC → FC. Tên lấy theo tài khoản, trạng thái "Đang hoạt động" | Sau này nhập 01_Agents có mã này thì đại lý được cập nhật như mọi đại lý khác |
+| Quản lý trực tiếp | Form tài khoản có ô "Quản lý trực tiếp" (chọn trong cây). Để trống thì đại lý đứng đầu một nhánh. Mã quản lý không có trong GA → `400 manager_not_found`, không lưu gì | |
+| Mã đã có trong cây | Không đổi gì trên cây (tên, hạng, quản lý giữ như cây); ô quản lý bị khóa và hiện tên đại lý trong cây | Đổi quản lý vẫn làm ở trang Cây đại lý (AGT-5) |
+| Quyền | Chỉ thêm vào cây khi người lưu có `agents.edit_tree` (mặc định Chủ GA, Admin). Không có quyền thì như trước: chỉ tạo tài khoản, danh sách người dùng cảnh báo mã chưa có trong cây | Không vượt quyền sửa cây |
+| API | `POST /users/invite` và `PATCH /users/:id` nhận thêm `managerCode`, trả thêm `addedToTree` | |
+| Ô chọn đại lý | Ô chọn đại lý (thêm khách hàng, lọc khách theo người phụ trách, quản lý trực tiếp) xếp **theo thứ tự cây** và thụt lề bằng khoảng trắng không ngắt | Trước đây xếp theo mã: đại lý thêm sau có mã lớn hơn nằm cuối danh sách dưới sai người; thụt lề bằng dấu cách thường bị trình duyệt gộp mất |
+| Tài khoản đã tạo trước đây | Không tự thêm vào cây. Mở tài khoản ở Người dùng, bấm Sửa, chọn quản lý trực tiếp rồi Lưu là người đó vào cây | Tránh đưa vào cây một mã gõ nhầm |
+
 ## Not built yet
 
 | Rule | Item | Needed before go-live |

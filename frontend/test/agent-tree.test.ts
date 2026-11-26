@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { indexTree, managerCandidates, normalizeName, searchTree, visibleRows } from '../src/lib/agentTree'
+import { indexTree, managerCandidates, normalizeName, pickerLabel, pickerRows, searchTree, visibleRows } from '../src/lib/agentTree'
 import type { AgentNode } from '../src/lib/types'
 
 const node = (agentCode: string, name: string, ancestors: string[] = []): AgentNode => ({
@@ -83,5 +83,14 @@ describe('managerCandidates', () => {
 describe('normalizeName', () => {
   it('DATA-5', () => {
     expect(normalizeName('  Đặng   Thị  Ánh ')).toBe('DANG THI ANH')
+  })
+})
+
+describe('pickerRows', () => {
+  it('AGT-9: lists agents in tree order, so one added later by hand sits under their manager', () => {
+    const later = node('0', 'Mới Thêm Tay', ['1', '2'])
+    const rows = pickerRows([later, ...items])
+    expect(rows.map((row) => row.agent.agentCode)).toEqual(['1', '2', '0', '3', '4', '9'])
+    expect(pickerLabel(rows[2])).toBe('\u00a0\u00a0\u00a0\u00a0Mới Thêm Tay (0)')
   })
 })

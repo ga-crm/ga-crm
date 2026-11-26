@@ -16,7 +16,7 @@ Nguồn: `requirement/04-vai-tro-va-phan-quyen.md:15`
 
 Nguồn: `requirement/04-vai-tro-va-phan-quyen.md:16`
 
-Đã trích dẫn trong: `backend/src/common/rbac.ts`, `backend/src/migrations/1762876800000-foundation.ts`, `backend/src/modules/notifications/notifications.service.ts`, `backend/src/modules/users/users.service.ts`, `backend/test/auth.e2e-spec.ts`, `backend/test/tenancy.int-spec.ts`, `frontend/src/pages/UsersPage.tsx`
+Đã trích dẫn trong: `backend/src/common/rbac.ts`, `backend/src/migrations/1762876800000-foundation.ts`, `backend/src/modules/agents/agents.service.ts`, `backend/src/modules/notifications/notifications.service.ts`, `backend/src/modules/users/users.service.ts`, `backend/test/auth.e2e-spec.ts`, `backend/test/tenancy.int-spec.ts`, `backend/test/user-agent-tree.e2e-spec.ts`, `frontend/src/pages/UsersPage.tsx`
 
 - **ROLE-2** Vai trò đại lý (FC, UM, BM, GAD) cần mã đại lý → `400 agent_code_required`. Mã đại lý là duy nhất trong tenant giữa các người dùng chưa lưu trữ → `409 agent_code_taken`.
 

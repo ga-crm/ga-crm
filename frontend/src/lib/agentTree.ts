@@ -79,3 +79,15 @@ export function visibleRows(index: TreeIndex, isExpanded: (code: string) => bool
 export function managerCandidates(items: readonly AgentNode[], code?: string): AgentNode[] {
   return code ? items.filter((item) => item.agentCode !== code && !item.ancestors.includes(code)) : [...items]
 }
+
+/**
+ * AGT-9: agent pickers list everyone in tree order (each agent under their manager), indented by
+ * level. The API sorts by code, which only matches the tree while codes follow it; an agent added
+ * by hand later (decided 26/11/2026) would otherwise show at the end under the wrong person.
+ */
+export function pickerRows(items: readonly AgentNode[]): VisibleRow[] {
+  return visibleRows(indexTree(items), () => true, null)
+}
+
+/** Plain spaces collapse inside an `<option>`, so the indent uses no-break spaces. */
+export const pickerLabel = ({ agent, level }: VisibleRow): string => `${'  '.repeat(level)}${agent.name} (${agent.agentCode})`

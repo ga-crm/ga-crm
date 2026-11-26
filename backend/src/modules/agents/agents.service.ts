@@ -18,7 +18,12 @@ import type {
   ListAgentsQueryDto,
   UpdateAgentDto,
 } from './agents.dto.js';
-import { Agent, AGENT_STATUSES } from './infrastructure/agent.entity.js';
+import {
+  Agent,
+  AGENT_RANKS,
+  AGENT_STATUSES,
+  type AgentRank,
+} from './infrastructure/agent.entity.js';
 
 const OPTIONAL_FIELDS = [
   'gender',
@@ -29,6 +34,14 @@ const OPTIONAL_FIELDS = [
 ] as const;
 
 const STOPPED = AGENT_STATUSES[1];
+
+/** The tree rank of an account added by hand, from its highest agent role (ROLE-2). */
+const RANK_OF_ROLE: readonly (readonly [Role, AgentRank])[] = [
+  [Role.GAD, 'SUM'],
+  [Role.BM, 'BM'],
+  [Role.UM, 'UM'],
+  [Role.FC, 'FC'],
+];
 
 /** DATA-4: stored as `0xxxxxxxxx` when it is a Vietnamese number; other text is kept as written. */
 export function normalizePhone(value: string): string {
@@ -248,6 +261,84 @@ export class AgentsService {
       );
       return this.get(actor, dto.agentCode, db);
     });
+  }
+
+  /**
+   * Decided 26/11/2026: an account with an agent role (ROLE-2) whose code is not on the tree yet
+   * joins it when the account is saved, in the same transaction, so a staff member added by hand
+   * shows in every agent picker (AGT-9), owns clients and leads, and gives their manager a line
+   * (SCOPE-1). The rank follows the highest agent role; the manager is the one the form picked.
+   * The manager must rank above the account.
+   * A code already on the tree is left as it is: the tree stays the place to move an agent, and a
+   * later 01_Agents import updates the agent like any other.
+   * Returns whether the agent was added. Without `agents.edit_tree` nothing is added and the
+   * user list keeps warning about the code (USER-7).
+   */
+  async addForUser(
+    scope: Scope,
+    actor: Actor,
+    user: {
+      agentCode: string | null;
+      name: string;
+      roles: readonly string[];
+      managerCode?: string | null;
+    },
+    db: EntityManager,
+  ): Promise<boolean> {
+    const rank = RANK_OF_ROLE.find(([role]) => user.roles.includes(role))?.[1];
+    if (!rank || !user.agentCode) return false;
+    if (!actor.permissions.includes(Permission.AgentsEditTree)) return false;
+    const agents = db.getRepository(Agent);
+    if (
+      await agents.existsBy({
+        tenantId: scope.tenantId,
+        agentCode: user.agentCode,
+      })
+    )
+      return false;
+    const managerCode = user.managerCode || null;
+    if (managerCode) {
+      const manager =
+        managerCode === user.agentCode
+          ? null
+          : await agents.findOneBy({
+              tenantId: scope.tenantId,
+              agentCode: managerCode,
+            });
+      if (!manager)
+        throw new ApiException(
+          HttpStatus.BAD_REQUEST,
+          ErrorCode.ManagerNotFound,
+        );
+      // Decided 26/11/2026: a direct manager ranks above the account (SUM > BM > UM > SA > FC)
+      if (AGENT_RANKS.indexOf(manager.rank) >= AGENT_RANKS.indexOf(rank))
+        throw new ApiException(
+          HttpStatus.BAD_REQUEST,
+          ErrorCode.ManagerRankTooLow,
+        );
+    }
+    await agents.insert({
+      tenantId: scope.tenantId,
+      agentCode: user.agentCode,
+      name: user.name,
+      nameNorm: normalizeName(user.name),
+      rank,
+      status: AGENT_STATUSES[0],
+      managerCode,
+    });
+    await this.rebuildTree(scope, db);
+    await this.audit.record(
+      {
+        tenantId: scope.tenantId,
+        userId: actor.id,
+        action: AuditAction.Create,
+        entity: 'agent',
+        entityId: user.agentCode,
+        meta: { rank, managerCode, from: 'user' },
+      },
+      db,
+    );
+    return true;
   }
 
   async update(actor: Actor, code: string, dto: UpdateAgentDto) {

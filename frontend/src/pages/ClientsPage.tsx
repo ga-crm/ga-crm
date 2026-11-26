@@ -18,6 +18,7 @@ import type { ClientRow } from '../lib/types'
 import { useListSearch } from '../lib/useListSearch'
 import { usePrefetchNextPage } from '../lib/usePrefetchNextPage'
 import { useLeaveEmptyPage, useUrlState } from '../lib/useUrlState'
+import { pickerLabel, pickerRows } from '../lib/agentTree'
 
 /** CUS-14: name, the policies the client is on with their roles, tier and the phone the GA keeps. */
 function ClientCell({ client }: { client: ClientRow }) {
@@ -146,12 +147,11 @@ export function ClientsPage() {
             <Select value={agents} onChange={(event) => url.set({ agents: event.target.value, page: null })}>
               <option value="">{me?.user.agentCode ? t('clients.ownedByMe') : t('clients.ownedByAll')}</option>
               {me?.user.agentCode && <option value="ALL">{t('clients.ownedByAll')}</option>}
-              {(tree.data?.items ?? [])
-                .filter((agent) => agent.agentCode !== me?.user.agentCode)
-                .map((agent) => (
-                  <option key={agent.agentCode} value={agent.agentCode}>
-                    {/* AGT-9: indented by level; plain spaces would collapse */}
-                    {`${'\u00a0\u00a0'.repeat(agent.depth)}${agent.name} (${agent.agentCode})`}
+              {pickerRows(tree.data?.items ?? [])
+                .filter((row) => row.agent.agentCode !== me?.user.agentCode)
+                .map((row) => (
+                  <option key={row.agent.agentCode} value={row.agent.agentCode}>
+                    {pickerLabel(row)}
                   </option>
                 ))}
             </Select>

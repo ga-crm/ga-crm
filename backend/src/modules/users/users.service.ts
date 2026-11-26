@@ -16,6 +16,7 @@ import type { Actor, Scope } from '../../common/rbac.js';
 import type { Env } from '../../config/env.validation.js';
 import { PlatformDb } from '../../core/tenancy/platform-db.js';
 import { TenantDb } from '../../core/tenancy/tenant-db.js';
+import { AgentsService } from '../agents/agents.service.js';
 import { AuditAction, AuditService } from '../audit/audit.service.js';
 import {
   Invitation,
@@ -82,6 +83,7 @@ export class UsersService {
     private readonly config: ConfigService<Env, true>,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
+    private readonly agents: AgentsService,
   ) {}
 
   /** TEN-3: a record of another tenant behaves exactly like a missing one (row-level security). */
@@ -165,7 +167,7 @@ export class UsersService {
     scope: Scope,
     actor: Actor,
     dto: InviteUserDto,
-  ): Promise<{ user: User; inviteUrl: string }> {
+  ): Promise<{ user: User; inviteUrl: string; addedToTree: boolean }> {
     assertCanManageHead(actor, dto.roles);
     assertAgentCode(dto.roles, dto.agentCode);
     try {
@@ -173,6 +175,13 @@ export class UsersService {
         // Section 5.2: the plan's number of users
         await this.tenants.assertSeat(scope, db);
         const created = await this.createInvited(scope, actor.id, dto, db);
+        // Decided 26/11/2026: a staff member added by hand joins the agent tree too
+        const addedToTree = await this.agents.addForUser(
+          scope,
+          actor,
+          { ...dto, agentCode: dto.agentCode ?? null },
+          db,
+        );
         await this.audit.record(
           {
             tenantId: scope.tenantId,
@@ -184,7 +193,7 @@ export class UsersService {
           },
           db,
         );
-        return created;
+        return { ...created, addedToTree };
       });
     } catch (error) {
       return mapDuplicateKey(error);
@@ -245,7 +254,7 @@ export class UsersService {
     actor: Actor,
     id: string,
     dto: UpdateUserDto,
-  ): Promise<User> {
+  ): Promise<{ user: User; addedToTree: boolean }> {
     try {
       return await this.tenantDb.run(scope, async (db) => {
         // ROLE-5: serialises concurrent changes that could remove the last GA_HEAD
@@ -329,7 +338,19 @@ export class UsersService {
           },
           db,
         );
-        return user;
+        // Decided 26/11/2026: an account whose code is not on the tree yet joins it on save
+        const addedToTree = await this.agents.addForUser(
+          scope,
+          actor,
+          {
+            agentCode: user.agentCode,
+            name: user.name,
+            roles,
+            managerCode: dto.managerCode,
+          },
+          db,
+        );
+        return { user, addedToTree };
       });
     } catch (error) {
       return mapDuplicateKey(error);

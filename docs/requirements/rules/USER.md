@@ -56,7 +56,7 @@ Nguồn: `requirement/06-nguoi-dung-va-xac-thuc.md:11`
 
 Nguồn: `requirement/06-nguoi-dung-va-xac-thuc.md:12`
 
-Đã trích dẫn trong: `backend/src/modules/users/users.dto.ts`, `backend/src/modules/users/users.service.ts`, `backend/test/auth.e2e-spec.ts`, `backend/test/imports.e2e-spec.ts`, `frontend/src/lib/types.ts`, `frontend/src/pages/UsersPage.tsx`
+Đã trích dẫn trong: `backend/src/modules/agents/agents.service.ts`, `backend/src/modules/users/users.dto.ts`, `backend/src/modules/users/users.service.ts`, `backend/test/auth.e2e-spec.ts`, `backend/test/imports.e2e-spec.ts`, `backend/test/user-agent-tree.e2e-spec.ts`, `frontend/src/lib/types.ts`, `frontend/src/pages/UsersPage.tsx`
 
 - **USER-7** Danh sách người dùng (`users.manage`): tên, email, vai trò, mã đại lý + mã đó có trong cây đại lý chưa (cảnh báo nếu chưa), trạng thái, lần đăng nhập gần nhất; tìm kiếm; phân trang; mặc định ẩn người dùng đã lưu trữ (có bộ lọc "Đã lưu trữ").
 

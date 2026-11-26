@@ -67,6 +67,7 @@ export const ErrorCode = {
   ServiceUnavailable: 'service_unavailable',
   ManagerNotFound: 'manager_not_found',
   ManagerCycle: 'manager_cycle',
+  ManagerRankTooLow: 'manager_rank_too_low',
   AgentExists: 'agent_exists',
   ImportNotOpen: 'import_not_open',
   ImportNotValidated: 'import_not_validated',

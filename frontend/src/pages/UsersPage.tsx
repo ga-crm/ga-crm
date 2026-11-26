@@ -15,13 +15,15 @@ import { presenceText, usePresenceInfo, useNow } from '../lib/presence'
 import { keys, queries } from '../lib/queries'
 import { useListSearch } from '../lib/useListSearch'
 import { usePrefetchNextPage } from '../lib/usePrefetchNextPage'
-import { AGENT_ROLES, TENANT_ROLES } from '../lib/types'
+import { AGENT_RANKS, AGENT_ROLES, TENANT_ROLES } from '../lib/types'
+import type { AgentRank } from '../lib/types'
 import { toast } from '../lib/toast'
 import type { User, UserStatus } from '../lib/types'
 import { useLeaveEmptyPage, useUrlState } from '../lib/useUrlState'
+import { pickerLabel, pickerRows } from '../lib/agentTree'
 
 // Spec section 20 codes that belong to one field of the user forms
-const USER_FIELD_ERRORS = { email_taken: 'email', agent_code_taken: 'agentCode', agent_code_required: 'agentCode' } as const
+const USER_FIELD_ERRORS = { email_taken: 'email', agent_code_taken: 'agentCode', agent_code_required: 'agentCode', manager_not_found: 'managerCode', manager_rank_too_low: 'managerCode' } as const
 
 // USER-7: archived users only show when this filter asks for them
 const STATUSES: UserStatus[] = ['ACTIVE', 'INVITED', 'DISABLED', 'ARCHIVED']
@@ -33,6 +35,8 @@ const baseSchema = z.object({
     .string()
     .trim()
     .regex(/^\d{0,20}$/, t('validation.agentCode')),
+  // Decided 26/11/2026: where a new agent code joins the tree
+  managerCode: z.string(),
 })
 
 // ROLE-2
@@ -62,6 +66,67 @@ function useRoleOptions() {
   }))
 }
 
+/** The tree rank an account added by hand takes, from its highest agent role (as the API does). */
+const RANK_OF_ROLE: [string, AgentRank][] = [
+  ['GAD', 'SUM'],
+  ['BM', 'BM'],
+  ['UM', 'UM'],
+  ['FC', 'FC'],
+]
+
+/**
+ * Decided 26/11/2026: an account with an agent role whose code is not on the tree joins it on save,
+ * under the manager picked here. The field always shows, so the dialog keeps its height; it is
+ * off when the code is already on the tree (moving an agent belongs to the tree screen), when the
+ * account has no agent role, or when the person may not edit the tree. Only agents of a higher rank
+ * than the account's are offered (SUM > BM > UM > SA > FC), as the API requires.
+ */
+function ManagerField({ form }: { form: ReturnType<typeof useForm<InviteValues>> }) {
+  const { data: me } = useMe()
+  const canEditTree = hasPermission(me, 'agents.edit_tree')
+  const tree = useQuery({ ...queries.agentTree(), enabled: canEditTree })
+  const roles = form.watch('roles') ?? []
+  const code = (form.watch('agentCode') ?? '').trim()
+  const rank = RANK_OF_ROLE.find(([role]) => roles.includes(role))?.[1]
+  const agents = tree.data?.items ?? []
+  const onTree = code ? agents.find((agent) => agent.agentCode === code) : undefined
+  const joins = canEditTree && !!rank && /^\d+$/.test(code) && !onTree
+  // In tree order, so each choice still shows where it sits; then only those above the new rank
+  const above = (agent: { rank: AgentRank }) => !!rank && AGENT_RANKS.indexOf(agent.rank) < AGENT_RANKS.indexOf(rank)
+  const choices = pickerRows(agents).filter((row) => row.agent.agentCode !== code && (onTree || above(row.agent)))
+  const picked = form.watch('managerCode')
+  // A role change can leave a manager who is no longer above the account
+  useEffect(() => {
+    if (picked && !onTree && !choices.some((row) => row.agent.agentCode === picked)) form.setValue('managerCode', '')
+  }, [picked, onTree, choices, form])
+  const hint = !canEditTree
+    ? t('users.managerNoRight')
+    : onTree
+      ? t('users.managerOnTree', { name: onTree.name })
+      : joins
+        ? t('users.managerJoins', { rank: rank! })
+        : t('users.managerHint')
+  const { errors } = form.formState
+  return (
+    <Field label={t('users.manager')} htmlFor="user-manager" error={errors.managerCode?.message} hint={hint}>
+      <Select
+        id="user-manager"
+        disabled={!joins}
+        aria-invalid={!!errors.managerCode}
+        {...form.register('managerCode')}
+        value={onTree ? (onTree.managerCode ?? '') : picked}
+      >
+        <option value="">{t('users.managerNone')}</option>
+        {choices.map((row) => (
+          <option key={row.agent.agentCode} value={row.agent.agentCode}>
+            {pickerLabel(row)}
+          </option>
+        ))}
+      </Select>
+    </Field>
+  )
+}
+
 function UserFormFields({ form, emailHint }: { form: ReturnType<typeof useForm<InviteValues>>; emailHint?: string }) {
   const roleOptions = useRoleOptions()
   const { errors } = form.formState
@@ -84,16 +149,17 @@ function UserFormFields({ form, emailHint }: { form: ReturnType<typeof useForm<I
       <Field label={t('users.agentCode')} htmlFor="user-agent" required={roles.some((role) => AGENT_ROLES.includes(role))} error={errors.agentCode?.message}>
           <Input id="user-agent" placeholder={t('placeholder.agentCode')} inputMode="numeric" aria-invalid={!!errors.agentCode} {...form.register('agentCode')} />
       </Field>
+      <ManagerField form={form} />
     </>
   )
 }
 
-function InviteDialog({ onClose, onInvited }: { onClose: () => void; onInvited: (url: string) => void }) {
-  const form = useForm<InviteValues>({ resolver: zodResolver(inviteSchema), defaultValues: { email: '', name: '', roles: [], agentCode: '' } })
+function InviteDialog({ onClose, onInvited }: { onClose: () => void; onInvited: (url: string, addedToTree: boolean, name: string) => void }) {
+  const form = useForm<InviteValues>({ resolver: zodResolver(inviteSchema), defaultValues: { email: '', name: '', roles: [], agentCode: '', managerCode: '' } })
   const invite = useMutation({
-    mutationFn: ({ agentCode, ...values }: InviteValues) =>
-      api.post<{ inviteUrl: string }>('/users/invite', { ...values, agentCode: agentCode || undefined }),
-    onSuccess: ({ inviteUrl }) => onInvited(inviteUrl),
+    mutationFn: ({ agentCode, managerCode, ...values }: InviteValues) =>
+      api.post<{ inviteUrl: string; addedToTree: boolean }>('/users/invite', { ...values, agentCode: agentCode || undefined, managerCode: managerCode || undefined }),
+    onSuccess: ({ inviteUrl, addedToTree }, values) => onInvited(inviteUrl, addedToTree, values.name),
     onError: (error) => {
       const field = errorField(error, USER_FIELD_ERRORS)
       if (field) form.setError(field, { message: errorMessage(error) })
@@ -119,14 +185,15 @@ function EditDialog({ user, onClose }: { user: User; onClose: () => void }) {
   const queryClient = useQueryClient()
   const form = useForm<InviteValues>({
     resolver: zodResolver(inviteSchema),
-    defaultValues: { name: user.name, roles: user.roles, agentCode: user.agentCode ?? '', email: user.email },
+    defaultValues: { name: user.name, roles: user.roles, agentCode: user.agentCode ?? '', email: user.email, managerCode: '' },
   })
   const update = useMutation({
-    mutationFn: ({ email, name, roles, agentCode }: InviteValues) =>
-      api.patch(`/users/${user.id}`, { ...(email !== user.email && { email }), name, roles, agentCode: agentCode || null }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: keys.users })
-      toast.success(t('toast.userUpdated', { name: user.name }))
+    mutationFn: ({ email, name, roles, agentCode, managerCode }: InviteValues) =>
+      api.patch<{ addedToTree: boolean }>(`/users/${user.id}`, { ...(email !== user.email && { email }), name, roles, agentCode: agentCode || null, managerCode: managerCode || null }),
+    onSuccess: async ({ addedToTree }, values) => {
+      await Promise.all([queryClient.invalidateQueries({ queryKey: keys.users }), queryClient.invalidateQueries({ queryKey: keys.agents })])
+      if (addedToTree) toast.success(t('toast.userAddedToTree', { name: values.name }), t('toast.userAddedToTreeDetail'))
+      else toast.success(t('toast.userUpdated', { name: user.name }))
       onClose()
     },
     onError: (error) => {
@@ -497,11 +564,12 @@ export function UsersPage() {
       <Dialog title={t('users.inviteTitle')} open={inviting} onClose={() => url.set({ invite: null })}>
         <InviteDialog
           onClose={() => url.set({ invite: null })}
-          onInvited={(createdLink) => {
+          onInvited={(createdLink, addedToTree, name) => {
             url.set({ invite: null })
             setLink(createdLink)
-            toast.success(t('toast.userInvited'), t('toast.userInvitedDetail'))
+            toast.success(t('toast.userInvited'), addedToTree ? t('toast.userInvitedTreeDetail', { name }) : t('toast.userInvitedDetail'))
             void refresh()
+            if (addedToTree) void queryClient.invalidateQueries({ queryKey: keys.agents })
           }}
         />
       </Dialog>

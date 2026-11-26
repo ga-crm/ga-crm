@@ -1081,6 +1081,10 @@ describe('Agent tree and imports (e2e)', () => {
           agentCode: '00100800',
         })
         .expect(201);
+      // Decided 26/11/2026: an invite by someone who edits the tree adds the FC to it. An account
+      // made before that, or by someone without agents.edit_tree, is not on the tree yet.
+      expect(invited.body.addedToTree).toBe(true);
+      await ownerDb().query(`DELETE FROM agents WHERE agent_code = '00100800'`);
       const agent = request.agent(app.getHttpServer());
       await agent
         .post(`${API}/invites/accept`)

@@ -1,4 +1,5 @@
-export const TENANT_ROLES = ['FC', 'UM', 'BM', 'GAD', 'GA_HEAD', 'MARKETING', 'ADMIN'] as const
+// Highest first, as the owner reads them (26/11/2026): the GA's own staff, then the agent ladder, then Marketing
+export const TENANT_ROLES = ['GA_HEAD', 'ADMIN', 'GAD', 'BM', 'UM', 'FC', 'MARKETING'] as const
 export const AGENT_ROLES: readonly string[] = ['FC', 'UM', 'BM', 'GAD']
 export const CONFIGURABLE_ROLES = ['ADMIN', 'MARKETING', 'GAD', 'BM', 'UM', 'FC'] as const
 
