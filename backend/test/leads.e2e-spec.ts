@@ -1359,10 +1359,12 @@ describe('Leads (e2e)', () => {
       // Decided 25/11/2026: laid out like a GA's "Chia Lead" file, groups over two header rows;
       // the second row names every column (a merged cell repeats its value)
       expect(sheet.getCell('A1').value).toBe('TÊN TVV');
-      expect(sheet.getCell('N1').value).toBe('XỬ LÝ SAU');
-      expect(sheet.getCell('N2').value).toBe('10 NGÀY');
-      expect(sheet.getCell('R1').value).toBe('THÔNG TIN THÊM');
+      // Decided 26/11/2026: no "KHU VỰC KHÁCH HÀNG" column any more
+      expect(sheet.getCell('M1').value).toBe('XỬ LÝ SAU');
+      expect(sheet.getCell('M2').value).toBe('10 NGÀY');
+      expect(sheet.getCell('Q1').value).toBe('THÔNG TIN THÊM');
       const headers = (sheet.getRow(2).values as string[]).slice(1);
+      expect(headers).not.toContain('KHU VỰC KHÁCH HÀNG');
       expect(headers.slice(0, 4)).toEqual([
         'TÊN TVV',
         'NGÀY CẬP NHẬT LEAD',
