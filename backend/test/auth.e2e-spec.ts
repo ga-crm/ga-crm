@@ -332,22 +332,12 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
         expect(self.body.error).toBe('cannot_disable_self');
       }
 
-      // The demo GA has a second director (gad); while they remain, one may step down
-      const other = (
-        await head.get(`${API}/users`).query({ q: demoEmail(1, 'gad') })
-      ).body.items[0] as { id: string };
-      await head
-        .patch(`${API}/users/${other.id}`)
-        .send({ roles: ['BM'] })
-        .expect(200);
+      // The GA's one director (decided 27/11/2026) cannot step down
       const demote = await head
         .patch(`${API}/users/${me.id}`)
         .send({ roles: ['ADMIN'] })
         .expect(409);
       expect(demote.body.error).toBe('last_ga_head');
-      await ownerDb().query(`UPDATE users SET roles = '{GAD}' WHERE id = $1`, [
-        other.id,
-      ]);
     });
 
     it('USER-10: disabling applies immediately and deletes all sessions', async () => {
@@ -676,8 +666,8 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
           roles: 'GAD',
           status: 'ACTIVE',
         }),
-        // The demo GA's two directors (head and gad)
-      ).toBe(2);
+        // The GA's one director again
+      ).toBe(1);
     });
 
     it('TEN-7: GA-1 gets 404 for every lifecycle action on a GA-2 user', async () => {
@@ -1221,7 +1211,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
     });
 
     it('section 22.4: repeated failures lock an account, and unknown accounts look the same', async () => {
-      const known = demoEmail(1, 'gad');
+      const known = demoEmail(1, 'um');
       const unknown = 'nobody.lock@test.local';
       for (const email of [known, unknown]) {
         for (let i = 0; i < 10; i++) {
@@ -1284,7 +1274,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const express = app.getHttpAdapter().getInstance() as {
         set(name: string, value: unknown): void;
       };
-      const email = demoEmail(2, 'gad');
+      const email = demoEmail(2, 'um');
       const from = (ip: string, password: string) =>
         attempt(email, password).set('X-Forwarded-For', ip);
       express.set('trust proxy', 1);
@@ -1590,9 +1580,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       expect(byRole.total).toBeGreaterThan(0);
       // The demo GA's two directors
       for (const event of byRole.items) {
-        expect([demoEmail(1, 'head'), demoEmail(1, 'gad')]).toContain(
-          event.actor.email,
-        );
+        expect(event.actor.email).toBe(demoEmail(1, 'head'));
       }
       const both = await list({ role: 'GAD', action: 'LOGIN', ip: part });
       expect(both.total).toBeGreaterThan(0);
@@ -1729,7 +1717,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const created = (await list({ action: 'CREATE', entity: 'user' }))[0];
       expect(created.actor).toEqual({
         kind: 'user',
-        name: 'Giám đốc điều hành 1',
+        name: 'Giám đốc GA 1',
         email: demoEmail(1, 'head'),
       });
       expect(created.target).toEqual({

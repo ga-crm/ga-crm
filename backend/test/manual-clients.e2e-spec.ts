@@ -467,9 +467,11 @@ describe('Clients and policies entered by hand (e2e)', () => {
       expect(
         await refusedAgent(fc, { policyNo: '500000012', agentCode: UM }),
       ).toBe('agent_not_found');
-      expect(await refusedAgent(head, { policyNo: '500000013' })).toBe(
-        'agent_required',
-      );
+      // The director has an agent code (27/11/2026), so a client they add is theirs by default
+      const directors = await add(head, '500000013', 'PO', {
+        name: 'Khách Của Giám Đốc',
+      });
+      expect((await stored(directors))?.ownerAgentCodes).toEqual(['00100001']);
       // On a policy already there, the serving agent is taken when no agent is chosen
       const spouse = await add(head, '500000099', 'LI', {
         name: 'Vợ Khách Nhánh Khác',

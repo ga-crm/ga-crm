@@ -348,7 +348,7 @@ describe('Client assignment, history and Success activities (e2e)', () => {
       ]);
       expect(rows[0].fileName).toBe('success.xlsx');
       expect(rows[1].fileName).toBeNull();
-      expect(body.userNames[rows[0].changedBy]).toBe('Giám đốc điều hành 1');
+      expect(body.userNames[rows[0].changedBy]).toBe('Giám đốc GA 1');
       expect(body.userNames[rows[1].changedBy]).toBe('Tư vấn viên 1');
       await head2.get(`${API}/clients/${WITH_POLICY}`).expect(404);
     });

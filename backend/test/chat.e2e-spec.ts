@@ -99,10 +99,10 @@ describe('Chat (e2e)', () => {
     const { rows } = await ownerDb().query<{ id: string; email: string }>(
       `SELECT id, email FROM users WHERE email LIKE '%.gacrm.local'`,
     );
-    for (const key of ['head', 'admin', 'gad', 'bm', 'um', 'fc'])
+    for (const key of ['head', 'admin', 'bm', 'um', 'fc'])
       ids[key] = rows.find((row) => row.email === demoEmail(1, key))!.id;
     ids.head2 = rows.find((row) => row.email === demoEmail(2, 'head'))!.id;
-    for (const key of ['head', 'admin', 'gad', 'bm', 'um', 'fc'])
+    for (const key of ['head', 'admin', 'bm', 'um', 'fc'])
       cookies[key] = await signIn(key);
     cookies.head2 = await signIn('head', 2);
   });
@@ -146,12 +146,12 @@ describe('Chat (e2e)', () => {
     });
 
     it('pushes each new message to the members only, and counts it unread for the other one', async () => {
-      const id = await direct('bm', 'gad');
-      const gad = await connect('gad');
+      const id = await direct('bm', 'head');
+      const gad = await connect('head');
       const outsider = await connect('fc');
       const toGad = record<Message>(gad, 'chat.message');
       const toOutsider = record<Message>(outsider, 'chat.message');
-      const before = (await as('gad').get('/chat/unread').expect(200)).body.unread as number;
+      const before = (await as('head').get('/chat/unread').expect(200)).body.unread as number;
 
       const sent = await send('bm', id, 'Chào anh, mai họp lúc 9 giờ nhé');
       await settle();
@@ -159,7 +159,7 @@ describe('Chat (e2e)', () => {
       expect(sent.seq).toBe(1);
       expect(toGad).toEqual([expect.objectContaining({ conversationId: id, seq: 1, body: sent.body })]);
       expect(toOutsider).toHaveLength(0);
-      expect((await as('gad').get('/chat/unread').expect(200)).body.unread).toBe(before + 1);
+      expect((await as('head').get('/chat/unread').expect(200)).body.unread).toBe(before + 1);
       // Your own message is read
       const mine = (await as('bm').get('/chat/conversations').expect(200)).body.items.find(
         (item: { id: string }) => item.id === id,
@@ -169,9 +169,9 @@ describe('Chat (e2e)', () => {
     });
 
     it('numbers messages 1, 2, 3... with no gap even when sent at once', async () => {
-      const id = await direct('um', 'gad');
+      const id = await direct('um', 'head');
       const sent = await Promise.all(
-        Array.from({ length: 10 }, (_, index) => send(index % 2 ? 'um' : 'gad', id, `tin ${index}`)),
+        Array.from({ length: 10 }, (_, index) => send(index % 2 ? 'um' : 'head', id, `tin ${index}`)),
       );
       expect(sent.map((message) => message.seq).sort((a, b) => a - b)).toEqual(
         Array.from({ length: 10 }, (_, index) => index + 1),
@@ -179,7 +179,7 @@ describe('Chat (e2e)', () => {
     });
 
     it('a retried send with the same clientMsgId is one message', async () => {
-      const id = await direct('admin', 'gad');
+      const id = await direct('admin', 'head');
       const clientMsgId = randomUUID();
       const [a, b] = await Promise.all(
         [1, 2].map(() =>
@@ -190,7 +190,7 @@ describe('Chat (e2e)', () => {
         ),
       );
       expect(a.body.seq).toBe(b.body.seq);
-      expect((await messagesOf('gad', id)).items).toHaveLength(1);
+      expect((await messagesOf('head', id)).items).toHaveLength(1);
     });
 
     it('marking read clears the count and tells the sender, who sees it as "seen"', async () => {
@@ -213,17 +213,17 @@ describe('Chat (e2e)', () => {
     });
 
     it('the author edits within 15 minutes and recalls (text wiped); nobody else can', async () => {
-      const id = await direct('fc', 'gad');
+      const id = await direct('fc', 'head');
       const message = await send('fc', id, 'Số CCCD của khách là 012345678901');
-      const gad = await connect('gad');
+      const gad = await connect('head');
       const updates = record<{ seq: number }>(gad, 'chat.updated');
 
-      await as('gad').patch(`/chat/conversations/${id}/messages/${message.seq}`).send({ body: 'x' }).expect(404);
+      await as('head').patch(`/chat/conversations/${id}/messages/${message.seq}`).send({ body: 'x' }).expect(404);
       await as('fc').patch(`/chat/conversations/${id}/messages/${message.seq}`).send({ body: 'Sửa lại' }).expect(204);
       await as('fc').delete(`/chat/conversations/${id}/messages/${message.seq}`).expect(204);
       await settle();
 
-      const [stored] = (await messagesOf('gad', id)).items;
+      const [stored] = (await messagesOf('head', id)).items;
       expect(stored.body).toBeNull();
       expect(stored.deletedAt).not.toBeNull();
       expect(updates.map((update) => update.seq)).toEqual([message.seq, message.seq]);
@@ -303,7 +303,7 @@ describe('Chat (e2e)', () => {
 
     it('@mentions keep only current members', async () => {
       const message = await send('um', group, '@Tư vấn viên 1 xem giúp', {
-        mentions: [ids.fc, ids.gad, ids.um],
+        mentions: [ids.fc, ids.head2, ids.um],
       });
       expect(message.mentions).toEqual([ids.fc]);
     });

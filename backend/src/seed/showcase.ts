@@ -354,7 +354,6 @@ export async function seedShowcase(
     const signedIn = [
       'head',
       'admin',
-      'gad',
       'bm',
       'um',
       'fc',

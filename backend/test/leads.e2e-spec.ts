@@ -817,7 +817,7 @@ describe('Leads (e2e)', () => {
         'Hai',
       ]);
       expect(userNames[comments[0].authorUserId]).toBe(
-        'Giám đốc điều hành 1',
+        'Giám đốc GA 1',
       );
       await head
         .post(`${API}/leads/${id}/comments`)

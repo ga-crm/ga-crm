@@ -1267,6 +1267,7 @@ Chủ dự án yêu cầu ngày 26-27/11/2026, trả lời các câu hỏi làm 
 
 | Điểm | Quyết định |
 |---|---|
+| Dữ liệu mẫu | Mỗi GA mẫu có một Giám đốc (`head@gaN`), có mã đại lý `00N00001` hạng SUM đứng đầu cây, thấy mọi khách và có khách riêng; bỏ tài khoản `gad`. Thêm người vào hợp đồng đã có: lấy tư vấn viên đang phục vụ hợp đồng trước, rồi mới đến mã của người thêm |
 | Giám đốc GA chỉ một người | Chủ dự án yêu cầu 27/11/2026: Giám đốc GA do Quản trị viên nền tảng tạo cùng GA (TENANT-2). Form mời / sửa người dùng không còn vai trò Giám đốc GA; API trả `403 director_by_platform` khi mời hoặc cấp vai trò này trong GA. Tài khoản đã là Giám đốc vẫn giữ vai trò khi được sửa |
 | Vai trò | Giám đốc GA → Quản trị viên → Trưởng ban → Trưởng nhóm → Tư vấn viên. **Bỏ Marketing** (Quản trị viên nhận việc của Marketing). **Gộp Chủ GA vào Giám đốc GA** (mã `GAD`): quyền cao nhất. Quản trị viên nền tảng giữ nguyên |
 | Mọi vai trò là nhân viên kinh doanh | Ai cũng có thể có khách riêng (lead, khách có hợp đồng) theo mã đại lý của mình, kể cả Quản trị viên |

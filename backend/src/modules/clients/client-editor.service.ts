@@ -161,7 +161,9 @@ export class ClientEditorService {
     db: EntityManager,
   ): Promise<string> {
     const scope = this.scopeOf(actor);
-    const agentCode = chosen ?? actor.agentCode ?? fallback;
+    // On a policy already there, its serving agent comes before the person adding (27/11/2026:
+    // the director has a code of their own now)
+    const agentCode = chosen ?? fallback ?? actor.agentCode;
     if (!agentCode)
       throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.AgentRequired);
     const allowed =

@@ -54,7 +54,6 @@ describe('Demo seed (e2e)', () => {
       for (const key of [
         'head',
         'admin',
-        'gad',
         'bm',
         'um',
         'fc',

@@ -302,8 +302,12 @@ describe('Clients from Success files (e2e)', () => {
       '0100000002',
       '1000000001',
     ]);
-    // GA_HEAD has no agent code, so their default is the whole GA
-    expect(await codesOf(await list(head))).toEqual(['0100000002', '1000000001']);
+    // The director has an agent code (27/11/2026): their own list is theirs, "all" is the GA
+    expect(await codesOf(await list(head))).toEqual([]);
+    expect(await codesOf(await list(head, { agents: 'ALL' }))).toEqual([
+      '0100000002',
+      '1000000001',
+    ]);
 
     const row = (await list(fc, { q: 'Trần' })).items[0];
     expect(row).toMatchObject({
@@ -490,16 +494,16 @@ describe('Clients from Success files (e2e)', () => {
   });
 
   it('CUS-14 (decided 25/11/2026): search by name, policy number or phone digits, not by client code; filter by tier', async () => {
-    expect(await codesOf(await list(head, { q: 'tran van' }))).toEqual([
+    expect(await codesOf(await list(head, { agents: 'ALL', q: 'tran van' }))).toEqual([
       '1000000001',
     ]);
     // A policy number lists the people on that policy
-    expect(await codesOf(await list(head, { q: '100000001' }))).toEqual([
+    expect(await codesOf(await list(head, { agents: 'ALL', q: '100000001' }))).toEqual([
       '1000000001',
     ]);
     // The client code itself finds nothing
-    expect((await list(head, { q: '1000000009' })).items).toEqual([]);
-    expect(await codesOf(await list(head, { tier: 'Bạc' }))).toEqual(['1000000001']);
+    expect((await list(head, { agents: 'ALL', q: '1000000009' })).items).toEqual([]);
+    expect(await codesOf(await list(head, { agents: 'ALL', tier: 'Bạc' }))).toEqual(['1000000001']);
     await head.get(`${API}/clients`).query({ tier: 'Đồng' }).expect(400);
     await head.get(`${API}/clients`).query({ agents: 'abc' }).expect(400);
   });

@@ -90,7 +90,7 @@ describe('Deleting and merging leads (e2e)', () => {
       fullName: 'Lead Tạo Nhầm',
       phone: '0936000001',
       reason: 'Tạo nhầm',
-      deletedBy: 'Giám đốc điều hành 1',
+      deletedBy: 'Giám đốc GA 1',
       mergedInto: null,
     });
     await fc.get(`${API}/leads/deleted`).expect(403);
