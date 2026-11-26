@@ -68,6 +68,8 @@ export const ErrorCode = {
   ManagerNotFound: 'manager_not_found',
   ManagerCycle: 'manager_cycle',
   ManagerRankTooLow: 'manager_rank_too_low',
+  /** Decided 27/11/2026: the assignment request was already approved, refused or withdrawn. */
+  RequestDecided: 'request_decided',
   AgentExists: 'agent_exists',
   ImportNotOpen: 'import_not_open',
   ImportNotValidated: 'import_not_validated',

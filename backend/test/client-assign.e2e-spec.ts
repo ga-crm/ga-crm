@@ -174,7 +174,7 @@ describe('Client assignment, history and Success activities (e2e)', () => {
         clientIds: [WITH_POLICY, NO_POLICY],
         agentCode: FC2,
       }).expect(200);
-      expect(body).toEqual({ assigned: 2 });
+      expect(body).toEqual({ assigned: 2, requested: 0 });
       expect(await manualOf(NO_POLICY)).toEqual([FC2]);
       expect(await stored(NO_POLICY)).toMatchObject({
         visibleAgentCodes: [FC2],

@@ -6,7 +6,7 @@ import { AppRoot } from './components/AppRoot'
 import { AppShell } from './components/AppShell'
 import { RouteError } from './components/RouteError'
 import { Spinner } from './components/ui'
-import { canImport, canImportLeads, canManageProducts, canReadImports, canSeeCatalog, canSeeReports, canUseClients, canUseLeads, inTenant } from './lib/nav'
+import { canSeeAssignments, canImport, canImportLeads, canManageProducts, canReadImports, canSeeCatalog, canSeeReports, canUseClients, canUseLeads, inTenant } from './lib/nav'
 import { pages } from './lib/pages'
 import type { Me } from './lib/types'
 import { NotFoundPage } from './pages/ForbiddenPage'
@@ -75,6 +75,8 @@ export const router = createBrowserRouter([
                   { path: 'users', lazy: screen(pages.users, (me) => hasPermission(me, 'users.manage')) },
                   { path: 'chat', lazy: screen(pages.chat, (me) => !!me.tenant) },
                   { path: 'chat/review', lazy: screen(pages.chatReview, (me) => hasRole(me, 'GAD')) },
+                  // Decided 27/11/2026: the director decides; whoever may ask follows their requests
+                  { path: 'assignment-requests', lazy: screen(pages.assignmentRequests, canSeeAssignments) },
                   { path: 'users/activity', lazy: screen(pages.userActivity, (me) => !!me.tenant && hasPermission(me, 'users.manage')) },
                   { path: 'permissions', lazy: screen(pages.permissions, (me) => hasRole(me, 'GAD')) },
                   // Section 16.8: GAD edits, Admin reads (section 4.3)

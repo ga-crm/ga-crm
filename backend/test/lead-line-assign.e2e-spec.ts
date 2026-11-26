@@ -51,16 +51,20 @@ describe('Lead assignment within a line (e2e)', () => {
     await stopApp(app);
   });
 
-  it('a UM moves a lead of their line to another agent of the line, with the usual history and task (LEAD-22)', async () => {
-    const id = await lead(FC);
-    const res = await um.post(`${API}/leads/assign`).send({ leadIds: [id], agentCode: UM }).expect(201);
-    expect(res.body).toEqual({ assigned: 1 });
+  it('a UM asks to move their own lead to an agent of the line; the director approves it, with the usual history (LEAD-22)', async () => {
+    // Changed 27/11/2026: a UM sees only their own leads, and their assignments wait for the director
+    await um.post(`${API}/leads/assign`).send({ leadIds: [await lead(FC)], agentCode: UM }).expect(404);
+    const id = await lead(UM);
+    const res = await um.post(`${API}/leads/assign`).send({ leadIds: [id], agentCode: FC }).expect(201);
+    expect(res.body).toMatchObject({ assigned: 0, requested: 1 });
     expect(await assigneeOf(id)).toBe(UM);
+    await head.post(`${API}/assignment-requests/${res.body.requestId}/approve`).expect(200);
+    expect(await assigneeOf(id)).toBe(FC);
     const { rows } = await ownerDb().query(
       `SELECT action, meta FROM audit_events WHERE entity_id = $1 AND action = 'ASSIGN' ORDER BY id DESC LIMIT 1`,
       [id],
     );
-    expect(rows[0].meta).toEqual({ from: FC, to: UM });
+    expect(rows[0].meta).toEqual({ from: UM, to: FC });
   });
 
   it('only to agents of the line: someone above them is agent_out_of_line', async () => {
@@ -90,7 +94,9 @@ describe('Lead assignment within a line (e2e)', () => {
       .post(`${API}/leads`)
       .send({ fullName: 'Khách tự khai thác', phone: `0${phone++}`, source: 'Facebook', consent: true })
       .expect(201);
-    const res = await um.post(`${API}/leads/assign`).send({ leadIds: [body.id], agentCode: UM }).expect(409);
+    // Changed 27/11/2026: the UM no longer sees it; even the director cannot move it
+    await um.post(`${API}/leads/assign`).send({ leadIds: [body.id], agentCode: UM }).expect(404);
+    const res = await head.post(`${API}/leads/assign`).send({ leadIds: [body.id], agentCode: UM }).expect(409);
     expect(res.body.error).toBe('own_lead_locked');
   });
 

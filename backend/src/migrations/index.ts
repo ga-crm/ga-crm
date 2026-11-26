@@ -25,6 +25,7 @@ import { DropLeadRegion1764864000000 } from './1764864000000-drop-lead-region.js
 import { DropMarketingRole1764950400000 } from './1764950400000-drop-marketing-role.js';
 import { GaDirector1765036800000 } from './1765036800000-ga-director.js';
 import { LeadRelease1765123200000 } from './1765123200000-lead-release.js';
+import { AssignmentRequests1765209600000 } from './1765209600000-assignment-requests.js';
 
 /** In order. Listed rather than globbed, so the ESM build loads them without file scanning. */
 export const MIGRATIONS = [
@@ -55,4 +56,5 @@ export const MIGRATIONS = [
   DropMarketingRole1764950400000,
   GaDirector1765036800000,
   LeadRelease1765123200000,
+  AssignmentRequests1765209600000,
 ];

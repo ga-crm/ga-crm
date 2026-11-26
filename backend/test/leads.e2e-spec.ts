@@ -931,7 +931,7 @@ describe('Leads (e2e)', () => {
       expect((await open(fc, id)).lead.isNew).toBe(true);
       expect((await rawLead(id))?.assigneeSeenAt).toBeInstanceOf(Date);
 
-      const res = await marketing
+      const res = await head
         .post(`${API}/leads/assign`)
         .send({ leadIds: [id], agentCode: OTHER_FC })
         .expect(201);
@@ -968,7 +968,7 @@ describe('Leads (e2e)', () => {
       const { id } = await newLead(marketing, { assignedAgentCode: FC });
       expect(
         (
-          await marketing
+          await head
             .post(`${API}/leads/assign`)
             .send({ leadIds: [id], agentCode: FC })
             .expect(201)
@@ -976,7 +976,7 @@ describe('Leads (e2e)', () => {
       ).toBe(0);
       expect(
         (
-          await marketing
+          await head
             .post(`${API}/leads/assign`)
             .send({ leadIds: [id], agentCode: null })
             .expect(201)
@@ -1043,7 +1043,7 @@ describe('Leads (e2e)', () => {
         };
       });
       await connection.collection('leads').insertMany(docs);
-      const res = await marketing
+      const res = await head
         .post(`${API}/leads/assign`)
         .send({ leadIds: ids, agentCode: FC })
         .expect(201);
@@ -1950,8 +1950,9 @@ describe('Leads (e2e)', () => {
   });
 
   describe('handovers and selecting by filter', () => {
+    // The director assigns outright (decided 27/11/2026)
     const assign = (agentCode: string | null, leadIds: string[]) =>
-      marketing
+      head
         .post(`${API}/leads/assign`)
         .send({ leadIds, agentCode })
         .expect(201);

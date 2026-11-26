@@ -170,7 +170,8 @@ describe('GA settings (e2e)', () => {
         })
         .expect(201)
     ).body;
-    await marketing
+    // The director assigns outright (decided 27/11/2026)
+    await head
       .post(`${API}/leads/assign`)
       .send({ leadIds: [id], agentCode: FC })
       .expect(201);

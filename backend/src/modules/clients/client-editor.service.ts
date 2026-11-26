@@ -1,4 +1,8 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import {
+  assignsOutright,
+  requestAssignment,
+} from '../assignments/assignment-requests.js';
 import { In } from 'typeorm';
 import type { EntityManager } from 'typeorm';
 import {
@@ -925,7 +929,7 @@ export class ClientEditorService {
   async assign(
     actor: Actor,
     dto: AssignClientsDto,
-  ): Promise<{ assigned: number }> {
+  ): Promise<{ assigned: number; requested: number; requestId?: string }> {
     // ASG-1: GA_HEAD, or someone granted clients.assign; agents never assign, even their own
     if (
       !actor.roles.includes(Role.GAD) &&
@@ -935,7 +939,7 @@ export class ClientEditorService {
     const scope = this.scopeOf(actor);
     const ids = [...new Set(dto.clientIds)];
     return this.tenantDb.run(scope, async (db) => {
-      // ASG-7: Marketing and Admin have no client book, so reach() refuses them
+      // ASG-7: only clients the person sees
       const reach = await this.reader.reach(actor, db);
       const clients = await this.reader
         .clients(
@@ -958,6 +962,37 @@ export class ClientEditorService {
             HttpStatus.BAD_REQUEST,
             ErrorCode.AgentNotFound,
           );
+      }
+      // Decided 27/11/2026: only the GA director assigns outright; anyone else asks them, and the
+      // clients stay with their agents until the director approves
+      if (!assignsOutright(actor)) {
+        const changing = clients.filter(
+          (client) =>
+            client.agentLinks.find((link) => link.source === 'MANUAL')
+              ?.agentCode !== (agentCode ?? undefined),
+        );
+        if (changing.length === 0) return { assigned: 0, requested: 0 };
+        const requestId = await requestAssignment(
+          db,
+          scope,
+          actor,
+          'CLIENT',
+          changing.map((client) => client.id),
+          agentCode ?? null,
+          this.notifications,
+        );
+        await this.audit.record(
+          {
+            tenantId: scope.tenantId,
+            userId: actor.id,
+            action: AuditAction.Create,
+            entity: 'assignment_request',
+            entityId: requestId,
+            meta: { kind: 'CLIENT', count: changing.length, to: agentCode },
+          },
+          db,
+        );
+        return { assigned: 0, requested: changing.length, requestId };
       }
       const now = new Date();
       const changes: Change[] = [];
@@ -1021,7 +1056,7 @@ export class ClientEditorService {
               },
           { except: actor.id, db },
         );
-      return { assigned: ids.length };
+      return { assigned: ids.length, requested: 0 };
     });
   }
 }

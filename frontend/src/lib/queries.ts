@@ -1,7 +1,8 @@
 import { infiniteQueryOptions, keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { api, ApiError } from './api'
 import type { LeadColumn } from './leadImport'
-import type { ActivityDetails, AgentDetail, AgentNode, ActivitySummary, AiSettings, AuditItem, CalendarData, ChatConversation, ChatConversationItem, ChatMember, ChatMessagePage, ChatPerson, ChatReviewItem, ChatSearchHit, DepartedWork, CampaignDetail, CampaignRow, ClientCounts, ClientDetail, ClientRow, Dashboard, DeletedLead, DevAccount, GaSettings, Grants, ImportDetail, ImportProblem, ImportSummary, LeadBoard, LeadCounts, LeadDetail, LeadOption, LeadRow, LinkSuggestion, Me, MentionCandidate, NotificationPage, NotificationPref, Page, Place, PlatformSettings, Presence, Product, ProductDetail, ProductView, PublicFormDefinition, ReportData, ReportName, SavedFilter, TaskItem, Tenant, TodayData, User } from './types'
+import type {
+  AssignmentRequest, ActivityDetails, AgentDetail, AgentNode, ActivitySummary, AiSettings, AuditItem, CalendarData, ChatConversation, ChatConversationItem, ChatMember, ChatMessagePage, ChatPerson, ChatReviewItem, ChatSearchHit, DepartedWork, CampaignDetail, CampaignRow, ClientCounts, ClientDetail, ClientRow, Dashboard, DeletedLead, DevAccount, GaSettings, Grants, ImportDetail, ImportProblem, ImportSummary, LeadBoard, LeadCounts, LeadDetail, LeadOption, LeadRow, LinkSuggestion, Me, MentionCandidate, NotificationPage, NotificationPref, Page, Place, PlatformSettings, Presence, Product, ProductDetail, ProductView, PublicFormDefinition, ReportData, ReportName, SavedFilter, TaskItem, Tenant, TodayData, User } from './types'
 import { pollInterval } from './realtimeStatus'
 
 /** Every query key and request of the app, so invalidating a group cannot miss a screen. */
@@ -16,6 +17,7 @@ export const keys = {
   agents: ['agents'] as const,
   imports: ['imports'] as const,
   leads: ['leads'] as const,
+  assignments: ['assignments'] as const,
   leadOptions: ['leadOptions'] as const,
   gaSettings: ['gaSettings'] as const,
   clients: ['clients'] as const,
@@ -276,6 +278,13 @@ export const queries = {
     }),
 
   /** Open question 12e: leads and clients left by people who have gone (lead managers). */
+  /** Decided 27/11/2026: assignments waiting for the GA director (theirs to decide, others' own). */
+  assignmentRequests: (status?: string) =>
+    queryOptions({
+      queryKey: [...keys.assignments, status ?? 'ALL'],
+      queryFn: ({ signal }) => api.get<{ items: AssignmentRequest[] }>('/assignment-requests', status ? { status } : undefined, { signal }),
+    }),
+
   departedWork: () =>
     queryOptions({
       queryKey: [...keys.leads, 'departed'],

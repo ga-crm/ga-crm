@@ -23,6 +23,10 @@ import type { NotificationInput } from '../notifications/notifications.service.j
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { GeoService } from '../geo/geo.service.js';
 import { ProductsService } from '../products/products.service.js';
+import {
+  assignsOutright,
+  requestAssignment,
+} from '../assignments/assignment-requests.js';
 import { TenantsService } from '../tenants/tenants.service.js';
 import {
   Campaign,
@@ -786,6 +790,16 @@ export class LeadsService {
         )
       )
         throw notFound();
+      // Decided 27/11/2026: and nobody moves a lead they do not see
+      const seen = await this.access.leadAgentCodes(actor, db);
+      if (
+        seen !== null &&
+        found.some(
+          (lead) =>
+            !lead.assignedAgentCode || !seen.includes(lead.assignedAgentCode),
+        )
+      )
+        throw notFound();
 
       const moving = found.filter(
         (lead) => (lead.assignedAgentCode ?? null) !== agentCode,
@@ -793,8 +807,34 @@ export class LeadsService {
       const locked = await this.lockedOwnLeads(scope, moving, db);
       if (locked.size > 0)
         throw new ApiException(HttpStatus.CONFLICT, ErrorCode.OwnLeadLocked);
+      // Decided 27/11/2026: only the GA director assigns outright; anyone else asks them, and the
+      // leads stay where they are until the director approves
+      if (!assignsOutright(actor)) {
+        if (moving.length === 0) return { assigned: 0, requested: 0 };
+        const requestId = await requestAssignment(
+          db,
+          scope,
+          actor,
+          'LEAD',
+          moving.map((lead) => lead.id),
+          agentCode,
+          this.notifications,
+        );
+        await this.audit.record(
+          {
+            tenantId: scope.tenantId,
+            userId: actor.id,
+            action: AuditAction.Create,
+            entity: 'assignment_request',
+            entityId: requestId,
+            meta: { kind: 'LEAD', count: moving.length, to: agentCode },
+          },
+          db,
+        );
+        return { assigned: 0, requested: moving.length, requestId };
+      }
       await this.assignMany(moving, agentCode, actor, scope, new Date(), db);
-      return { assigned: moving.length };
+      return { assigned: moving.length, requested: 0 };
     });
   }
 

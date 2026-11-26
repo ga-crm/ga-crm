@@ -1102,3 +1102,19 @@ export type Dashboard =
       /** Null for a FC alone: nothing to compare. */
       agents: { agentCode: string | null; name: string | null; open: number; contacted: number }[] | null
     }
+
+/** Decided 27/11/2026: an assignment waiting for (or decided by) the GA director. */
+export type AssignmentStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+
+export interface AssignmentRequest {
+  id: string
+  kind: 'LEAD' | 'CLIENT'
+  status: AssignmentStatus
+  createdAt: string
+  decidedAt: string | null
+  note: string | null
+  requestedBy: string | null
+  decidedBy: string | null
+  to: { code: string; name: string | null } | null
+  records: { id: string; name: string | null; from: { code: string; name: string | null } | null }[]
+}

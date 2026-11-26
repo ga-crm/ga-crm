@@ -1,4 +1,4 @@
-import { Activity, BarChart3, MessageCircle, MessagesSquare, Bell, BellRing, Bot, Building2, CalendarDays, ListTodo, ContactRound, Megaphone, IdCard, ListChecks, Package, Settings2, FileInput, FileUp, History, House, KeyRound, Network, Palette, ScrollText, Settings, ShieldCheck, Users } from 'lucide-react'
+import { Activity, BarChart3, ClipboardCheck, MessageCircle, MessagesSquare, Bell, BellRing, Bot, Building2, CalendarDays, ListTodo, ContactRound, Megaphone, IdCard, ListChecks, Package, Settings2, FileInput, FileUp, History, House, KeyRound, Network, Palette, ScrollText, Settings, ShieldCheck, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { hasPermission, hasRole } from '../auth/access'
 import type { MessageKey } from '../i18n'
@@ -50,6 +50,9 @@ export const canUseClients = (me: Me) => !!me.tenant && (hasRole(me, 'GAD') || h
  * longer opens it: its only tab, the GA's programmes, gave way to the shared products (TENANT-5).
  */
 export const canSeeCatalog = (me: Me) => hasRole(me, 'GAD') || hasRole(me, 'ADMIN')
+/** Decided 27/11/2026: the director decides assignments; whoever may assign follows their requests. */
+export const canSeeAssignments = (me: Me) =>
+  !!me.tenant && (hasRole(me, 'GAD') || hasPermission(me, 'leads.manage') || hasPermission(me, 'leads.assign_line') || hasPermission(me, 'clients.assign'))
 /** TENANT-5: the shared product catalogue is read by everyone in a GA and kept by the Platform Admin. */
 export const canManageProducts = (me: Me) => hasRole(me, 'PLATFORM_ADMIN')
 
@@ -77,6 +80,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/agents', label: 'nav.agents', icon: Network, group: 'nav.groupTeam', visible: inTenant, chunk: pages.agents, prefetch: () => queries.agentTree() },
   { to: '/users', label: 'nav.users', icon: Users, group: 'nav.groupTeam', visible: (me) => hasPermission(me, 'users.manage'), chunk: pages.users, prefetch: () => queries.users(FIRST_PAGE_WITH_FILTERS.users) },
   { to: '/users/activity', label: 'nav.userActivity', icon: Activity, group: 'nav.groupTeam', visible: (me) => !!me.tenant && hasPermission(me, 'users.manage'), chunk: pages.userActivity, prefetch: queries.activeUsers },
+  { to: '/assignment-requests', label: 'nav.assignments', icon: ClipboardCheck, group: 'nav.groupTeam', visible: canSeeAssignments, chunk: pages.assignmentRequests },
   { to: '/permissions', label: 'nav.permissions', icon: ShieldCheck, group: 'nav.groupTeam', visible: (me) => hasRole(me, 'GAD'), chunk: pages.permissions, prefetch: () => queries.permissions() },
   // Files coming in. "Nhập dữ liệu" opens from a button on the agent tree and the history: not a row
   { to: '/leads/import', label: 'nav.leadImport', icon: FileInput, group: 'nav.groupData', visible: canImportLeads, chunk: pages.leadImport },

@@ -10,6 +10,7 @@ export const pages = {
   users: () => import('../pages/UsersPage').then((module) => module.UsersPage),
   chat: () => import('../pages/ChatPage').then((module) => module.ChatPage),
   chatReview: () => import('../pages/ChatReviewPage').then((module) => module.ChatReviewPage),
+  assignmentRequests: () => import('../pages/AssignmentRequestsPage').then((module) => module.AssignmentRequestsPage),
   userActivity: () => import('../pages/UserActivityPage').then((module) => module.UserActivityPage),
   permissions: () => import('../pages/PermissionsPage').then((module) => module.PermissionsPage),
   clients: () => import('../pages/ClientsPage').then((module) => module.ClientsPage),
