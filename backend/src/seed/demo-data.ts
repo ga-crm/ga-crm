@@ -1,6 +1,8 @@
 import type { INestApplicationContext } from '@nestjs/common';
 import { Role } from '../common/rbac.js';
+import { normalizeName } from '../common/normalize.js';
 import { PlatformDb } from '../core/tenancy/platform-db.js';
+import { Product } from '../modules/products/product.entity.js';
 import { AgentsService } from '../modules/agents/agents.service.js';
 import {
   AGENT_STATUSES,
@@ -52,6 +54,58 @@ export const DEMO_TENANTS = [
 export const demoEmail = (ga: number, key: string): string =>
   `${key}@ga${ga}.gacrm.local`;
 
+/**
+ * TENANT-5: a demo product catalogue. The first three keep the codes of the programmes GAs started
+ * with (PRG-2), so policies entered before the catalogue existed link to it; the others are named
+ * after DLVN products the project owner showed, with made-up demo codes, not DLVN's real ones.
+ */
+export const DEMO_PRODUCTS = [
+  {
+    productCode: 'AN_TAM_SONG_HANH',
+    productName: 'An Tâm Song Hành',
+    productRole: 'Chính',
+    category: 'Nhân thọ',
+  },
+  {
+    productCode: 'BH_CHAM_SOC_SUC_KHOE',
+    productName: 'BH Chăm Sóc Sức Khoẻ',
+    productRole: 'Bổ trợ',
+    category: 'Sức khỏe',
+  },
+  {
+    productCode: 'BH_TAI_NAN_CAO_CAP',
+    productName: 'BH Tai Nạn Cao Cấp',
+    productRole: 'Bổ trợ',
+    category: 'Tai nạn',
+  },
+  {
+    productCode: 'DEMO-ULP-01',
+    productName: 'Sản phẩm bảo hiểm Liên kết đơn vị An Phát Đầu Tư Thịnh Vượng',
+    productRole: 'Chính',
+    category: 'Liên kết đơn vị',
+  },
+  {
+    productCode: 'DEMO-HC-01',
+    productName:
+      'Bảo Hiểm Chăm Sóc Sức Khỏe Toàn Cầu 24/7 - Quyền lợi điều trị Nội trú Cao cấp - Đồng chi trả 30%',
+    productRole: 'Bổ trợ',
+    category: 'Sức khỏe',
+  },
+  {
+    productCode: 'DEMO-HC-02',
+    productName:
+      'Bảo Hiểm Chăm Sóc Sức Khỏe Toàn Cầu 24/7 - Quyền lợi điều trị Ngoại trú Phổ thông',
+    productRole: 'Bổ trợ',
+    category: 'Sức khỏe',
+  },
+  {
+    productCode: 'DEMO-HOSP-01',
+    productName: 'Bảo Hiểm Hỗ Trợ Viện Phí',
+    productRole: 'Bổ trợ',
+    category: 'Sức khỏe',
+  },
+] as const;
+
 /** Section 27.2 fixture: the regional GAs, each with a full hierarchy. Skips a GA that already exists. */
 export async function seedDemoData(
   app: INestApplicationContext,
@@ -62,6 +116,27 @@ export async function seedDemoData(
   const agents = app.get(AgentsService);
   const platformDb = app.get(PlatformDb);
   const created: string[] = [];
+
+  // TENANT-5: the shared catalogue, added once (products the platform already has stay as they are)
+  await platformDb.run('platform-console', async (db) => {
+    const now = new Date();
+    await db
+      .createQueryBuilder()
+      .insert()
+      .into(Product)
+      .values(
+        DEMO_PRODUCTS.map((product) => ({
+          ...product,
+          nameNorm: normalizeName(product.productName),
+          ruleStatus: 'DRAFT' as const,
+          active: true,
+          createdAt: now,
+          updatedAt: now,
+        })),
+      )
+      .orIgnore()
+      .execute();
+  });
 
   for (const { number, gaCode, name } of DEMO_TENANTS) {
     const code = (suffix: string) => `00${number}000${suffix}`;

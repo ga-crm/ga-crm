@@ -47,11 +47,20 @@ export interface TemplateColumn {
   /** Section 19.1: 500 unless a column says otherwise. */
   maxLength?: number;
   note: string;
+  /** The name the downloaded template writes under a group, when shorter than `header` (an alias). */
+  subHeader?: string;
+  /** A list in the lookups sheet the template offers as a dropdown, without refusing other values. */
+  suggest?: string;
 }
 
 export interface SheetTemplate {
   name: string;
   columns: readonly TemplateColumn[];
+  /**
+   * Groups of adjacent columns the downloaded template heads with one merged cell, the columns'
+   * names in the row below (a GA's "Chia Lead" file, decided 25/11/2026).
+   */
+  groups?: readonly { title: string; fields: readonly string[] }[];
   /** Masked sample rows, in column order. The template must import with no errors (section 19.1). */
   examples: readonly (readonly string[])[];
 }
@@ -170,19 +179,12 @@ export const LEADS_SHEET: SheetTemplate = {
   name: '13_Leads',
   columns: [
     {
-      header: 'LEAD ID',
-      field: 'externalId',
-      type: 'text',
-      requiredColumn: false,
-      note: 'Mã lead của GA. Không bắt buộc.',
-    },
-    {
-      header: 'Mã đại lý',
+      header: 'TÊN TVV',
       field: 'agentValue',
       type: 'text',
       requiredColumn: false,
-      aliases: ['TƯ VẤN TÀI CHÍNH', 'TƯ VẤN', 'TÊN TVV', 'FC', 'Mã TVV'],
-      note: 'Mã đại lý hoặc tên tư vấn viên. Để trống nếu chưa phân công.',
+      aliases: ['Mã đại lý', 'TƯ VẤN TÀI CHÍNH', 'TƯ VẤN', 'FC', 'Mã TVV'],
+      note: 'Tên hoặc mã đại lý của tư vấn viên. Không bắt buộc; để trống nếu chưa phân công.',
     },
     {
       header: 'NGÀY CẬP NHẬT LEAD',
@@ -227,9 +229,9 @@ export const LEADS_SHEET: SheetTemplate = {
       header: 'Nguồn',
       field: 'source',
       type: 'text',
-      requiredColumn: true,
+      requiredColumn: false,
       aliases: ['Kênh'],
-      note: 'Bắt buộc, ví dụ Facebook, Giới thiệu.',
+      note: 'Ví dụ Page BHN, Facebook, Giới thiệu. Không bắt buộc; để trống thì ghi "Chưa rõ nguồn".',
     },
     {
       header: 'Tình Trạng TVV',
@@ -237,6 +239,7 @@ export const LEADS_SHEET: SheetTemplate = {
       type: 'interest',
       requiredColumn: false,
       aliases: ['Tình Trạng', 'Tình Trang'],
+      suggest: 'Tình trạng',
       note: 'Chưa nghe máy, Chưa xác định, Không quan tâm, Quan tâm nhân thọ hoặc Quan tâm thẻ rời.',
     },
     {
@@ -245,6 +248,7 @@ export const LEADS_SHEET: SheetTemplate = {
       type: 'care',
       requiredColumn: false,
       aliases: ['Trạng Thái Hiện Tại', 'Trạng thái mới'],
+      suggest: 'Trạng thái hiện tại',
       note: 'Đang chăm sóc, Đã chốt, Chốt xịt hoặc Không quan tâm.',
     },
     {
@@ -264,6 +268,13 @@ export const LEADS_SHEET: SheetTemplate = {
       note: 'Tối đa 4000 ký tự. Nội dung thay đổi sẽ thành một ghi chú mới.',
     },
     {
+      header: 'TRẠNG THÁI GỬI TIN NHẮN',
+      field: 'messageStatus',
+      type: 'text',
+      requiredColumn: false,
+      note: 'Không bắt buộc.',
+    },
+    {
       header: 'LÝ DO CHỐT XỊT/ DỪNG TÌM HIỂU',
       field: 'lostReason',
       type: 'text',
@@ -272,11 +283,42 @@ export const LEADS_SHEET: SheetTemplate = {
       note: 'Không bắt buộc.',
     },
     {
-      header: 'TRẠNG THÁI GỬI TIN NHẮN',
-      field: 'messageStatus',
+      header: 'XỬ LÝ SAU 10 NGÀY',
+      field: 'followUp10d',
       type: 'text',
+      maxLength: 2000,
       requiredColumn: false,
-      note: 'Không bắt buộc.',
+      aliases: ['10 NGÀY'],
+      subHeader: '10 NGÀY',
+      note: 'Việc đã làm sau 10 ngày. Không bắt buộc.',
+    },
+    {
+      header: 'XỬ LÝ SAU 15 NGÀY',
+      field: 'followUp15d',
+      type: 'text',
+      maxLength: 2000,
+      requiredColumn: false,
+      aliases: ['15 NGÀY'],
+      subHeader: '15 NGÀY',
+      note: 'Việc đã làm sau 15 ngày. Không bắt buộc.',
+    },
+    {
+      header: 'XỬ LÝ SAU 20 NGÀY',
+      field: 'followUp20d',
+      type: 'text',
+      maxLength: 2000,
+      requiredColumn: false,
+      aliases: ['20 NGÀY'],
+      subHeader: '20 NGÀY',
+      note: 'Việc đã làm sau 20 ngày. Không bắt buộc.',
+    },
+    {
+      header: 'GHI CHÚ XỬ LÝ',
+      field: 'handlingNote',
+      type: 'text',
+      maxLength: 4000,
+      requiredColumn: false,
+      note: 'Tối đa 4000 ký tự. Không bắt buộc.',
     },
     {
       header: 'NGÀY ĐĂNG KÝ',
@@ -350,16 +392,61 @@ export const LEADS_SHEET: SheetTemplate = {
       note: 'Không bắt buộc.',
     },
     {
+      header: 'CDYT - THỐNG KÊ',
+      field: 'cdytStats',
+      type: 'text',
+      maxLength: 2000,
+      requiredColumn: false,
+      note: 'Không bắt buộc.',
+    },
+    {
+      header: 'CDYT - TRANG CÁ NHÂN',
+      field: 'cdytProfile',
+      type: 'text',
+      maxLength: 2000,
+      requiredColumn: false,
+      note: 'Không bắt buộc.',
+    },
+    {
       header: 'ĐỒNG Ý LIÊN HỆ',
       field: 'consent',
       type: 'yesNo',
       requiredColumn: false,
       note: 'Có hoặc Chưa. File chỉ cấp thêm, không hủy sự đồng ý đã có.',
     },
+    {
+      header: 'LEAD ID',
+      field: 'externalId',
+      type: 'text',
+      requiredColumn: false,
+      note: 'Mã lead của GA. Không bắt buộc.',
+    },
+  ],
+  groups: [
+    {
+      title: 'XỬ LÝ SAU',
+      fields: ['followUp10d', 'followUp15d', 'followUp20d', 'handlingNote'],
+    },
+    {
+      title: 'THÔNG TIN THÊM',
+      fields: [
+        'registeredAt',
+        'gender',
+        'email',
+        'age',
+        'province',
+        'valueVnd',
+        'extraInfo',
+        'refLink',
+        'productInterest',
+        'productSecondary',
+        'cdytStats',
+        'cdytProfile',
+      ],
+    },
   ],
   examples: [
     [
-      'L-001',
       '',
       '01/11/2026',
       'Nguyễn Văn Mẫu',
@@ -373,6 +460,10 @@ export const LEADS_SHEET: SheetTemplate = {
       'Đã gọi lần đầu, hẹn gọi lại.',
       '',
       '',
+      'Đã gọi nhắc lần 2.',
+      '',
+      '',
+      'Khách hẹn tuần sau.',
       '01/11/2026',
       'Nam',
       'mau@example.com',
@@ -383,10 +474,12 @@ export const LEADS_SHEET: SheetTemplate = {
       '',
       'Nhân thọ',
       '',
+      '',
+      '',
       'Có',
+      'L-001',
     ],
     [
-      'L-002',
       '',
       '02/11/2026',
       'Trần Thị Mẫu',
@@ -394,6 +487,10 @@ export const LEADS_SHEET: SheetTemplate = {
       'Giới thiệu',
       'Miền Nam',
       'Giới thiệu',
+      '',
+      '',
+      '',
+      '',
       '',
       '',
       '',
@@ -410,7 +507,10 @@ export const LEADS_SHEET: SheetTemplate = {
       '',
       '',
       '',
+      '',
+      '',
       'Chưa',
+      'L-002',
     ],
   ],
 };
@@ -682,6 +782,71 @@ export const POLICIES_SHEET: SheetTemplate = {
       requiredColumn: false,
       note: 'Có hoặc Chưa. Không bắt buộc.',
     },
+    {
+      header: 'Địa chỉ liên hệ',
+      field: 'contactAddress',
+      type: 'text',
+      requiredColumn: false,
+      maxLength: 300,
+      note: 'Địa chỉ liên hệ của hợp đồng. Không bắt buộc; CRM che ô này, chỉ hiện khi bấm xem.',
+    },
+    {
+      header: 'Số tiền bảo hiểm',
+      field: 'sumAssuredVnd',
+      type: 'int',
+      requiredColumn: false,
+      note: 'Số tiền VND. Không bắt buộc; CRM ưu tiên số tiền của sản phẩm chính trong 04_Policy_Products.',
+    },
+    {
+      header: 'Ngày kết thúc thời gian gia hạn đóng phí',
+      field: 'graceEndDate',
+      type: 'date',
+      requiredColumn: false,
+      note: 'Định dạng dd/mm/yyyy. Không bắt buộc.',
+    },
+    {
+      header: 'Hình thức phân công',
+      field: 'assignmentType',
+      type: 'text',
+      requiredColumn: false,
+      maxLength: 100,
+      note: 'Ghi như trên Success. Không bắt buộc.',
+    },
+    {
+      header: 'Ngày phân công',
+      field: 'assignmentDate',
+      type: 'date',
+      requiredColumn: false,
+      note: 'Định dạng dd/mm/yyyy. Không bắt buộc.',
+    },
+    {
+      header: 'Phí đóng trước cho kỳ tới',
+      field: 'advancePremiumVnd',
+      type: 'int',
+      requiredColumn: false,
+      note: 'Số tiền VND. Không bắt buộc.',
+    },
+    {
+      header: 'Tổng phí bảo hiểm đã đóng',
+      field: 'totalPaidPremiumVnd',
+      type: 'int',
+      requiredColumn: false,
+      note: 'Số tiền VND. Không bắt buộc.',
+    },
+    {
+      header: 'Phí bảo hiểm cơ bản',
+      field: 'basicPremiumVnd',
+      type: 'int',
+      requiredColumn: false,
+      note: 'Số tiền VND. Không bắt buộc.',
+    },
+    {
+      header: 'Phí bảo hiểm đóng thêm',
+      field: 'topUpPremiumVnd',
+      type: 'int',
+      requiredColumn: false,
+      note: 'Số tiền VND. Không bắt buộc.',
+    },
   ],
   examples: [
     [
@@ -702,6 +867,15 @@ export const POLICIES_SHEET: SheetTemplate = {
       '0',
       '0',
       'Có',
+      '1 Đường Mẫu, Phường Mẫu, TP.HCM',
+      '500000000',
+      '01/08/2027',
+      'Đại lý khai thác',
+      '01/06/2024',
+      '0',
+      '12000000',
+      '12000000',
+      '0',
     ],
   ],
 };

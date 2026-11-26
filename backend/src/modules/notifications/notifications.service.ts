@@ -395,14 +395,7 @@ export class NotificationsService {
     await look('users', 'userId', 'id', 'name', ids('userId'), 'uuid');
     // A chat notice names its group; a one-to-one one names the other person (userId)
     await look('conversations', 'conversationId', 'id', 'title', ids('conversationId'), 'uuid');
-    await look(
-      'clients',
-      'clientCode',
-      'client_code',
-      'name',
-      ids('clientCode'),
-      'text',
-    );
+    await look('clients', 'clientId', 'id', 'name', ids('clientId'), 'uuid');
     return result;
   }
 }
@@ -410,7 +403,7 @@ export class NotificationsService {
 /** Which name a notification shows: its task, else its lead, client or user. */
 function subjectKey(data: Record<string, string | number> | undefined): string {
   if (!data) return '';
-  for (const field of ['taskId', 'leadId', 'clientCode', 'userId', 'conversationId'])
+  for (const field of ['taskId', 'leadId', 'clientId', 'userId', 'conversationId'])
     if (typeof data[field] === 'string') return `${field}:${data[field]}`;
   return '';
 }

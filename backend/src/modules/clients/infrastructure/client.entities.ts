@@ -2,7 +2,12 @@ import { Column, Entity, PrimaryColumn } from 'typeorm';
 import { bigintNumber } from '../../../core/db/transformers.js';
 import type { Relation } from '../client-insights.js';
 import { LINK_SOURCES, PRODUCT_ROLES } from '../client.constants.js';
-import type { LinkSource } from '../client.constants.js';
+import type {
+  CareRecordKind,
+  LinkSource,
+  ReferralRelation,
+  ReferralResult,
+} from '../client.constants.js';
 
 export { LINK_SOURCES };
 
@@ -33,9 +38,9 @@ export interface PolicyAgent {
   lastSeenAt?: Date | string;
 }
 
-/** CUS-11 */
+/** CUS-11: a person on the policy, by client id. */
 export interface PolicyClient {
-  clientCode: string;
+  clientId: string;
   role: 'PO' | 'LI' | 'BEN';
   source: 'POLICY' | 'PRODUCT';
   endedAt?: Date | string;
@@ -45,8 +50,8 @@ export interface PolicyClient {
 /** PRD-1 to PRD-6: one programme for one insured person. */
 export interface PolicyProduct {
   productCode: string;
-  /** "" = the main insured, or a person known only by name (PRD-3). */
-  insuredCode: string;
+  /** PRD-3: absent = the main insured, or a person known only by name. */
+  insuredClientId?: string;
   productName?: string;
   productRole: string;
   sumAssuredVnd?: number;
@@ -63,12 +68,16 @@ export interface PolicyProduct {
   lastImportId?: string;
 }
 
-/** Section 18.5. DATA-1: `clientCode` is a 10-digit string that keeps its leading zeros. */
+/**
+ * Section 18.5. A client is identified by its id (decided 25/11/2026). `successCode` is the
+ * insurer's 10-digit client code (DATA-1), kept only so a Success import finds the same person
+ * again; no API response or screen carries it.
+ */
 @Entity('clients')
 export class Client {
   @id() id: string;
   @Column({ type: 'uuid' }) tenantId: string;
-  @Column({ type: 'text' }) clientCode: string;
+  @text() successCode: string | null;
   @Column({ type: 'text' }) name: string;
   @Column({ type: 'text' }) nameNorm: string;
   /** CUS-3 */
@@ -104,38 +113,53 @@ export class Client {
   @Column({ type: 'timestamptz' }) updatedAt: Date;
 }
 
-/** Section 18.5. DATA-1: `policyNo` is a 9-digit string. */
+/**
+ * Section 18.5. DATA-1: `policyNo` is a 9-digit string; it is what people type and search
+ * ("Mã hợp đồng"). A policy added by hand may hold only its number (decided 25/11/2026).
+ */
 @Entity('policies')
 export class Policy {
   @id() id: string;
   @Column({ type: 'uuid' }) tenantId: string;
   @Column({ type: 'text' }) policyNo: string;
-  @Column({ type: 'text' }) holderClientCode: string;
-  @text() insuredClientCode: string | null;
+  @Column({ type: 'uuid', nullable: true }) holderClientId: string | null;
+  @Column({ type: 'uuid', nullable: true }) insuredClientId: string | null;
   @text() servicingAgentCode: string | null;
-  @Column({ type: 'text' }) holderName: string;
-  @Column({ type: 'text' }) holderNameNorm: string;
-  @Column({ type: 'text' }) insuredName: string;
-  @Column({ type: 'text' }) insuredNameNorm: string;
+  @text() holderName: string | null;
+  @text() holderNameNorm: string | null;
+  @text() insuredName: string | null;
+  @text() insuredNameNorm: string | null;
   /** CUS-10 */
-  @Column({ type: 'text' }) status: string;
-  @Column({ type: 'date' }) effectiveDate: string;
-  @Column({ type: 'date' }) maturityDate: string;
-  @Column({ type: 'text' }) premiumFrequency: string;
+  @text() status: string | null;
+  @day() effectiveDate: string | null;
+  @day() maturityDate: string | null;
+  @text() premiumFrequency: string | null;
   @day() premiumDueDate: string | null;
   @money() plannedPremiumVnd: number | null;
-  @Column({ type: 'bigint', transformer: bigintNumber }) basePremiumVnd: number;
+  @money() basePremiumVnd: number | null;
   @money() unpaidPremiumVnd: number | null;
   @money() aplDebtVnd: number | null;
   @flag() hasBeneficiary: boolean | null;
+  /** Personal data: returned only by the audited reveal (decided 25/11/2026). */
+  @text() contactAddress: string | null;
+  /** Used only when the policy has no main product line with a sum assured. */
+  @money() sumAssuredVnd: number | null;
+  @day() graceEndDate: string | null;
+  /** DLVN's assignment of the servicing agent (Success only). */
+  @text() assignmentType: string | null;
+  @day() assignmentDate: string | null;
+  @money() advancePremiumVnd: number | null;
+  @money() totalPaidPremiumVnd: number | null;
+  @money() basicPremiumVnd: number | null;
+  @money() topUpPremiumVnd: number | null;
   @Column({ type: 'jsonb', default: () => `'[]'` }) agents: PolicyAgent[];
   /** SCOPE-5 */
   @Column({ type: 'text', array: true, default: () => `'{}'` })
   currentAgentCodes: string[];
   @Column({ type: 'jsonb', default: () => `'[]'` }) clients: PolicyClient[];
   /** Kept by a trigger from `clients`; never written by the code. */
-  @Column({ type: 'text', array: true, insert: false, update: false })
-  clientCodes: string[];
+  @Column({ type: 'uuid', array: true, insert: false, update: false })
+  clientIds: string[];
   @Column({ type: 'jsonb', default: () => `'[]'` }) products: PolicyProduct[];
   @Column({ type: 'text' }) origin: 'IMPORT' | 'MANUAL';
   @Column({ type: 'uuid', nullable: true }) createdBy: string | null;
@@ -153,7 +177,7 @@ export class Application {
   @Column({ type: 'text' }) applicationNo: string;
   @text() policyNo: string | null;
   @Column({ type: 'text' }) agentCode: string;
-  @text() clientCode: string | null;
+  @Column({ type: 'uuid', nullable: true }) clientId: string | null;
   @Column({ type: 'text' }) holderName: string;
   @Column({ type: 'text' }) holderNameNorm: string;
   @Column({ type: 'date' }) createdDate: string;
@@ -171,8 +195,8 @@ export class Application {
 export class FamilyLink {
   @id() id: string;
   @Column({ type: 'uuid' }) tenantId: string;
-  @Column({ type: 'text' }) clientCode: string;
-  @text() relatedClientCode: string | null;
+  @Column({ type: 'uuid' }) clientId: string;
+  @Column({ type: 'uuid', nullable: true }) relatedClientId: string | null;
   @text() fullName: string | null;
   /** FAM-4: each part of a birth date is optional. */
   @int() birthDay: number | null;
@@ -201,6 +225,44 @@ export class InsuranceProgram {
   @Column({ type: 'boolean', default: true }) active: boolean;
   @Column({ type: 'integer' }) sortOrder: number;
   @Column({ type: 'timestamptz', default: () => 'now()' }) createdAt: Date;
+}
+
+/** Decided 26/11/2026: one dated care event of a client, entered by hand. */
+@Entity('client_care_records')
+export class ClientCareRecord {
+  @id() id: string;
+  @Column({ type: 'uuid' }) tenantId: string;
+  @Column({ type: 'uuid' }) clientId: string;
+  @Column({ type: 'text' }) kind: CareRecordKind;
+  @Column({ type: 'date' }) occurredOn: string;
+  /** What: the event's or the gift's name. */
+  @text() title: string | null;
+  /** Where: the hospital of a claim, the venue of an event. */
+  @text() place: string | null;
+  @money() amountVnd: number | null;
+  @text() policyNo: string | null;
+  @text() note: string | null;
+  @Column({ type: 'uuid' }) createdBy: string;
+  @Column({ type: 'timestamptz', default: () => 'now()' }) createdAt: Date;
+  @Column({ type: 'timestamptz', default: () => 'now()' }) updatedAt: Date;
+}
+
+/** Decided 26/11/2026: one person a client referred, and what came of it. */
+@Entity('client_referrals')
+export class ClientReferral {
+  @id() id: string;
+  @Column({ type: 'uuid' }) tenantId: string;
+  @Column({ type: 'uuid' }) clientId: string;
+  @Column({ type: 'text' }) personName: string;
+  @Column({ type: 'text' }) relation: ReferralRelation;
+  @Column({ type: 'date' }) referredOn: string;
+  @Column({ type: 'text' }) result: ReferralResult;
+  /** The premium of the policy a successful referral brought. */
+  @money() premiumVnd: number | null;
+  @text() note: string | null;
+  @Column({ type: 'uuid' }) createdBy: string;
+  @Column({ type: 'timestamptz', default: () => 'now()' }) createdAt: Date;
+  @Column({ type: 'timestamptz', default: () => 'now()' }) updatedAt: Date;
 }
 
 /** IMP-21: one row per field an import or a person really changed. */

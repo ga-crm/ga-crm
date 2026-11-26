@@ -1,6 +1,6 @@
-import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronLeft, ChevronRight, Copy, Ellipsis, Info, Search, TriangleAlert, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Ellipsis, Info, Search, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import type { ComponentProps, ElementType, ReactNode } from 'react'
+import type { ComponentProps, ElementType, ReactNode, Ref } from 'react'
 import { Alert as AlertBox } from '@/components/shadcn/alert'
 import {
   AlertDialog,
@@ -19,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input as InputBase } from '@/components/shadcn/input'
 import { Label } from '@/components/shadcn/label'
 import { NativeSelect } from '@/components/shadcn/native-select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/shadcn/popover'
 import { RadioGroup as RadioGroupBase, RadioGroupCard, RadioGroupItem } from '@/components/shadcn/radio-group'
 import { Tabs, TabsList, TabsTrigger } from '@/components/shadcn/tabs'
 import { Textarea as TextareaBase } from '@/components/shadcn/textarea'
@@ -269,6 +270,94 @@ export function PickList({
   )
 }
 
+/**
+ * A form field that opens a `PickList` in a shadcn/ui Popover: one value out of a list too long or
+ * too wordy for a native select (hundreds of product names). The trigger looks like an `Input`; the
+ * caller filters the options through `onSearchChange`. `ref` lets React Hook Form focus it.
+ */
+export function PickField({
+  id,
+  label,
+  value,
+  valueLabel,
+  placeholder,
+  options,
+  search,
+  onSearchChange,
+  searchPlaceholder,
+  loading,
+  empty,
+  onChange,
+  onBlur,
+  invalid = false,
+  disabled = false,
+  ref,
+}: {
+  id?: string
+  label: string
+  value: string
+  /** What the trigger shows for `value`; the placeholder shows while it is empty. */
+  valueLabel?: string
+  placeholder: string
+  options: PickOption[]
+  search: string
+  onSearchChange: (search: string) => void
+  searchPlaceholder: string
+  loading?: boolean
+  empty?: string
+  onChange: (value: string) => void
+  onBlur?: () => void
+  invalid?: boolean
+  disabled?: boolean
+  ref?: Ref<HTMLButtonElement>
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) onBlur?.()
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          ref={ref}
+          id={id}
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          aria-invalid={invalid || undefined}
+          aria-label={valueLabel ? `${label}: ${valueLabel}` : label}
+          disabled={disabled}
+          title={valueLabel}
+          className={cn(FIELD_CLASS, 'flex cursor-pointer items-center gap-2 border text-left disabled:cursor-not-allowed disabled:opacity-50')}
+        >
+          <span className={cn('min-w-0 flex-1 truncate', !valueLabel && 'text-ink-meta')}>{valueLabel || placeholder}</span>
+          <ChevronDown aria-hidden size={16} className="flex-none text-ink-meta" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-(--radix-popover-trigger-width) min-w-72 border-hairline bg-canvas p-0">
+        <PickList
+          label={label}
+          options={options}
+          value={value}
+          search={search}
+          onSearchChange={onSearchChange}
+          placeholder={searchPlaceholder}
+          loading={loading}
+          empty={empty}
+          onChange={(next) => {
+            onChange(next)
+            setOpen(false)
+            onBlur?.()
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 /** The error line is always reserved, so a validation message never changes the height of a form. */
 export function Field({
   label,
@@ -378,25 +467,22 @@ export interface TabItem {
 }
 
 /**
- * shadcn/ui Tabs as the tab row of a screen; the content below follows the URL, not the tabs. `pills`
- * for list views, `line` for the sections of a record. Arrow keys move focus; Enter or Space opens.
+ * shadcn/ui Tabs as the tab row of a screen; the content below follows the URL, not the tabs. Lists
+ * and record pages share one look (decided 25/11/2026). Arrow keys move focus; Enter or Space opens.
  */
 export function TabBar({
   label,
   value,
   items,
   onValueChange,
-  variant = 'pills',
   className,
 }: {
   label: string
   value: string
   items: TabItem[]
   onValueChange: (value: string) => void
-  variant?: 'pills' | 'line'
   className?: string
 }) {
-  const line = variant === 'line'
   const list = useRef<HTMLDivElement>(null)
   // On a phone the bar scrolls sideways: keep the selected tab in view, also when opened from the URL
   useEffect(() => {
@@ -408,8 +494,7 @@ export function TabBar({
         ref={list}
         aria-label={label}
         className={cn(
-          'flex h-auto w-full justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-none bg-transparent p-0 group-data-[orientation=horizontal]/tabs:h-auto',
-          line ? 'mb-4 border-b border-band' : 'pb-2',
+          'flex h-auto w-full justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-none bg-transparent p-0 pb-2 group-data-[orientation=horizontal]/tabs:h-auto',
           className,
         )}
       >
@@ -418,10 +503,8 @@ export function TabBar({
             key={item.value}
             value={item.value}
             className={cn(
-              'h-auto flex-none cursor-pointer text-caption font-normal whitespace-nowrap text-ink-nav after:hidden hover:text-ink data-[state=active]:font-medium data-[state=active]:text-primary-deep',
-              line
-                ? '-mb-px rounded-none border-0 border-b-2 border-transparent px-3 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent'
-                : 'rounded-md px-3 py-1.5 hover:bg-chrome data-[state=active]:bg-band-blue',
+              // One look for every tab bar: the selected tab is a light blue band
+              'h-auto flex-none cursor-pointer rounded-md px-3 py-1.5 text-caption font-normal whitespace-nowrap text-ink-nav after:hidden hover:bg-chrome hover:text-ink data-[state=active]:bg-band-blue data-[state=active]:font-medium data-[state=active]:text-primary-deep',
             )}
           >
             {item.label}

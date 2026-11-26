@@ -4,9 +4,11 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { utils, writeFile } from 'xlsx'
 import { hasPermission } from '../auth/access'
+import { ActivityDetailsDialog } from '../components/ActivityDetailsDialog'
+import type { ActivityCell } from '../components/ActivityDetailsDialog'
 import { useMe } from '../auth/useMe'
 import { Alert, Button, Card, Container, EmptyState, FilterBand, FilterField, Input, PageHeader, Segmented, Select, Spinner, TabBar, TableScroll } from '../components/ui'
-import { formatVnd, t, tDynamic } from '../i18n'
+import { formatDateTime, formatVnd, t, tDynamic } from '../i18n'
 import type { MessageKey } from '../i18n'
 import { api, errorMessage } from '../lib/api'
 import { showDate } from '../lib/leadLabels'
@@ -27,6 +29,10 @@ interface Column {
   link?: (row: ReportRow) => string | null
   /** Money needs more room than a count. */
   wide?: boolean
+  /** R2 (26/11/2026): where the column's numbers come from, under its name. */
+  note?: string
+  /** R2 (26/11/2026): the activities a number of this column opens: one type, one source, or all. */
+  opens?: { type?: string; source?: 'CRM' | 'SUCCESS' }
 }
 
 interface Context {
@@ -36,6 +42,19 @@ interface Context {
   to: string
   groupBy: FunnelGroup
 }
+
+/** R2 (26/11/2026): which system records each activity type. */
+const ACTIVITY_SOURCES = {
+  CALL: 'both',
+  ZALO: 'both',
+  MEETING: 'both',
+  SEMINAR: 'crm',
+  PROPOSAL: 'success',
+  SOCIAL_POST: 'success',
+  CHECKIN: 'success',
+  COACHING: 'success',
+  OTHER: 'success',
+} as const
 
 const n = (values: Record<string, number>, key: string) => values[key] ?? 0
 const percent = (part: number, whole: number) => (whole === 0 ? '-' : `${Math.round((part / whole) * 100)}%`)
@@ -75,10 +94,11 @@ function columnsOf({ name, data, from, to, groupBy }: Context): Column[] {
   }
   if (name === 'activities')
     return [
-      ...['CALL', 'ZALO', 'MEETING', 'SEMINAR', 'PROPOSAL', 'SOCIAL_POST', 'CHECKIN', 'COACHING', 'OTHER'].map<Column>((type) => ({ key: type, label: label(type), value: (values) => n(values, type) })),
-      { key: 'total', label: label('activityTotal'), value: (values) => n(values, 'total') },
-      { key: 'fromCrm', label: label('fromCrm'), value: (values) => n(values, 'fromCrm') },
-      { key: 'fromSuccess', label: label('fromSuccess'), value: (values) => n(values, 'fromSuccess') },
+      // 26/11/2026: each type says where it comes from; Success has no seminar, the CRM records only contacts
+      ...Object.entries(ACTIVITY_SOURCES).map<Column>(([type, source]) => ({ key: type, label: label(type), note: t(`reports.source.${source}`), value: (values) => n(values, type), opens: { type } })),
+      { key: 'total', label: label('activityTotal'), value: (values) => n(values, 'total'), opens: {} },
+      { key: 'fromCrm', label: label('fromCrm'), value: (values) => n(values, 'fromCrm'), opens: { source: 'CRM' } },
+      { key: 'fromSuccess', label: label('fromSuccess'), value: (values) => n(values, 'fromSuccess'), opens: { source: 'SUCCESS' } },
       { key: 'won', label: label('wonInPeriod'), value: (values) => n(values, 'won') },
     ]
   if (name === 'funnel') {
@@ -208,6 +228,30 @@ export function ReportsPage() {
 
   const linkTo = (row: ReportRow, column: Column): string | null => column.link?.(row) ?? null
 
+  // R2 (26/11/2026): the agents behind a row: its own agent, or every agent of a group
+  const allAgents = rows.flatMap((row) => (row.kind === 'agent' && row.agentCode ? [row.agentCode] : []))
+  const agentsOf = (row: ReportRow): string[] => {
+    if (row.kind === 'agent') return row.agentCode ? [row.agentCode] : []
+    if (row.kind !== 'group') return []
+    const under = (key: string): boolean => {
+      for (let parent: string | null | undefined = key; parent; parent = parentOf.get(parent)) if (parent === row.key) return true
+      return false
+    }
+    return rows.flatMap((item) => (item.kind === 'agent' && item.agentCode && under(item.key) ? [item.agentCode] : []))
+  }
+  // The open list lives in the URL, so a reload keeps it; a stale key closes it
+  const cell = ((): ActivityCell | null => {
+    if (name !== 'activities') return null
+    const [rowKey, columnKey] = url.get('cell').split('|')
+    const column = columns.find((item) => item.key === columnKey && item.opens)
+    const row = rows.find((item) => item.key === rowKey)
+    if (!column?.opens) return null
+    const agents = rowKey === 'total' ? allAgents : row ? agentsOf(row) : []
+    if (agents.length === 0) return null
+    const who = rowKey === 'total' ? t('reports.total') : rowLabel(row!, hasGroup)
+    return { title: t('reports.detail.title', { what: column.label, name: who }), agents: agents.slice(0, 300), ...column.opens }
+  })()
+
   return (
     <>
       <PageHeader
@@ -274,7 +318,17 @@ export function ReportsPage() {
       </FilterBand>
 
       <Card>
-        <p className="flex-none px-4 py-2 text-caption text-ink-meta">{t(`reports.help.${name}` as MessageKey)}</p>
+        <p className="flex-none px-4 py-2 text-caption text-ink-meta">
+          {t(`reports.help.${name}` as MessageKey)}
+          {/* 26/11/2026: how far the Success data goes, so a low number is not read as idle */}
+          {name === 'activities' && data?.successAsOf && (
+            <span className="block">
+              {data.successAsOf.lastActivityDate
+                ? t('reports.successAsOf', { day: showDate(data.successAsOf.lastActivityDate) ?? '', at: data.successAsOf.lastImportedAt ? formatDateTime(data.successAsOf.lastImportedAt) : '-' })
+                : t('reports.successNone')}
+            </span>
+          )}
+        </p>
         {report.isPending && <Spinner />}
         {report.isError && <Alert className="m-4">{errorMessage(report.error)}</Alert>}
         {data && rows.length === 0 && <EmptyState>{t('reports.empty')}</EmptyState>}
@@ -293,6 +347,7 @@ export function ReportsPage() {
                   {columns.map((column) => (
                     <th key={column.key} className="text-right" title={column.hint ?? column.label}>
                       <span className="line-clamp-2 whitespace-normal">{column.label}</span>
+                      {column.note && <span className="block font-normal whitespace-normal text-ink-meta">{column.note}</span>}
                     </th>
                   ))}
                 </tr>
@@ -334,12 +389,17 @@ export function ReportsPage() {
                         {columns.map((column) => {
                           const value = column.value(row.values)
                           const to = value !== 0 ? linkTo(row, column) : null
+                          const opens = value !== 0 && column.opens && agentsOf(row).length > 0
                           return (
                             <td key={column.key} className="text-right tabular-nums">
                               {to ? (
                                 <Link to={to} className="text-primary hover:underline">
                                   {value}
                                 </Link>
+                              ) : opens ? (
+                                <button type="button" className="cursor-pointer text-primary hover:underline" aria-label={t('reports.detail.open', { what: column.label, name: label })} onClick={() => url.set({ cell: `${row.key}|${column.key}` }, { push: true })}>
+                                  {value}
+                                </button>
                               ) : (
                                 value
                               )}
@@ -352,17 +412,27 @@ export function ReportsPage() {
                 {/* Inside the body, so it takes the table's cell styles */}
                 <tr className="font-medium">
                   <td className="col-first border-t border-hairline">{t('reports.total')}</td>
-                  {columns.map((column) => (
-                    <td key={column.key} className="border-t border-hairline text-right tabular-nums">
-                      {column.value(data.total)}
-                    </td>
-                  ))}
+                  {columns.map((column) => {
+                    const value = column.value(data.total)
+                    return (
+                      <td key={column.key} className="border-t border-hairline text-right tabular-nums">
+                        {value !== 0 && column.opens && allAgents.length > 0 ? (
+                          <button type="button" className="cursor-pointer text-primary hover:underline" aria-label={t('reports.detail.open', { what: column.label, name: t('reports.total') })} onClick={() => url.set({ cell: `total|${column.key}` }, { push: true })}>
+                            {value}
+                          </button>
+                        ) : (
+                          value
+                        )}
+                      </td>
+                    )
+                  })}
                 </tr>
               </tbody>
             </table>
           </TableScroll>
         )}
       </Card>
+      <ActivityDetailsDialog cell={cell} from={from} to={to} onClose={() => url.set({ cell: null })} />
     </>
   )
 }

@@ -1,6 +1,9 @@
 import { normalizeName } from '../../common/normalize.js';
 import type { Reach } from '../../common/rbac.js';
-import type { LinkSource } from '../clients/client.constants.js';
+import {
+  HIDDEN_FIELDS,
+  type LinkSource,
+} from '../clients/client.constants.js';
 import type {
   PolicyAgent,
   PolicyClient,
@@ -56,6 +59,15 @@ export interface ParsedPolicyRow {
   unpaidPremiumVnd?: number;
   aplDebtVnd?: number;
   hasBeneficiary?: boolean;
+  contactAddress?: string;
+  sumAssuredVnd?: number;
+  graceEndDate?: string;
+  assignmentType?: string;
+  assignmentDate?: string;
+  advancePremiumVnd?: number;
+  totalPaidPremiumVnd?: number;
+  basicPremiumVnd?: number;
+  topUpPremiumVnd?: number;
 }
 
 /** Section 19.5 */
@@ -88,6 +100,19 @@ export interface ParsedApplicationRow {
 }
 
 type Row<T> = { rowNo: number; data: T };
+
+/**
+ * The planner works with the client codes of the file (DATA-1): they are what joins its sheets and
+ * what finds a person again (`clients.success_code`). `imports.service.ts` turns stored ids into
+ * codes before planning and the codes back into ids before writing (decided 25/11/2026).
+ */
+export type CodedPolicyClient = Omit<PolicyClient, 'clientId'> & {
+  clientCode: string;
+};
+/** PRD-3: `insuredCode` "" = the main insured, or a person known only by name. */
+export type CodedPolicyProduct = Omit<PolicyProduct, 'insuredClientId'> & {
+  insuredCode: string;
+};
 type Fields = Record<string, unknown>;
 
 export interface ExistingClient extends Fields {
@@ -99,8 +124,8 @@ export interface ExistingPolicy extends Fields {
   policyNo: string;
   servicingAgentCode?: string;
   agents: PolicyAgent[];
-  clients: PolicyClient[];
-  products: PolicyProduct[];
+  clients: CodedPolicyClient[];
+  products: CodedPolicyProduct[];
   currentAgentCodes: string[];
 }
 
@@ -160,8 +185,8 @@ export interface PolicyState extends Fields {
   servicingAgentCode?: string;
   agents: PolicyAgent[];
   currentAgentCodes: string[];
-  clients: PolicyClient[];
-  products: PolicyProduct[];
+  clients: CodedPolicyClient[];
+  products: CodedPolicyProduct[];
 }
 
 export interface SuccessPlan {
@@ -179,7 +204,19 @@ export interface SuccessPlan {
   changes: FieldChange[];
   /** Clients whose agent links must be worked out again after the write. */
   touchedClients: string[];
+  /**
+   * Decided 25/11/2026: a client added by hand has no Success code. When the file names a new code
+   * as the holder or main insured of a policy that person is on, the code becomes theirs, so the
+   * file updates them instead of making a second client (MAN-8). Filled in by `imports.service.ts`.
+   */
+  adoptions: { clientCode: string; clientId: string }[];
 }
+
+/** A stored person without a Success code, as the planner sees them: `id:<client id>`. */
+export const storedRef = (clientId: string) => `id:${clientId}`;
+/** The client id behind `storedRef`, or null for a real Success code. */
+export const refId = (code: string): string | null =>
+  code.startsWith('id:') ? code.slice(3) : null;
 
 const POLICY_FIELDS = [
   'holderClientCode',
@@ -196,6 +233,15 @@ const POLICY_FIELDS = [
   'unpaidPremiumVnd',
   'aplDebtVnd',
   'hasBeneficiary',
+  'contactAddress',
+  'sumAssuredVnd',
+  'graceEndDate',
+  'assignmentType',
+  'assignmentDate',
+  'advancePremiumVnd',
+  'totalPaidPremiumVnd',
+  'basicPremiumVnd',
+  'topUpPremiumVnd',
 ] as const;
 const PRODUCT_FIELDS = [
   'productName',
@@ -262,6 +308,7 @@ export function planSuccess(input: SuccessPlanInput): SuccessPlan {
     applications: [],
     changes: [],
     touchedClients: [],
+    adoptions: [],
   };
   const touched = new Set<string>();
   const inScope = (agentCode: string) =>
@@ -303,7 +350,16 @@ export function planSuccess(input: SuccessPlanInput): SuccessPlan {
     const oldValue = asText(before);
     const newValue = asText(after);
     if (oldValue === newValue) return false;
-    plan.changes.push({ entity, entityKey, field, oldValue, newValue });
+    // Personal data: the history says it changed, without the value
+    const hide = (value: string | undefined) =>
+      value !== undefined && HIDDEN_FIELDS.has(field) ? '***' : value;
+    plan.changes.push({
+      entity,
+      entityKey,
+      field,
+      oldValue: hide(oldValue),
+      newValue: hide(newValue),
+    });
     return true;
   };
 
@@ -541,7 +597,7 @@ export function planSuccess(input: SuccessPlanInput): SuccessPlan {
           item.productCode === productCode && samePerson(item.insuredCode),
       );
       if (!product) {
-        const fresh: PolicyProduct = {
+        const fresh: CodedPolicyProduct = {
           productCode,
           insuredCode,
           productRole: row.data.productRole,

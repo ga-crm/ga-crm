@@ -101,8 +101,8 @@ export function TodayPanel() {
               ) : (
                 <ul className="mb-3 space-y-1 text-caption">
                   {data.care.premiumDue.map((item) => (
-                    <li key={item.policyNo} className="flex flex-wrap gap-x-2">
-                      <Link to={`/clients/${item.clientCode}`} className="text-primary hover:underline">
+                    <li key={`${item.clientId}-${item.policyNo}`} className="flex flex-wrap gap-x-2">
+                      <Link to={`/clients/${item.clientId}?tab=care`} className="text-primary hover:underline">
                         {item.name}
                       </Link>
                       <span className="text-ink-meta tabular-nums">{t('today.premiumLine', { policyNo: item.policyNo, date: showDate(item.date) ?? item.date, amount: formatVnd(item.amountVnd) })}</span>
@@ -116,8 +116,8 @@ export function TodayPanel() {
               ) : (
                 <ul className="space-y-1 text-caption">
                   {data.care.birthdays.map((item) => (
-                    <li key={item.clientCode} className="flex flex-wrap items-center gap-x-2">
-                      <Link to={`/clients/${item.clientCode}`} className="text-primary hover:underline">
+                    <li key={item.clientId} className="flex flex-wrap items-center gap-x-2">
+                      <Link to={`/clients/${item.clientId}?tab=care`} className="text-primary hover:underline">
                         {item.name}
                       </Link>
                       <span className="text-ink-meta tabular-nums">{showDate(item.date)}</span>

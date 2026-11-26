@@ -16,6 +16,7 @@ import {
 import { CurrentActor, SESSION_COOKIE } from '../../common/auth.decorators.js';
 import type { Actor } from '../../common/rbac.js';
 import {
+  ActivityDetailsQueryDto,
   DashboardQueryDto,
   ExportReportDto,
   FunnelQueryDto,
@@ -58,6 +59,19 @@ export class ReportsController {
   })
   activities(@CurrentActor() actor: Actor, @Query() query: ReportRangeDto) {
     return this.reports.activities(actor, query);
+  }
+
+  @Get('activities/details')
+  @ApiOperation({
+    summary: 'R2: các hoạt động đằng sau một con số',
+    description:
+      'Theo đại lý (một dòng hoặc cả đội), loại hoặc nguồn, trong kỳ; mỗi dòng có tính vào báo cáo hay không và lý do (trùng cùng số trong ngày, hoặc Success nháp / từ chối). Tối đa 500 dòng, mới nhất trước.',
+  })
+  activityDetails(
+    @CurrentActor() actor: Actor,
+    @Query() query: ActivityDetailsQueryDto,
+  ) {
+    return this.reports.activityDetails(actor, query);
   }
 
   @Get('handovers')

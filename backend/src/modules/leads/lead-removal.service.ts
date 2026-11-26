@@ -31,6 +31,16 @@ const PERSONAL_COLUMNS = [
   'age',
   'extra_info',
   'progress_note',
+  // Free text from a GA's file, as personal as a note (25/11/2026)
+  'follow_up_10d',
+  'follow_up_15d',
+  'follow_up_20d',
+  'handling_note',
+  'cdyt_stats',
+  'cdyt_profile',
+  // The street address and commune point at the person; the province stays for statistics
+  'address_line',
+  'ward_code',
   'ref_link',
   'application_no',
   'policy_no',
@@ -44,9 +54,12 @@ const PERSONAL_HISTORY = [
   'extraInfo',
   'progressNote',
   'refLink',
+  'addressLine',
+  'ward',
   'applicationNo',
   'policyNo',
-  'clientCode',
+  // LEAD-32: the linked client, named in the history (decided 25/11/2026)
+  'client',
   // The merged lead's number and name (LEAD-41), and note texts before an edit or delete (NOTE-4)
   'merge',
   'noteEdited',
@@ -130,7 +143,7 @@ export class LeadRemovalService {
     await db.query(
       `UPDATE leads SET full_name = '', name_norm = '', phone = $3, erased_at = $4, updated_at = $4,
          ${PERSONAL_COLUMNS.map((column) => `${column} = NULL`).join(', ')},
-         client_code = NULL, link_status = NULL, linked_by = NULL, linked_at = NULL
+         client_id = NULL, link_status = NULL, linked_by = NULL, linked_at = NULL
        WHERE tenant_id = $1 AND id = $2`,
       [...owned, `erased:${lead.id}`, now],
     );
@@ -289,9 +302,9 @@ export class LeadRemovalService {
       const keep = await this.reader.visibleLead(actor, keepId, db);
       const gone = await this.reader.visibleLead(actor, mergeId, db);
       if (
-        keep.clientCode &&
-        gone.clientCode &&
-        keep.clientCode !== gone.clientCode
+        keep.clientId &&
+        gone.clientId &&
+        keep.clientId !== gone.clientId
       )
         throw new ApiException(
           HttpStatus.CONFLICT,
@@ -349,13 +362,20 @@ export class LeadRemovalService {
           .filter((field) => keep[field] === null && gone[field] !== null)
           .map((field) => [field, gone[field]]),
       );
+      // Decided 26/11/2026: the place moves as a whole, so a commune stays in its province
+      if (keep.provinceCode === null && gone.provinceCode !== null)
+        Object.assign(fill, {
+          provinceCode: gone.provinceCode,
+          wardCode: gone.wardCode,
+          ...(keep.addressLine === null && { addressLine: gone.addressLine }),
+        });
       const lastComment = latest(keep.lastCommentAt, gone.lastCommentAt);
       // The other lead's link moves to the kept one; the unique index allows one at a time
-      if (gone.clientCode)
+      if (gone.clientId)
         await db.getRepository(Lead).update(
           { id: gone.id, tenantId: scope.tenantId },
           {
-            clientCode: null,
+            clientId: null,
             linkStatus: null,
             linkedBy: null,
             linkedAt: null,
@@ -374,9 +394,9 @@ export class LeadRemovalService {
                 ? gone.lastCommentBy
                 : keep.lastCommentBy,
           }),
-          ...(!keep.clientCode &&
-            gone.clientCode && {
-              clientCode: gone.clientCode,
+          ...(!keep.clientId &&
+            gone.clientId && {
+              clientId: gone.clientId,
               linkStatus: gone.linkStatus,
               linkedBy: gone.linkedBy,
               linkedAt: gone.linkedAt,

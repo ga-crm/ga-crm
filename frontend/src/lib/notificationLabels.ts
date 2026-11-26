@@ -4,6 +4,7 @@ import type { NotificationItem } from './types'
 /** NTF-2: every event this build sends, in the order the settings page lists them. */
 export const NOTIFICATION_TYPES = [
   'LEAD_ASSIGNED',
+  'LEAD_SUPPORT',
   'LEAD_COMMENT',
   'MENTION',
   'LEAD_DEADLINE_SOON',
@@ -30,6 +31,8 @@ export function notificationText(item: NotificationItem): string {
   switch (item.type) {
     case 'LEAD_ASSIGNED':
       return count === 1 ? t('notification.leadAssignedOne', { name }) : t('notification.leadAssignedMany', { count })
+    case 'LEAD_SUPPORT':
+      return t('notification.leadSupport', { name })
     case 'CLIENT_ASSIGNED':
       return count === 1 ? t('notification.clientAssignedOne', { name }) : t('notification.clientAssignedMany', { count })
     case 'LEAD_COMMENT':
@@ -37,7 +40,7 @@ export function notificationText(item: NotificationItem): string {
     case 'CLIENT_COMMENT':
       return t('notification.clientComment', { name })
     case 'MENTION':
-      return item.data.clientCode ? t('notification.mentionClient', { name }) : t('notification.mentionLead', { name })
+      return item.data.clientId ? t('notification.mentionClient', { name }) : t('notification.mentionLead', { name })
     case 'LEAD_DEADLINE_SOON':
       return count === 1 ? t('notification.deadlineOne', { name }) : t('notification.deadlineMany', { count })
     case 'APPOINTMENT_SOON':

@@ -752,23 +752,29 @@ export async function seedShowcase(
     });
     await imports.validate(admin, pending.id);
 
-    // Slice 4b: clients and policies entered by hand, so the client screens have something to show
-    const clientCode = (n: number) => `0${number}0000000${n}`;
+    // Slice 4b: clients and policies entered by hand, so the client screens have something to show.
+    // A client is added on a policy by its number and role (decided 25/11/2026), then the policy is
+    // filled in; policy 1 is a family one: the father pays, the mother and daughter are insured.
     const policyNo = (n: number) => `0${number}000000${n}`;
     const fcActor = workers.get('fc')!;
     // Typed loosely: the editor's DTO classes are not built by hand anywhere else
-    const policy = (n: number, patch: Record<string, unknown> = {}): never =>
+    const policy = (patch: Record<string, unknown> = {}): never =>
       ({
-        policyNo: policyNo(n),
         status: 'Đang hiệu lực',
         effectiveDate: '2024-06-01',
         maturityDate: '2044-06-01',
         premiumFrequency: 'Năm',
         basePremiumVnd: 18_000_000,
         premiumDueDate: iso(new Date(now + 20 * DAY_MS)),
+        // The policy page's detail and premium fields (decided 25/11/2026)
+        contactAddress: `${number}2 Đường Mẫu, Phường Mẫu, TP.HCM`,
+        graceEndDate: iso(new Date(now + 80 * DAY_MS)),
+        plannedPremiumVnd: 18_000_000,
+        totalPaidPremiumVnd: 36_000_000,
+        basicPremiumVnd: 18_000_000,
         products: [
           {
-            programCode: 'AN_TAM_SONG_HANH',
+            productCode: 'AN_TAM_SONG_HANH',
             sumAssuredVnd: 600_000_000,
             termYears: 20,
             annualPremiumVnd: 15_000_000,
@@ -776,89 +782,119 @@ export async function seedShowcase(
         ],
         ...patch,
       }) as never;
-    await clientEditor.create(fcActor, {
-      clientCode: clientCode(1),
-      name: `Võ Thành Đạt ${number}`,
-      phone: '0909123401',
-      dob: '1984-03-15',
-      gender: 'Nam',
-      maritalStatus: 'Đã kết hôn',
-      tier: 'Vàng',
-      usesDconnect: true,
-      policies: [
-        policy(1, {
-          products: [
-            {
-              programCode: 'AN_TAM_SONG_HANH',
-              sumAssuredVnd: 800_000_000,
-              termYears: 20,
-              annualPremiumVnd: 18_000_000,
-            },
-            {
-              programCode: 'BH_CHAM_SOC_SUC_KHOE',
-              sumAssuredVnd: 200_000_000,
-              annualPremiumVnd: 3_000_000,
-            },
-            {
-              programCode: 'BH_CHAM_SOC_SUC_KHOE',
-              insuredName: `Võ Gia Hân ${number}`,
-              insuredDob: '2016-08-20',
-              insuredGender: 'Nữ',
-              sumAssuredVnd: 100_000_000,
-              annualPremiumVnd: 1_500_000,
-            },
-          ],
-        }),
-      ],
-    });
-    await clientEditor.create(fcActor, {
-      clientCode: clientCode(2),
-      name: `Đinh Thị Mai ${number}`,
-      dob: '1992-11-02',
-      gender: 'Nữ',
-      tier: 'Bạc',
-      usesDconnect: false,
-      policies: [
-        policy(2, {
-          premiumFrequency: 'Quý',
-          basePremiumVnd: 4_500_000,
-          unpaidPremiumVnd: 4_500_000,
-          products: [
-            {
-              programCode: 'BH_TAI_NAN_CAO_CAP',
-              sumAssuredVnd: 300_000_000,
-              annualPremiumVnd: 1_200_000,
-            },
-          ],
-        }),
-      ],
-    });
-    await clientEditor.create(fcActor, {
-      clientCode: clientCode(3),
-      name: `Lý Quốc Huy ${number}`,
-      dob: '1968-01-25',
-      gender: 'Nam',
-      tier: 'Kim Cương',
-      policies: [
-        policy(3, { status: 'Mất hiệu lực', premiumDueDate: '2026-01-15' }),
-      ],
-    });
-    await clientEditor.create(workers.get('fc2')!, {
-      clientCode: clientCode(4),
+    const holder = async (
+      actor: typeof fcActor,
+      n: number,
+      person: Record<string, unknown>,
+      fields?: never,
+    ) => {
+      const { id } = await clientEditor.create(actor, {
+        policyNo: policyNo(n),
+        role: 'PO',
+        ...person,
+      } as never);
+      if (fields)
+        await clientEditor.updatePolicy(actor, id, policyNo(n), fields);
+      return id;
+    };
+    await holder(
+      fcActor,
+      1,
+      {
+        name: `Võ Thành Đạt ${number}`,
+        phone: '0909123401',
+        dob: '1984-03-15',
+        gender: 'Nam',
+        maritalStatus: 'Đã kết hôn',
+        tier: 'Vàng',
+        usesDconnect: true,
+      },
+      policy({
+        products: [
+          {
+            productCode: 'AN_TAM_SONG_HANH',
+            sumAssuredVnd: 800_000_000,
+            termYears: 20,
+            annualPremiumVnd: 18_000_000,
+          },
+          {
+            productCode: 'BH_CHAM_SOC_SUC_KHOE',
+            sumAssuredVnd: 200_000_000,
+            annualPremiumVnd: 3_000_000,
+          },
+          {
+            productCode: 'BH_CHAM_SOC_SUC_KHOE',
+            insuredName: `Võ Gia Hân ${number}`,
+            insuredDob: '2016-08-20',
+            insuredGender: 'Nữ',
+            sumAssuredVnd: 100_000_000,
+            annualPremiumVnd: 1_500_000,
+          },
+        ],
+      }),
+    );
+    for (const person of [
+      { name: `Phan Thị Lan ${number}`, dob: '1987-07-04', gender: 'Nữ' },
+      { name: `Võ Gia Hân ${number}`, dob: '2016-08-20', gender: 'Nữ' },
+    ])
+      await clientEditor.create(fcActor, {
+        policyNo: policyNo(1),
+        role: 'LI',
+        ...person,
+      } as never);
+    await holder(
+      fcActor,
+      2,
+      {
+        name: `Đinh Thị Mai ${number}`,
+        dob: '1992-11-02',
+        gender: 'Nữ',
+        tier: 'Bạc',
+        usesDconnect: false,
+      },
+      policy({
+        premiumFrequency: 'Quý',
+        basePremiumVnd: 4_500_000,
+        unpaidPremiumVnd: 4_500_000,
+        products: [
+          {
+            productCode: 'BH_TAI_NAN_CAO_CAP',
+            sumAssuredVnd: 300_000_000,
+            annualPremiumVnd: 1_200_000,
+          },
+        ],
+      }),
+    );
+    await holder(
+      fcActor,
+      3,
+      {
+        name: `Lý Quốc Huy ${number}`,
+        dob: '1968-01-25',
+        gender: 'Nam',
+        tier: 'Kim Cương',
+      },
+      policy({ status: 'Mất hiệu lực', premiumDueDate: '2026-01-15' }),
+    );
+    // A policy known only by its number so far
+    await holder(workers.get('fc2')!, 4, {
       name: `Tạ Thu Trang ${number}`,
       dob: '1995-06-30',
       gender: 'Nữ',
       tier: 'Thân thiết',
     });
-    await clientEditor.create(head, {
-      clientCode: clientCode(5),
-      name: `Hà Minh Tuấn ${number}`,
-      dob: '1979-09-09',
-      gender: 'Nam',
-      agentCode: code('03'),
-      policies: [policy(5)],
-    });
-    counts.clients += 5;
+    await holder(
+      head,
+      5,
+      {
+        name: `Hà Minh Tuấn ${number}`,
+        dob: '1979-09-09',
+        gender: 'Nam',
+        agentCode: code('03'),
+      },
+      policy(),
+    );
+    counts.clients += 7;
   }
   return counts;
 }

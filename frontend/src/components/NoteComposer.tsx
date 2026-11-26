@@ -32,7 +32,7 @@ const CONTACT_CHIPS = [
  * NOTE-3: one box, with three chips that turn the note into a contact. `path` is the lead or the
  * client (NOTE-5), which both take `/notes` and `/activities`.
  */
-export function NoteComposer({ path, onSaved }: { path: string; onSaved: () => Promise<unknown> }) {
+export function NoteComposer({ path, onSaved, notesOnly = false }: { path: string; onSaved: () => Promise<unknown>; /** A lead's supporter writes notes; recording a contact stays with whoever works the lead (26/11/2026). */ notesOnly?: boolean }) {
   const [text, setText] = useState('')
   const [chip, setChip] = useState<(typeof CONTACT_CHIPS)[number] | null>(null)
   const add = useMutation({
@@ -48,6 +48,7 @@ export function NoteComposer({ path, onSaved }: { path: string; onSaved: () => P
     <div className="mt-3">
       <Textarea aria-label={t('leads.notes')} rows={3} maxLength={4000} placeholder={t('leads.notePlaceholder')} value={text} onChange={(event) => setText(event.target.value)} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
+        {!notesOnly && (
         <Segmented
           label={t('leads.contactType')}
           value={chip?.type ?? null}
@@ -63,6 +64,7 @@ export function NoteComposer({ path, onSaved }: { path: string; onSaved: () => P
             ),
           }))}
         />
+        )}
         <Button className="ml-auto" disabled={!text.trim() || add.isPending} onClick={() => add.mutate()}>
           {t(chip ? chip.save : 'leads.addNote')}
         </Button>

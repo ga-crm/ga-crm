@@ -31,14 +31,20 @@ export const ErrorCode = {
   ProgramExists: 'program_exists',
   ProgramInUse: 'program_in_use',
   UnknownProgram: 'unknown_program',
+  /** TENANT-5: a product code that is not in the catalogue, or a hidden product. */
+  UnknownProduct: 'unknown_product',
+  /** Decided 26/11/2026: a province or commune code that does not exist, or a commune of another province. */
+  UnknownPlace: 'unknown_place',
   ProgramRepeated: 'program_repeated',
-  ClientExists: 'client_exists',
   PolicyExists: 'policy_exists',
   ClientNotYours: 'client_not_yours',
-  /** POL-2 + CUS-6: a policy entered by hand names as insured a client someone else owns. */
-  InsuredNotYours: 'insured_not_yours',
+  /** Decided 25/11/2026: a client is added on a policy outside the person's scope. */
+  PolicyNotYours: 'policy_not_yours',
+  /** CUS-11: a policy has one holder. */
+  HolderExists: 'holder_exists',
+  /** The same person (name and birth date) is already on that policy. */
+  PersonOnPolicy: 'person_on_policy',
   AgentRequired: 'agent_required',
-  InvalidClientCode: 'invalid_client_code',
   /** LEAD-32 */
   ClientAlreadyLinked: 'client_already_linked',
   /** LEAD-32: linking starts at PROPOSAL, or once the lead is won. */
@@ -140,7 +146,7 @@ export class ApiException extends HttpException {
   constructor(
     status: number,
     code: ErrorCode,
-    extra?: { issues?: Issue[]; leadId?: string; clientCode?: string },
+    extra?: { issues?: Issue[]; leadId?: string },
     /** Sent as the Retry-After header. */
     readonly retryAfterSeconds?: number,
   ) {

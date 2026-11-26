@@ -20,10 +20,10 @@ const schema = z.object({
 type Values = z.infer<typeof schema>
 
 /**
- * TASK-1 + TASK-2: a new personal task, a new client task (`clientCode`, optionally from a care
+ * TASK-1 + TASK-2: a new personal task, a new client task (`clientId`, optionally from a care
  * opportunity, SIG-2), or an existing task of any kind.
  */
-export function TaskForm({ task, clientCode, signal, defaults, onClose }: { task?: TaskItem; clientCode?: string; signal?: string; defaults?: { title: string; dueAt: string }; onClose: () => void }) {
+export function TaskForm({ task, clientId, signal, defaults, onClose }: { task?: TaskItem; clientId?: string; signal?: string; defaults?: { title: string; dueAt: string }; onClose: () => void }) {
   const refresh = useTaskRefresh()
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -34,7 +34,7 @@ export function TaskForm({ task, clientCode, signal, defaults, onClose }: { task
     mutationFn: async (values: Values) => {
       const body = { title: values.title, dueAt: fromLocalInput(values.dueAt) }
       if (task) await api.patch(`/tasks/${task.id}`, body)
-      else if (clientCode) await api.post(`/clients/${clientCode}/tasks`, { ...body, ...(signal && { signal }) })
+      else if (clientId) await api.post(`/clients/${clientId}/tasks`, { ...body, ...(signal && { signal }) })
       else await api.post('/tasks', body)
     },
     onSuccess: async (_, values) => {
@@ -46,7 +46,7 @@ export function TaskForm({ task, clientCode, signal, defaults, onClose }: { task
   const { errors } = form.formState
   return (
     <form noValidate onSubmit={form.handleSubmit((values) => save.mutate(values))}>
-      {!task && !clientCode && <p className="mb-3 text-caption text-ink-meta">{t('tasks.personalHint')}</p>}
+      {!task && !clientId && <p className="mb-3 text-caption text-ink-meta">{t('tasks.personalHint')}</p>}
       <Field label={t('tasks.taskTitle')} htmlFor="task-title" required error={errors.title?.message}>
         <Input id="task-title" maxLength={200} placeholder={t('placeholder.taskTitle')} aria-invalid={!!errors.title} {...form.register('title')} />
       </Field>
@@ -76,7 +76,7 @@ function Subject({ task }: { task: TaskItem }) {
     )
   if (task.client)
     return (
-      <Link to={`/clients/${task.client.code}`} className="text-primary hover:underline">
+      <Link to={`/clients/${task.client.id}`} className="text-primary hover:underline">
         {task.client.name}
       </Link>
     )

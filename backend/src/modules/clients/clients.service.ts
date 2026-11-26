@@ -5,13 +5,22 @@ import { normalizeName } from '../../common/normalize.js';
 import { escapeLike } from '../../common/pagination.js';
 import { Role } from '../../common/rbac.js';
 import type { Actor, Scope } from '../../common/rbac.js';
-import { and, namedParams, or, sql } from '../../core/persistence/fragment.js';
+import {
+  and,
+  namedParams,
+  or,
+  positional,
+  raw,
+  sql,
+} from '../../core/persistence/fragment.js';
 import type { Sql } from '../../core/persistence/fragment.js';
 import { rowsOf } from '../../core/persistence/sql.js';
 import { insertRows, updateRows } from '../../core/persistence/upsert.js';
 import { TenantDb } from '../../core/tenancy/tenant-db.js';
 import { AgentsService } from '../agents/agents.service.js';
 import { AuditAction, AuditService } from '../audit/audit.service.js';
+import { ProductsService } from '../products/products.service.js';
+import { toProductView } from '../products/product.entity.js';
 import {
   coverageGroup,
   listFlags,
@@ -22,6 +31,7 @@ import type { ListSignal } from './client-insights.js';
 import { deriveLinks, isActiveStatus } from './client-links.js';
 import { policyDeletable } from './client-rules.js';
 import type { ListClientsQueryDto } from './clients.dto.js';
+import { refId } from '../imports/success-plan.js';
 import type { SuccessPlan } from '../imports/success-plan.js';
 import {
   Application,
@@ -38,7 +48,7 @@ const NOT_IMPORTED = [
   'createdAt',
   'origin',
   'createdBy',
-  'clientCodes',
+  'clientIds',
 ];
 const imported = (fields: Record<string, unknown>) =>
   Object.fromEntries(
@@ -58,8 +68,37 @@ export const policiesSeen = (reach: Reach): Sql | null =>
   reach.all ? null : sql`p.current_agent_codes && ${reach.codes}::text[]`;
 
 /** Policies (alias `p`) naming any of these clients, in any role, ended links included. */
-export const policiesNaming = (codes: readonly string[]): Sql =>
-  sql`p.client_codes && ${[...codes]}::text[]`;
+export const policiesNaming = (clientIds: readonly string[]): Sql =>
+  sql`p.client_ids && ${[...clientIds]}::uuid[]`;
+
+/** The people still on a policy, each with their roles (CUS-11): ended links left out. */
+export const peopleOn = (policy: Pick<Policy, 'clients'>) => {
+  const roles = new Map<string, Set<string>>();
+  for (const link of policy.clients) {
+    if (link.endedAt) continue;
+    const held = roles.get(link.clientId) ?? new Set<string>();
+    held.add(link.role);
+    roles.set(link.clientId, held);
+  }
+  return roles;
+};
+
+/**
+ * Decided 25/11/2026: a policy's sum assured is that of its main product line (role "Chính",
+ * the catalogue's role when it knows the product) for the main insured.
+ */
+export const mainSumAssured = (
+  policy: Pick<Policy, 'insuredClientId' | 'products'>,
+  catalogue: ReadonlyMap<string, { productRole: string }>,
+): number | null =>
+  policy.products.find(
+    (line) =>
+      (catalogue.get(line.productCode)?.productRole ?? line.productRole) ===
+        'Chính' &&
+      (!line.insuredClientId ||
+        line.insuredClientId === policy.insuredClientId) &&
+      line.sumAssuredVnd != null,
+  )?.sumAssuredVnd ?? null;
 
 @Injectable()
 export class ClientsService {
@@ -67,6 +106,7 @@ export class ClientsService {
     private readonly tenantDb: TenantDb,
     private readonly agents: AgentsService,
     private readonly audit: AuditService,
+    private readonly products: ProductsService,
   ) {}
 
   private scopeOf(actor: Actor): Scope {
@@ -112,7 +152,7 @@ export class ClientsService {
   /** CMT-5: whether someone (the actor or a user being mentioned) sees this client (CUS-5). */
   async visibleTo(
     actor: Actor,
-    clientCode: string,
+    clientId: string,
     db?: EntityManager,
   ): Promise<boolean> {
     if (!actor.tenantId || actor.reach === 'NONE') return false;
@@ -125,7 +165,7 @@ export class ClientsService {
           (await this.clients(
             tx,
             scope,
-            and(sql`c.client_code = ${clientCode}`, clientsSeen(reach)),
+            and(sql`c.id = ${clientId}`, clientsSeen(reach)),
           ).getCount()) > 0
         );
       },
@@ -134,8 +174,35 @@ export class ClientsService {
   }
 
   /**
+   * The client id behind each Success code the import names (`clients.success_code`), and behind
+   * each `id:<id>` the planner uses for a stored person without one. Unknown codes are left out.
+   */
+  async idsOfCodes(
+    scope: Scope,
+    codes: readonly string[],
+    db: EntityManager,
+  ): Promise<Map<string, string>> {
+    const ids = new Map<string, string>();
+    const real: string[] = [];
+    for (const code of new Set(codes)) {
+      const id = refId(code);
+      if (id) ids.set(code, id);
+      else real.push(code);
+    }
+    if (real.length > 0)
+      for (const row of await rowsOf<{ id: string; success_code: string }>(
+        db,
+        `SELECT id, success_code FROM clients WHERE tenant_id = $1 AND success_code = ANY($2::text[])`,
+        [scope.tenantId, real],
+      ))
+        ids.set(row.success_code, row.id);
+    return ids;
+  }
+
+  /**
    * Section 12.1, IMP-3 step 5: writes sheets 02-05 of a Success file inside the commit transaction,
-   * then works out the links of every client it touched.
+   * then works out the links of every client it touched. The plan names people by the file's
+   * codes; they are written as client ids (decided 25/11/2026).
    */
   async applyImport(
     plan: SuccessPlan,
@@ -154,10 +221,16 @@ export class ClientsService {
       ownerAgentCodes: [],
       createdAt: now,
     };
+    // A client added by hand takes the code the file gives them on their policy
+    for (const { clientCode, clientId } of plan.adoptions)
+      await db.query(
+        `UPDATE clients SET success_code = $3 WHERE tenant_id = $1 AND id = $2 AND success_code IS NULL`,
+        [tenantId, clientId, clientCode],
+      );
     // MAN-8 + CUS-3: every column the sheet has is overwritten, and the phone is never touched
     const clientRows = plan.clients.map(({ clientCode, set }) => ({
       ...set,
-      clientCode,
+      successCode: clientCode,
       ...stamp,
     }));
     await insertRows(
@@ -168,7 +241,7 @@ export class ClientsService {
         .map((item) => ({
           ...fresh,
           ...item.set,
-          clientCode: item.clientCode,
+          successCode: item.clientCode,
           ...stamp,
         })),
       { ignoreExisting: true },
@@ -177,7 +250,7 @@ export class ClientsService {
       db,
       Client,
       tenantId,
-      'clientCode',
+      'successCode',
       clientRows.filter((_, index) => !plan.clients[index].isNew),
     );
     // CUS-1: holders and applicants the file names without a 02_Clients row
@@ -186,7 +259,7 @@ export class ClientsService {
       Client,
       plan.implicitClients.map(({ clientCode, name }) => ({
         ...fresh,
-        clientCode,
+        successCode: clientCode,
         name,
         nameNorm: normalizeName(name),
         ...stamp,
@@ -199,16 +272,75 @@ export class ClientsService {
       await db.query(
         `UPDATE clients SET agent_links = agent_links || jsonb_build_array(
             jsonb_build_object('agentCode', $3::text, 'source', $4::text, 'createdAt', $5::timestamptz))
-          WHERE tenant_id = $1 AND client_code = $2
+          WHERE tenant_id = $1 AND success_code = $2
             AND NOT agent_links @> jsonb_build_array(jsonb_build_object('agentCode', $3::text, 'source', $4::text))`,
         [tenantId, clientCode, link.agentCode, link.source, now],
       );
     }
 
-    const policies = plan.policies.map(({ isNew, state }) => ({
-      isNew,
-      row: { ...imported(state), ...stamp },
-    }));
+    // Everyone a policy names is a client (an insured child included), so each gets an id
+    const named = new Map<string, string>();
+    const name = (code: unknown, label?: unknown) => {
+      if (typeof code !== 'string' || !code || refId(code)) return;
+      if (!named.get(code) && typeof label === 'string')
+        named.set(code, label);
+      else if (!named.has(code)) named.set(code, '');
+    };
+    for (const { state } of plan.policies) {
+      name(state.holderClientCode, state.holderName);
+      name(state.insuredClientCode, state.insuredName);
+      for (const link of state.clients) name(link.clientCode);
+      for (const product of state.products) name(product.insuredCode);
+    }
+    for (const { set } of plan.applications) name(set.clientCode, set.holderName);
+    let idOf = await this.idsOfCodes(scope, [...named.keys()], db);
+    const missing = [...named].filter(([code]) => !idOf.has(code));
+    if (missing.length > 0) {
+      await insertRows(
+        db,
+        Client,
+        missing.map(([code, label]) => ({
+          ...fresh,
+          successCode: code,
+          name: label,
+          nameNorm: normalizeName(label),
+          ...stamp,
+        })),
+        { ignoreExisting: true },
+      );
+      idOf = await this.idsOfCodes(scope, [...named.keys()], db);
+    }
+    const idFor = (code: unknown) =>
+      typeof code === 'string' && code
+        ? (refId(code) ?? idOf.get(code) ?? null)
+        : null;
+
+    const policies = plan.policies.map(({ isNew, state }) => {
+      const {
+        holderClientCode,
+        insuredClientCode,
+        clients,
+        products,
+        ...rest
+      } = state;
+      return {
+        isNew,
+        row: {
+          ...imported(rest),
+          holderClientId: idFor(holderClientCode),
+          insuredClientId: idFor(insuredClientCode),
+          clients: clients.map(({ clientCode, ...link }) => ({
+            ...link,
+            clientId: idFor(clientCode)!,
+          })),
+          products: products.map(({ insuredCode, ...line }) => {
+            const id = idFor(insuredCode);
+            return id ? { ...line, insuredClientId: id } : line;
+          }),
+          ...stamp,
+        },
+      };
+    });
     await insertRows(
       db,
       Policy,
@@ -230,10 +362,19 @@ export class ClientsService {
     );
 
     const applications = plan.applications.map(
-      ({ applicationNo, isNew, set }) => ({
-        isNew,
-        row: { ...set, applicationNo, lastImportId: importId, lastSeenAt: now },
-      }),
+      ({ applicationNo, isNew, set }) => {
+        const { clientCode, ...fields } = set;
+        return {
+          isNew,
+          row: {
+            ...fields,
+            ...(clientCode !== undefined && { clientId: idFor(clientCode) }),
+            applicationNo,
+            lastImportId: importId,
+            lastSeenAt: now,
+          },
+        };
+      },
     );
     await insertRows(
       db,
@@ -250,57 +391,58 @@ export class ClientsService {
       applications.filter((item) => !item.isNew).map((item) => item.row),
     );
 
-    await this.recomputeLinks(scope, plan.touchedClients, now, db);
+    const touched = await this.idsOfCodes(scope, plan.touchedClients, db);
+    await this.recomputeLinks(scope, [...touched.values()], now, db);
   }
 
   /** CUS-4: links from policies, applications and linked leads follow the data; stored links stay. */
   async recomputeLinks(
     scope: Scope,
-    clientCodes: readonly string[],
+    clientIds: readonly string[],
     now: Date,
     db: EntityManager,
   ): Promise<void> {
-    const codes = [...new Set(clientCodes)];
-    if (codes.length === 0) return;
+    const ids = [...new Set(clientIds)];
+    if (ids.length === 0) return;
     const clients = await this.clients(
       db,
       scope,
-      sql`c.client_code = ANY(${codes}::text[])`,
+      sql`c.id = ANY(${ids}::uuid[])`,
     )
-      .select(['c.id', 'c.clientCode', 'c.agentLinks'])
+      .select(['c.id', 'c.agentLinks'])
       .getMany();
-    const policies = await this.policies(db, scope, policiesNaming(codes))
+    const policies = await this.policies(db, scope, policiesNaming(ids))
       .select(['p.id', 'p.currentAgentCodes', 'p.clients'])
       .getMany();
     const applications = await this.applications(
       db,
       scope,
-      sql`a.client_code = ANY(${codes}::text[])`,
+      sql`a.client_id = ANY(${ids}::uuid[])`,
     )
-      .select(['a.id', 'a.clientCode', 'a.agentCode'])
+      .select(['a.id', 'a.clientId', 'a.agentCode'])
       .getMany();
     // LEAD-32: the assignee of a linked lead sees and owns the client
     const leads = await rowsOf<{
-      client_code: string;
+      client_id: string;
       assigned_agent_code: string | null;
     }>(
       db,
-      `SELECT client_code, assigned_agent_code FROM leads
-        WHERE tenant_id = $1 AND client_code = ANY($2::text[]) AND link_status = 'CONFIRMED'`,
-      [scope.tenantId, codes],
+      `SELECT client_id, assigned_agent_code FROM leads
+        WHERE tenant_id = $1 AND client_id = ANY($2::uuid[]) AND link_status = 'CONFIRMED'`,
+      [scope.tenantId, ids],
     );
     for (const client of clients) {
       const derived = deriveLinks({
-        clientCode: client.clientCode,
+        clientId: client.id,
         stored: client.agentLinks ?? [],
         policies: policies.filter((policy) =>
-          policy.clients.some((link) => link.clientCode === client.clientCode),
+          policy.clients.some((link) => link.clientId === client.id),
         ),
         applications: applications.filter(
-          (item) => item.clientCode === client.clientCode,
+          (item) => item.clientId === client.id,
         ),
         leads: leads
-          .filter((lead) => lead.client_code === client.clientCode)
+          .filter((lead) => lead.client_id === client.id)
           .map((lead) => ({ assignedAgentCode: lead.assigned_agent_code })),
         now,
       });
@@ -373,7 +515,7 @@ export class ClientsService {
     // Premium and debt signals belong to the holder; maturity and lapse to anyone on the policy
     const roles =
       signal === 'due' || signal === 'debt' ? ['PO'] : ['PO', 'LI', 'BEN'];
-    const codes = new Set<string>();
+    const ids = new Set<string>();
     for (const policy of policies) {
       if (
         (signal === 'due' || signal === 'maturity') &&
@@ -381,13 +523,10 @@ export class ClientsService {
       )
         continue;
       for (const link of policy.clients)
-        if (!link.endedAt && roles.includes(link.role))
-          codes.add(link.clientCode);
+        if (!link.endedAt && roles.includes(link.role)) ids.add(link.clientId);
     }
-    const byCode = sql`c.client_code = ANY(${[...codes]}::text[])`;
-    return signal === 'lapsed'
-      ? or(byCode, sql`c.lapsed_policies > 0`)
-      : byCode;
+    const byId = sql`c.id = ANY(${[...ids]}::uuid[])`;
+    return signal === 'lapsed' ? or(byId, sql`c.lapsed_policies > 0`) : byId;
   }
 
   /** SIG-1: the count of every tab, 0 when there is none. */
@@ -431,7 +570,10 @@ export class ClientsService {
           digits.length >= 3
             ? or(
                 name,
-                sql`c.client_code LIKE ${`${digits}%`}`,
+                // Decided 25/11/2026: a policy number lists everyone on that policy
+                sql`EXISTS (SELECT 1 FROM policies p
+                             WHERE p.tenant_id = c.tenant_id AND p.client_ids @> ARRAY[c.id]
+                               AND p.policy_no LIKE ${`${digits}%`})`,
                 sql`c.phone LIKE ${`%${digits}%`}`,
               )
             : name;
@@ -445,17 +587,16 @@ export class ClientsService {
       );
       const [items, total] = await this.clients(db, scope, where)
         .orderBy('c.nameNorm', 'ASC')
-        .addOrderBy('c.clientCode', 'ASC')
+        .addOrderBy('c.id', 'ASC')
         .skip((query.page - 1) * query.pageSize)
         .take(query.pageSize)
         .getManyAndCount();
 
-      const codes = items.map((client) => client.clientCode);
       const policies = await this.visiblePolicies(
         db,
         scope,
         reach,
-        policiesNaming(codes),
+        policiesNaming(items.map((client) => client.id)),
       );
       const agentNames = await this.agents.namesByCode(
         scope,
@@ -466,7 +607,7 @@ export class ClientsService {
         items: items.map((client) => {
           const mine = policies.filter((policy) =>
             policy.clients.some(
-              (link) => link.clientCode === client.clientCode && !link.endedAt,
+              (link) => link.clientId === client.id && !link.endedAt,
             ),
           );
           const active = mine.filter((policy) => isActiveStatus(policy.status));
@@ -475,18 +616,23 @@ export class ClientsService {
             active
               .filter(
                 (policy) =>
-                  policy.holderClientCode === client.clientCode &&
+                  policy.holderClientId === client.id &&
                   policy.premiumDueDate &&
                   policy.premiumDueDate >= today,
               )
               .map((policy) => policy.premiumDueDate!)
               .sort()[0] ?? null;
           return {
-            clientCode: client.clientCode,
+            id: client.id,
             name: client.name,
             phone: client.phone,
             tier: client.tier,
             ageBand: client.ageBand,
+            // The policies the client is on and in which role, shown under the name
+            policies: mine.map((policy) => ({
+              policyNo: policy.policyNo,
+              roles: [...(peopleOn(policy).get(client.id) ?? [])],
+            })),
             gender: client.gender,
             activePolicies: active.length,
             nextDue,
@@ -515,6 +661,70 @@ export class ClientsService {
     });
   }
 
+  /**
+   * TENANT-5: a product of the catalogue and, for someone with a client book, the policies in their
+   * scope (CUS-8) that carry it, each with the people on it. Marketing and Admin see the product only.
+   */
+  async product(actor: Actor, code: string) {
+    const scope = this.scopeOf(actor);
+    return this.tenantDb.run(scope, async (db) => {
+      const product = (await this.products.byCode(db, [code])).get(code);
+      if (!product) throw notFound();
+      if (actor.reach === 'NONE')
+        return { product: toProductView(product), policies: null };
+      const reach = await this.reach(actor, db);
+      const policies = await this.policies(
+        db,
+        scope,
+        and(
+          sql`p.products @> ${JSON.stringify([{ productCode: code }])}::jsonb`,
+          policiesSeen(reach),
+        ),
+      )
+        .orderBy('p.effectiveDate', 'DESC', 'NULLS LAST')
+        .addOrderBy('p.policyNo', 'ASC')
+        .take(200)
+        .getMany();
+      const ids = [
+        ...new Set(policies.flatMap((policy) => [...peopleOn(policy).keys()])),
+      ];
+      const people = await rowsOf<{ id: string; name: string; seen: boolean }>(
+        db,
+        ...positional(
+          sql`SELECT c.id, c.name, ${clientsSeen(reach) ?? raw('TRUE')} AS seen FROM clients c
+               WHERE c.tenant_id = ${scope.tenantId} AND c.id = ANY(${ids}::uuid[])`,
+        ),
+      );
+      const personById = new Map(people.map((person) => [person.id, person]));
+      return {
+        product: toProductView(product),
+        policies: policies.map((policy) => ({
+          policyNo: policy.policyNo,
+          status: policy.status,
+          active: isActiveStatus(policy.status),
+          effectiveDate: policy.effectiveDate,
+          people: [...peopleOn(policy)].map(([id, roles]) => ({
+            clientId: personById.get(id)?.seen ? id : null,
+            name: personById.get(id)?.name ?? '',
+            roles: [...roles],
+          })),
+          // The lines of this product: who it insures and for how much
+          lines: policy.products
+            .filter((line) => line.productCode === code)
+            .map((line) => ({
+              insuredName: line.insuredClientId
+                ? (personById.get(line.insuredClientId)?.name ??
+                  line.insuredName ??
+                  null)
+                : (line.insuredName ?? policy.insuredName),
+              sumAssuredVnd: line.sumAssuredVnd ?? null,
+              annualPremiumVnd: line.annualPremiumVnd ?? null,
+            })),
+        })),
+      };
+    });
+  }
+
   /** CUS-8: only policies the viewer may see, with every agent and share on them. */
   visiblePolicies(
     db: EntityManager,
@@ -523,20 +733,60 @@ export class ClientsService {
     where: Sql,
   ): Promise<Policy[]> {
     return this.policies(db, scope, and(where, policiesSeen(reach)))
-      .orderBy('p.effectiveDate', 'DESC')
+      .orderBy('p.effectiveDate', 'DESC', 'NULLS LAST')
       .addOrderBy('p.policyNo', 'ASC')
       .getMany();
   }
 
   /** CUS-15, first tab. Opening a client is audited (CUS-9). TEN-3: unseen and foreign look missing. */
-  async detail(actor: Actor, clientCode: string) {
+  /**
+   * The policy's contact address, for someone who may open the client and the policy (CUS-5,
+   * CUS-8). Personal data, so every reveal is audited (decided 25/11/2026).
+   */
+  async contactAddress(
+    actor: Actor,
+    clientId: string,
+    policyNo: string,
+  ): Promise<{ contactAddress: string | null }> {
     const scope = this.scopeOf(actor);
     return this.tenantDb.run(scope, async (db) => {
       const reach = await this.reach(actor, db);
       const client = await this.clients(
         db,
         scope,
-        and(sql`c.client_code = ${clientCode}`, clientsSeen(reach)),
+        and(sql`c.id = ${clientId}`, clientsSeen(reach)),
+      ).getOne();
+      if (!client) throw notFound();
+      const [policy] = await this.visiblePolicies(
+        db,
+        scope,
+        reach,
+        and(sql`p.policy_no = ${policyNo}`, policiesNaming([clientId])),
+      );
+      if (!policy) throw notFound();
+      await this.audit.record(
+        {
+          tenantId: scope.tenantId,
+          userId: actor.id,
+          action: AuditAction.ViewClient,
+          entity: 'policy',
+          entityId: policyNo,
+          meta: { clientId, field: 'contactAddress' },
+        },
+        db,
+      );
+      return { contactAddress: policy.contactAddress };
+    });
+  }
+
+  async detail(actor: Actor, clientId: string) {
+    const scope = this.scopeOf(actor);
+    return this.tenantDb.run(scope, async (db) => {
+      const reach = await this.reach(actor, db);
+      const client = await this.clients(
+        db,
+        scope,
+        and(sql`c.id = ${clientId}`, clientsSeen(reach)),
       ).getOne();
       if (!client) throw notFound();
 
@@ -544,13 +794,13 @@ export class ClientsService {
         db,
         scope,
         reach,
-        policiesNaming([clientCode]),
+        policiesNaming([clientId]),
       );
       const applications = await this.applications(
         db,
         scope,
         and(
-          sql`a.client_code = ${clientCode}`,
+          sql`a.client_id = ${clientId}`,
           !reach.all && sql`a.agent_code = ANY(${reach.codes}::text[])`,
         ),
       )
@@ -562,24 +812,35 @@ export class ClientsService {
         for (const agent of policy.agents) agentCodes.add(agent.agentCode);
       for (const application of applications)
         agentCodes.add(application.agentCode);
-      const peopleCodes = new Set<string>();
+      const peopleIds = new Set<string>();
       for (const policy of policies) {
-        for (const link of policy.clients) peopleCodes.add(link.clientCode);
+        for (const link of policy.clients) peopleIds.add(link.clientId);
         for (const product of policy.products)
-          if (product.insuredCode) peopleCodes.add(product.insuredCode);
+          if (product.insuredClientId) peopleIds.add(product.insuredClientId);
       }
       const agentNames = await this.agents.namesByCode(
         scope,
         [...agentCodes],
         db,
       );
-      const people = await rowsOf<{ client_code: string; name: string }>(
+      // TENANT-5: the catalogue names the products and decides their benefit group (COV-3)
+      const catalogue = await this.products.byCode(db, [
+        ...policies.flatMap((policy) =>
+          policy.products.map((product) => product.productCode),
+        ),
+        ...applications.flatMap((item) => item.productCode ?? []),
+      ]);
+      // The people on these policies, and whether the viewer may open each one (CUS-5)
+      const people = await rowsOf<{ id: string; name: string; seen: boolean }>(
         db,
-        `SELECT client_code, name FROM clients WHERE tenant_id = $1 AND client_code = ANY($2::text[])`,
-        [scope.tenantId, [...peopleCodes]],
+        ...positional(
+          sql`SELECT c.id, c.name, ${clientsSeen(reach) ?? raw('TRUE')} AS seen FROM clients c
+               WHERE c.tenant_id = ${scope.tenantId} AND c.id = ANY(${[...peopleIds]}::uuid[])`,
+        ),
       );
+      const personById = new Map(people.map((person) => [person.id, person]));
       const clientNames = Object.fromEntries(
-        people.map((person) => [person.client_code, person.name]),
+        people.map((person) => [person.id, person.name]),
       );
 
       await this.audit.record(
@@ -588,7 +849,7 @@ export class ClientsService {
           userId: actor.id,
           action: AuditAction.ViewClient,
           entity: 'client',
-          entityId: clientCode,
+          entityId: client.id,
         },
         db,
       );
@@ -599,7 +860,7 @@ export class ClientsService {
         (!!actor.agentCode && client.ownerAgentCodes.includes(actor.agentCode));
       return {
         client: {
-          clientCode: client.clientCode,
+          id: client.id,
           name: client.name,
           phone: client.phone,
           tier: client.tier,
@@ -626,18 +887,17 @@ export class ClientsService {
           policyNo: policy.policyNo,
           status: policy.status,
           active: isActiveStatus(policy.status),
-          roles: [
-            ...new Set(
-              policy.clients
-                .filter(
-                  (link) => link.clientCode === clientCode && !link.endedAt,
-                )
-                .map((link) => link.role),
-            ),
-          ],
-          holderClientCode: policy.holderClientCode,
+          roles: [...(peopleOn(policy).get(clientId) ?? [])],
+          // Everyone on the policy and their roles; only people the viewer sees can be opened
+          people: [...peopleOn(policy)].map(([id, roles]) => ({
+            clientId: personById.get(id)?.seen ? id : null,
+            name: personById.get(id)?.name ?? '',
+            roles: [...roles],
+            self: id === clientId,
+          })),
+          holderClientId: policy.holderClientId,
           holderName: policy.holderName,
-          insuredClientCode: policy.insuredClientCode,
+          insuredClientId: policy.insuredClientId,
           insuredName: policy.insuredName,
           effectiveDate: policy.effectiveDate,
           maturityDate: policy.maturityDate,
@@ -648,6 +908,18 @@ export class ClientsService {
           unpaidPremiumVnd: policy.unpaidPremiumVnd,
           aplDebtVnd: policy.aplDebtVnd,
           hasBeneficiary: policy.hasBeneficiary,
+          // Personal data: only whether there is one; the address itself needs the audited reveal
+          hasContactAddress: !!policy.contactAddress,
+          // The main product's sum assured, else the policy's own (decided 25/11/2026)
+          mainSumAssuredVnd: mainSumAssured(policy, catalogue),
+          sumAssuredVnd: policy.sumAssuredVnd,
+          graceEndDate: policy.graceEndDate,
+          assignmentType: policy.assignmentType,
+          assignmentDate: policy.assignmentDate,
+          advancePremiumVnd: policy.advancePremiumVnd,
+          totalPaidPremiumVnd: policy.totalPaidPremiumVnd,
+          basicPremiumVnd: policy.basicPremiumVnd,
+          topUpPremiumVnd: policy.topUpPremiumVnd,
           servicingAgentCode: policy.servicingAgentCode,
           // CUS-8: every current agent and share, so a split policy reads the same for all of them
           agents: policy.agents
@@ -662,14 +934,20 @@ export class ClientsService {
             productCode: product.productCode,
             productName: product.productName ?? null,
             productRole: product.productRole,
-            // COV-3
-            group: coverageGroup(product),
-            // PRD-3: blank is the main insured; a GA-entered name wins when there is one
-            insuredCode: product.insuredCode || null,
+            // COV-3, with the catalogue's category when the product is in it
+            group: coverageGroup({
+              ...product,
+              category: catalogue.get(product.productCode)?.category,
+            }),
+            // TENANT-5: the catalogue's name, and whether the product page exists
+            catalogueName:
+              catalogue.get(product.productCode)?.productName ?? null,
+            // PRD-3: none is the main insured; a GA-entered name wins when there is one
+            insuredClientId: product.insuredClientId ?? null,
             insuredName:
               product.insuredName ??
-              (product.insuredCode
-                ? (clientNames[product.insuredCode] ?? null)
+              (product.insuredClientId
+                ? (clientNames[product.insuredClientId] ?? null)
                 : policy.insuredName),
             sumAssuredVnd: product.sumAssuredVnd ?? null,
             annualPremiumVnd: product.annualPremiumVnd ?? null,
@@ -692,6 +970,9 @@ export class ClientsService {
           issuedDate: application.issuedDate,
           status: application.status,
           productCode: application.productCode,
+          productName: application.productCode
+            ? (catalogue.get(application.productCode)?.productName ?? null)
+            : null,
           apeVnd: application.apeVnd,
         })),
         clientNames,

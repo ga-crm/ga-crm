@@ -5,6 +5,7 @@ import {
   Interaction,
   Lead,
   LeadHistory,
+  LeadSupporter,
   LeadOption,
   SavedFilter,
   Task,
@@ -17,6 +18,8 @@ import {
   Application,
   Client,
   FamilyLink,
+  ClientCareRecord,
+  ClientReferral,
   InsuranceProgram,
   Policy,
   RecordChange,
@@ -43,6 +46,7 @@ import { Tenant } from '../../modules/tenants/infrastructure/tenant.entity.js';
 import { User } from '../../modules/users/infrastructure/user.entity.js';
 import { IdempotencyKey } from '../persistence/idempotency-key.entity.js';
 import { OutboxMessage } from '../persistence/outbox-message.entity.js';
+import { Product } from '../../modules/products/product.entity.js';
 
 /** Every entity, listed rather than globbed. A module adds its own here when it moves over. */
 export const ENTITIES = [
@@ -61,6 +65,7 @@ export const ENTITIES = [
   LeadOption,
   Lead,
   LeadHistory,
+  LeadSupporter,
   Interaction,
   Comment,
   Task,
@@ -71,7 +76,10 @@ export const ENTITIES = [
   Policy,
   Application,
   FamilyLink,
+  ClientCareRecord,
+  ClientReferral,
   InsuranceProgram,
+  Product,
   RecordChange,
   Import,
   ImportError,

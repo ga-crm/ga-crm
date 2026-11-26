@@ -121,7 +121,7 @@ export function stageFromSuccess(
       policyNo?: string | null;
     }[];
     /** Policies the client holds (PO). */
-    policies: readonly { policyNo: string; effectiveDate: string }[];
+    policies: readonly { policyNo: string; effectiveDate: string | null }[];
   },
 ): { stage: LeadStage; applicationNo?: string; policyNo?: string } | null {
   if (lead.stage === 'LOST') return null;
@@ -138,7 +138,8 @@ export function stageFromSuccess(
     data.policies.find(
       (item) =>
         item.policyNo === issuedApplication?.policyNo ||
-        item.effectiveDate >= lead.leadDate,
+        // A policy known only by its number has no date yet, so it moves nothing
+        (!!item.effectiveDate && item.effectiveDate >= lead.leadDate),
     );
   const target: LeadStage | null =
     issuedApplication || policy

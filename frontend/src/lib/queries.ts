@@ -1,7 +1,7 @@
 import { infiniteQueryOptions, keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { api, ApiError } from './api'
 import type { LeadColumn } from './leadImport'
-import type { AgentDetail, AgentNode, ActivitySummary, AiSettings, AuditItem, CalendarData, ChatConversation, ChatConversationItem, ChatMember, ChatMessagePage, ChatPerson, ChatReviewItem, ChatSearchHit, DepartedWork, CampaignDetail, CampaignRow, ClientCounts, ClientDetail, ClientRow, Dashboard, DeletedLead, DevAccount, GaSettings, Grants, ImportDetail, ImportProblem, ImportSummary, InsuranceProgram, LeadBoard, LeadCounts, LeadDetail, LeadOption, LeadRow, LinkSuggestion, Me, MentionCandidate, NotificationPage, NotificationPref, Page, PlatformSettings, Presence, PublicFormDefinition, ReportData, ReportName, SavedFilter, TaskItem, Tenant, TodayData, User } from './types'
+import type { ActivityDetails, AgentDetail, AgentNode, ActivitySummary, AiSettings, AuditItem, CalendarData, ChatConversation, ChatConversationItem, ChatMember, ChatMessagePage, ChatPerson, ChatReviewItem, ChatSearchHit, DepartedWork, CampaignDetail, CampaignRow, ClientCounts, ClientDetail, ClientRow, Dashboard, DeletedLead, DevAccount, GaSettings, Grants, ImportDetail, ImportProblem, ImportSummary, LeadBoard, LeadCounts, LeadDetail, LeadOption, LeadRow, LinkSuggestion, Me, MentionCandidate, NotificationPage, NotificationPref, Page, Place, PlatformSettings, Presence, Product, ProductDetail, ProductView, PublicFormDefinition, ReportData, ReportName, SavedFilter, TaskItem, Tenant, TodayData, User } from './types'
 import { pollInterval } from './realtimeStatus'
 
 /** Every query key and request of the app, so invalidating a group cannot miss a screen. */
@@ -19,7 +19,7 @@ export const keys = {
   leadOptions: ['leadOptions'] as const,
   gaSettings: ['gaSettings'] as const,
   clients: ['clients'] as const,
-  programs: ['programs'] as const,
+  products: ['products'] as const,
   campaigns: ['campaigns'] as const,
   reports: ['reports'] as const,
   tasks: ['tasks'] as const,
@@ -310,7 +310,7 @@ export const queries = {
       gcTime: 0,
     }),
 
-  /** CMT-5: people who see a lead or client, for the @ picker. `path` is `/leads/{id}` or `/clients/{code}`. */
+  /** CMT-5: people who see a lead or client, for the @ picker. `path` is `/leads/{id}` or `/clients/{id}`. */
   mentionable: (path: string, q: string) =>
     queryOptions({
       queryKey: ['mentionable', path, q],
@@ -362,6 +362,23 @@ export const queries = {
     }),
 
   /** Chapter 13: one report for one period. */
+  /** Decided 26/11/2026: people who could support a lead, for whoever may add supporters. */
+  leadSupporterCandidates: (leadId: string, q: string) =>
+    queryOptions({
+      queryKey: [...keys.leads, 'supporter-candidates', leadId, q],
+      queryFn: ({ signal }) => api.get<{ items: { id: string; name: string; agentCode: string | null }[] }>(`/leads/${leadId}/supporters/candidates`, q ? { q } : undefined, { signal }),
+      placeholderData: keepPreviousData,
+      staleTime: 30_000,
+    }),
+
+  /** R2 (26/11/2026): the activities behind one number. */
+  activityDetails: (params: { from: string; to: string; agents: string; type?: string; source?: string }) =>
+    queryOptions({
+      queryKey: [...keys.reports, 'activity-details', params],
+      queryFn: ({ signal }) => api.get<ActivityDetails>('/reports/activities/details', params, { signal }),
+      staleTime: 60_000,
+    }),
+
   report: (name: ReportName, params: { from: string; to: string; groupBy?: string }) =>
     queryOptions({
       queryKey: [...keys.reports, name, params],
@@ -395,12 +412,44 @@ export const queries = {
       staleTime: 5 * 60_000,
     }),
 
-  /** PRG-3: everyone in the GA reads the programme catalogue, hidden ones included. */
-  programs: () =>
+  /** TENANT-5: the shared product catalogue, shown products only, by name. */
+  /** Decided 26/11/2026: fixed reference data, so it is kept for the session. */
+  provinces: () =>
     queryOptions({
-      queryKey: keys.programs,
-      queryFn: ({ signal }) => api.get<{ items: InsuranceProgram[] }>('/programs', undefined, { signal }),
+      queryKey: ['geo', 'provinces'],
+      queryFn: ({ signal }) => api.get<{ items: Place[] }>('/geo/provinces', undefined, { signal }),
+      staleTime: Infinity,
+      gcTime: Infinity,
+    }),
+
+  wards: (provinceCode: string) =>
+    queryOptions({
+      queryKey: ['geo', 'wards', provinceCode],
+      queryFn: ({ signal }) => api.get<{ items: Place[] }>(`/geo/provinces/${provinceCode}/wards`, undefined, { signal }),
+      staleTime: Infinity,
+    }),
+
+  products: () =>
+    queryOptions({
+      queryKey: [...keys.products, 'shown'],
+      queryFn: ({ signal }) => api.get<{ items: ProductView[] }>('/products', undefined, { signal }),
       staleTime: 5 * 60_000,
+    }),
+
+  /** TENANT-5: one product and the policies in the viewer's scope that carry it. */
+  product: (code: string) =>
+    queryOptions({
+      queryKey: [...keys.products, 'detail', code],
+      queryFn: ({ signal }) => api.get<ProductDetail>(`/products/${encodeURIComponent(code)}`, undefined, { signal }),
+      staleTime: 0,
+      retry: (count, error) => !(error instanceof ApiError && [400, 404].includes(error.status)) && count < 2,
+    }),
+
+  /** TENANT-5: PLATFORM_ADMIN only; every product, hidden ones too. */
+  platformProducts: () =>
+    queryOptions({
+      queryKey: [...keys.products, 'platform'],
+      queryFn: ({ signal }) => api.get<{ items: Product[] }>('/platform/products', undefined, { signal }),
     }),
 
   /** CUS-14 */
@@ -429,12 +478,22 @@ export const queries = {
     }),
 
   /** CUS-15. Each visit is audited (CUS-9), so it is not served from a long cache. */
-  client: (code: string) =>
+  client: (id: string) =>
     queryOptions({
-      queryKey: [...keys.clients, 'detail', code],
-      queryFn: ({ signal }) => api.get<ClientDetail>(`/clients/${code}`, undefined, { signal }),
+      queryKey: [...keys.clients, 'detail', id],
+      queryFn: ({ signal }) => api.get<ClientDetail>(`/clients/${id}`, undefined, { signal }),
       staleTime: 0,
-      retry: (count, error) => !(error instanceof ApiError && (error.status === 404 || error.status === 403)) && count < 2,
+      retry: (count, error) => !(error instanceof ApiError && [400, 403, 404].includes(error.status)) && count < 2,
+    }),
+
+  /** A policy's contact address: personal data, each read is audited, so it is never cached. */
+  policyAddress: (clientId: string, policyNo: string) =>
+    queryOptions({
+      queryKey: [...keys.clients, 'address', clientId, policyNo],
+      queryFn: ({ signal }) => api.get<{ contactAddress: string | null }>(`/clients/${clientId}/policies/${policyNo}/contact-address`, undefined, { signal }),
+      staleTime: 0,
+      gcTime: 0,
+      retry: false,
     }),
 
   /** USER-16: PLATFORM_ADMIN only; the switches above every GA's own settings. */

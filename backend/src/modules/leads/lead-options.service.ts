@@ -67,6 +67,9 @@ export const MAX_BULK_OPTIONS = 200;
 
 const isDuplicate = (error: unknown) => pgError(error)?.code === '23505';
 
+/** OPT-3: the longest label a catalogue value may have. */
+const SOURCE_LABEL_MAX = 60;
+
 @Injectable()
 export class LeadOptionsService {
   constructor(
@@ -426,7 +429,8 @@ export class LeadOptionsService {
   /**
    * The source to store for a label typed or chosen by hand. A known source keeps its code, a hidden
    * one is refused (OPT-8), and a new one joins the catalogue the way a file's new source does
-   * (IMP-25). Whether a hand-made lead may bring a new source is OPEN (OPT-13).
+   * (IMP-25). OPT-13, decided 24/11/2026: whoever makes a lead may bring a new source, as long as
+   * it fits a catalogue label (OPT-3).
    */
   async resolveSource(
     scope: Scope,
@@ -460,11 +464,12 @@ export class LeadOptionsService {
       tenantId: scope.tenantId,
       kind: 'source',
     });
+    // By label first; a renamed source is still found by its code (OPT-3: renaming keeps the code)
     const byNorm = new Map(
-      known.map((item) => [
-        item.labelNorm,
-        { code: item.code, active: item.active },
-      ]),
+      [
+        ...known.map((item) => [normalizeName(item.code), item] as const),
+        ...known.map((item) => [item.labelNorm, item] as const),
+      ].map(([norm, item]) => [norm, { code: item.code, active: item.active }]),
     );
     let sortOrder = Math.max(0, ...known.map((item) => item.sortOrder));
     const added: Partial<LeadOption>[] = [];
@@ -480,6 +485,16 @@ export class LeadOptionsService {
           );
         return existing.code;
       }
+      // OPT-3: a value added by hand is a catalogue label; files keep whatever they carry (IMP-25)
+      if (refuseHidden && label.length > SOURCE_LABEL_MAX)
+        throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.InvalidInput, {
+          issues: [
+            {
+              path: 'source',
+              message: `source must be shorter than or equal to ${SOURCE_LABEL_MAX} characters`,
+            },
+          ],
+        });
       byNorm.set(norm, { code: label, active: true });
       added.push({
         tenantId: scope.tenantId,

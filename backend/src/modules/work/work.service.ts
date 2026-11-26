@@ -47,7 +47,7 @@ export type TaskRow = Pick<
   Task,
   | 'id'
   | 'leadId'
-  | 'clientCode'
+  | 'clientId'
   | 'signal'
   | 'agentCode'
   | 'title'
@@ -59,7 +59,7 @@ export type TaskRow = Pick<
 >;
 
 /** The columns of a task as the services use them. */
-export const TASK_COLUMNS = `t.id, t.lead_id AS "leadId", t.client_code AS "clientCode", t.signal,
+export const TASK_COLUMNS = `t.id, t.lead_id AS "leadId", t.client_id AS "clientId", t.signal,
   t.agent_code AS "agentCode", t.title, t.due_at AS "dueAt", t.status, t.source,
   t.done_at AS "doneAt", t.created_by AS "createdBy"`;
 
@@ -71,7 +71,7 @@ const LIVE_LEAD = `l.deleted_at IS NULL AND l.erased_at IS NULL`;
  * values to `params` and returns the condition on alias `t`.
  */
 function mine(actor: Actor, params: unknown[]): string {
-  const personal = `(t.lead_id IS NULL AND t.client_code IS NULL AND t.created_by = $${params.push(actor.id)})`;
+  const personal = `(t.lead_id IS NULL AND t.client_id IS NULL AND t.created_by = $${params.push(actor.id)})`;
   return actor.agentCode
     ? `(t.agent_code = $${params.push(actor.agentCode)} OR ${personal})`
     : personal;
@@ -104,8 +104,8 @@ export class WorkService {
     db: EntityManager,
   ) {
     const leadIds = [...new Set(items.flatMap((task) => task.leadId ?? []))];
-    const clientCodes = [
-      ...new Set(items.flatMap((task) => task.clientCode ?? [])),
+    const clientIds = [
+      ...new Set(items.flatMap((task) => task.clientId ?? [])),
     ];
     const leads = leadIds.length
       ? await rowsOf<{
@@ -119,16 +119,16 @@ export class WorkService {
           [scope.tenantId, leadIds],
         )
       : [];
-    const clients = clientCodes.length
+    const clients = clientIds.length
       ? await rowsOf<{
-          clientCode: string;
+          id: string;
           name: string;
           ownerAgentCodes: string[];
         }>(
           db,
-          `SELECT client_code AS "clientCode", name, owner_agent_codes AS "ownerAgentCodes"
-             FROM clients WHERE tenant_id = $1 AND client_code = ANY($2::text[])`,
-          [scope.tenantId, clientCodes],
+          `SELECT id, name, owner_agent_codes AS "ownerAgentCodes"
+             FROM clients WHERE tenant_id = $1 AND id = ANY($2::uuid[])`,
+          [scope.tenantId, clientIds],
         )
       : [];
     const agentNames = await this.agents.namesByCode(
@@ -137,15 +137,11 @@ export class WorkService {
       db,
     );
     const leadOf = new Map(leads.map((lead) => [lead.id, lead]));
-    const clientOf = new Map(
-      clients.map((client) => [client.clientCode, client]),
-    );
+    const clientOf = new Map(clients.map((client) => [client.id, client]));
     const isHead = actor.roles.includes(Role.GaHead);
     return items.map((task) => {
       const lead = task.leadId ? leadOf.get(task.leadId) : undefined;
-      const client = task.clientCode
-        ? clientOf.get(task.clientCode)
-        : undefined;
+      const client = task.clientId ? clientOf.get(task.clientId) : undefined;
       // TASK-2 + NOTE-5: who may change it follows who works the lead or owns the client
       const canEdit = lead
         ? this.leads.mayWork(actor, lead)
@@ -156,14 +152,14 @@ export class WorkService {
           : task.createdBy === actor.id;
       return {
         id: task.id,
-        kind: task.leadId ? 'lead' : task.clientCode ? 'client' : 'personal',
+        kind: task.leadId ? 'lead' : task.clientId ? 'client' : 'personal',
         title: task.title,
         dueAt: task.dueAt,
         status: task.status,
         source: task.source,
         signal: task.signal ?? null,
         lead: lead ? { id: lead.id, fullName: lead.fullName } : null,
-        client: client ? { code: client.clientCode, name: client.name } : null,
+        client: client ? { id: client.id, name: client.name } : null,
         agentCode: task.agentCode ?? null,
         agentName: task.agentCode
           ? (agentNames.get(task.agentCode) ?? null)
@@ -193,8 +189,8 @@ export class WorkService {
           `t.due_at < $${params.push(dayStart(addDays(query.dueTo, 1)))}`,
         );
       if (query.leadId) where.push(`t.lead_id = $${params.push(query.leadId)}`);
-      if (query.clientCode)
-        where.push(`t.client_code = $${params.push(query.clientCode)}`);
+      if (query.clientId)
+        where.push(`t.client_id = $${params.push(query.clientId)}`);
       const items = await rowsOf<TaskRow>(
         db,
         `SELECT ${TASK_COLUMNS} FROM tasks t WHERE ${where.join(' AND ')}
@@ -209,7 +205,7 @@ export class WorkService {
     db: EntityManager,
     values: {
       tenantId: string;
-      clientCode?: string;
+      clientId?: string;
       agentCode?: string | null;
       title: string;
       dueAt: Date;
@@ -220,12 +216,12 @@ export class WorkService {
   ): Promise<string> {
     const [task] = await rowsOf<{ id: string }>(
       db,
-      `INSERT INTO tasks (tenant_id, client_code, agent_code, title, due_at, status, source, signal,
+      `INSERT INTO tasks (tenant_id, client_id, agent_code, title, due_at, status, source, signal,
                           created_by, created_at)
        VALUES ($1, $2, $3, $4, $5, 'OPEN', $6, $7, $8, now()) RETURNING id`,
       [
         values.tenantId,
-        values.clientCode ?? null,
+        values.clientId ?? null,
         values.agentCode ?? null,
         values.title,
         values.dueAt,
@@ -239,7 +235,7 @@ export class WorkService {
 
   /** TASK-1: a personal task, or one on a client the person owns (NOTE-5). */
   async create(actor: Actor, dto: CreateTaskDto): Promise<{ id: string }> {
-    if (dto.clientCode) return this.createForClient(actor, dto.clientCode, dto);
+    if (dto.clientId) return this.createForClient(actor, dto.clientId, dto);
     const scope = this.scopeOf(actor);
     return this.tenantDb.run(scope, async (db) => {
       const id = await this.insertTask(db, {
@@ -267,15 +263,15 @@ export class WorkService {
   /** Section 17.8: a task on a client; from a care opportunity when `signal` is given (SIG-2). */
   async createForClient(
     actor: Actor,
-    clientCode: string,
+    clientId: string,
     dto: CreateClientTaskDto,
   ): Promise<{ id: string }> {
     const scope = this.scopeOf(actor);
     return this.tenantDb.run(scope, async (db) => {
-      const client = await this.editor.ownedClient(actor, clientCode, db);
+      const client = await this.editor.ownedClient(actor, clientId, db);
       const id = await this.insertTask(db, {
         tenantId: scope.tenantId,
-        clientCode,
+        clientId,
         agentCode: actor.agentCode ?? client.ownerAgentCodes[0] ?? null,
         title: dto.title,
         dueAt: dto.dueAt,
@@ -290,7 +286,7 @@ export class WorkService {
           action: AuditAction.Create,
           entity: 'task',
           entityId: id,
-          meta: { clientCode, signal: dto.signal },
+          meta: { clientId, signal: dto.signal },
         },
         db,
       );
@@ -313,8 +309,8 @@ export class WorkService {
       if (task.leadId) {
         // LEAD-7: 404 for a lead out of sight, 403 lead_not_yours for one only read
         await this.leads.workable(actor, task.leadId, db);
-      } else if (task.clientCode) {
-        await this.editor.ownedClient(actor, task.clientCode, db);
+      } else if (task.clientId) {
+        await this.editor.ownedClient(actor, task.clientId, db);
       } else if (task.createdBy !== actor.id) throw notFound();
       const next = { ...task };
       if (dto.title !== undefined && dto.title !== null) next.title = dto.title;
@@ -424,31 +420,29 @@ export class WorkService {
     today: string,
   ) {
     const owned = await rowsOf<{
-      clientCode: string;
+      id: string;
       name: string;
       birthDayMonth: string | null;
     }>(
       db,
-      `SELECT client_code AS "clientCode", name, birth_day_month AS "birthDayMonth"
+      `SELECT id, name, birth_day_month AS "birthDayMonth"
          FROM clients WHERE tenant_id = $1 AND owner_agent_codes @> ARRAY[$2]::text[]`,
       [scope.tenantId, agentCode],
     );
-    const nameOf = new Map(
-      owned.map((client) => [client.clientCode, client.name]),
-    );
+    const nameOf = new Map(owned.map((client) => [client.id, client.name]));
     const policies = nameOf.size
       ? await rowsOf<{
           policyNo: string;
-          holderClientCode: string;
+          holderClientId: string;
           premiumDueDate: string;
           basePremiumVnd: string;
           status: string | null;
         }>(
           db,
-          `SELECT policy_no AS "policyNo", holder_client_code AS "holderClientCode",
+          `SELECT policy_no AS "policyNo", holder_client_id AS "holderClientId",
                   premium_due_date::text AS "premiumDueDate", base_premium_vnd AS "basePremiumVnd", status
              FROM policies
-            WHERE tenant_id = $1 AND holder_client_code = ANY($2::text[])
+            WHERE tenant_id = $1 AND holder_client_id = ANY($2::uuid[])
               AND premium_due_date BETWEEN $3 AND $4
             ORDER BY premium_due_date, policy_no`,
           [scope.tenantId, [...nameOf.keys()], today, addDays(today, 7)],
@@ -461,8 +455,8 @@ export class WorkService {
         .filter((policy) => isActiveStatus(policy.status))
         .slice(0, 20)
         .map((policy) => ({
-          clientCode: policy.holderClientCode,
-          name: nameOf.get(policy.holderClientCode) ?? '',
+          clientId: policy.holderClientId,
+          name: nameOf.get(policy.holderClientId) ?? '',
           policyNo: policy.policyNo,
           date: policy.premiumDueDate,
           amountVnd: Number(policy.basePremiumVnd),
@@ -472,7 +466,7 @@ export class WorkService {
           (client) => client.birthDayMonth && dayOf.has(client.birthDayMonth),
         )
         .map((client) => ({
-          clientCode: client.clientCode,
+          clientId: client.id,
           name: client.name,
           date: dayOf.get(client.birthDayMonth!)!,
           isToday: dayOf.get(client.birthDayMonth!) === today,

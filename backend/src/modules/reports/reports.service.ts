@@ -17,6 +17,7 @@ import { TenantsService } from '../tenants/tenants.service.js';
 import {
   addMetrics,
   buildReportTree,
+  classifyActivities,
   countActivities,
   daysSince,
   PIPELINE_STAGES,
@@ -26,6 +27,7 @@ import {
 } from './report-rules.js';
 import type { Metrics, ReportRow, TreeAgent } from './report-rules.js';
 import type {
+  ActivityDetailsQueryDto,
   ExportReportDto,
   FunnelGroup,
   FunnelQueryDto,
@@ -505,7 +507,7 @@ export class ReportsService {
                 CASE WHEN i.lead_id IS NOT NULL THEN l.phone ELSE c.phone END AS phone
            FROM interactions i
            LEFT JOIN leads l ON l.tenant_id = i.tenant_id AND l.id = i.lead_id AND ${IN_USE}
-           LEFT JOIN clients c ON c.tenant_id = i.tenant_id AND c.client_code = i.client_code
+           LEFT JOIN clients c ON c.tenant_id = i.tenant_id AND c.id = i.client_id
           WHERE i.tenant_id = $1 AND i.type IN ('CALL', 'ZALO', 'MEETING', 'SEMINAR')
             AND i.occurred_at >= $2 AND i.occurred_at < $3 AND i.agent_code IS NOT NULL
             ${agentFilter(scope, 'i.agent_code', crmParams)}`,
@@ -548,10 +550,144 @@ export class ReportsService {
         row.won = (row.won ?? 0) + 1;
         counts.set(lead.agentCode, row);
       }
+      // Decided 26/11/2026: how far the Success data goes, so a low number is not read as idle
+      const [asOf] = await rowsOf<{
+        lastActivityDate: string | null;
+        lastImportedAt: Date | null;
+      }>(
+        db,
+        `SELECT max(activity_date)::text AS "lastActivityDate", max(last_seen_at) AS "lastImportedAt"
+           FROM success_activities WHERE tenant_id = $1`,
+        [scope.tenantId],
+      );
       return {
         from,
         to,
+        successAsOf: asOf ?? { lastActivityDate: null, lastImportedAt: null },
         ...buildReportTree(await this.treeAgents(db, scope), counts),
+      };
+    });
+  }
+
+  /**
+   * Decided 26/11/2026: the activities behind one number of R2, with whether each counts and why
+   * not (a repeat of the same person that day, or a Success draft / rejected row), so a manager can
+   * check it against the lead or Success. Only agents in the viewer's report (RPT-3). Someone
+   * without a client book (Marketing, Admin) sees no Success content or client name (CUS-16).
+   */
+  async activityDetails(actor: Actor, query: ActivityDetailsQueryDto) {
+    const { from, to, start, end } = this.period(query);
+    const LIMIT = 500;
+    const detailed = actor.reach !== 'NONE';
+    return this.run(actor, async (db, scope) => {
+      const crmParams: unknown[] = [scope.tenantId, start, end, query.agents];
+      const crm = await rowsOf<{
+        id: string;
+        agentCode: string;
+        type: string;
+        occurredAt: Date;
+        phone: string | null;
+        note: string | null;
+        leadId: string | null;
+        leadName: string | null;
+        clientId: string | null;
+        clientName: string | null;
+      }>(
+        db,
+        `SELECT i.id, i.agent_code AS "agentCode", i.type, i.occurred_at AS "occurredAt",
+                CASE WHEN i.lead_id IS NOT NULL THEN l.phone ELSE c.phone END AS phone,
+                left(i.note, 300) AS note, l.id AS "leadId", l.full_name AS "leadName",
+                c.id AS "clientId", c.name AS "clientName"
+           FROM interactions i
+           LEFT JOIN leads l ON l.tenant_id = i.tenant_id AND l.id = i.lead_id AND ${IN_USE}
+           LEFT JOIN clients c ON c.tenant_id = i.tenant_id AND c.id = i.client_id
+          WHERE i.tenant_id = $1 AND i.type IN ('CALL', 'ZALO', 'MEETING', 'SEMINAR')
+            AND i.occurred_at >= $2 AND i.occurred_at < $3 AND i.agent_code = ANY($4::text[])
+            ${agentFilter(scope, 'i.agent_code', crmParams)}
+          ORDER BY i.occurred_at, i.id`,
+        crmParams,
+      );
+      const successParams: unknown[] = [scope.tenantId, from, to, query.agents];
+      const success = await rowsOf<{
+        activityId: string;
+        agentCode: string;
+        activityType: string;
+        callType: string | null;
+        activityDate: string;
+        startedAt: Date;
+        status: string;
+        phoneKey: string | null;
+        title: string | null;
+        note: string | null;
+        location: string | null;
+        customerName: string | null;
+      }>(
+        db,
+        `SELECT activity_id AS "activityId", agent_code AS "agentCode", activity_type AS "activityType",
+                call_type AS "callType", activity_date::text AS "activityDate", started_at AS "startedAt",
+                status, phone_key AS "phoneKey", sub_activity_title AS title,
+                left(content_note, 300) AS note, location_name AS location, customer_name AS "customerName"
+           FROM success_activities
+          WHERE tenant_id = $1 AND activity_date BETWEEN $2 AND $3 AND agent_code = ANY($4::text[])
+            ${agentFilter(scope, 'agent_code', successParams)}
+          ORDER BY started_at, activity_id`,
+        successParams,
+      );
+      const names = await this.agents.namesByCode(scope, query.agents, db);
+      const items = classifyActivities({ crm, success })
+        .filter(
+          (entry) =>
+            (!query.type || entry.type === query.type) &&
+            (!query.source || entry.source === query.source),
+        )
+        .map((entry) => {
+          const base = {
+            day: entry.day,
+            type: entry.type,
+            source: entry.source,
+            agentCode: entry.item.agentCode,
+            agentName: names.get(entry.item.agentCode) ?? null,
+            counted: !entry.excluded,
+            excluded: entry.excluded,
+          };
+          if (entry.source === 'CRM') {
+            const item = entry.item;
+            const onClient = !item.leadId && !!item.clientId;
+            return {
+              ...base,
+              at: item.occurredAt,
+              ref: item.id,
+              status: null,
+              leadId: item.leadId,
+              clientId: detailed ? item.clientId : null,
+              person:
+                item.leadName ?? (detailed && onClient ? item.clientName : null),
+              text: onClient && !detailed ? null : item.note,
+              location: null,
+            };
+          }
+          const item = entry.item;
+          return {
+            ...base,
+            at: item.startedAt,
+            // The activity's id on Success, to find it there
+            ref: item.activityId,
+            status: item.status,
+            leadId: null,
+            clientId: null,
+            person: detailed ? item.customerName : null,
+            text: detailed ? (item.title ?? item.note) : item.title,
+            location: detailed ? item.location : null,
+          };
+        })
+        .sort((a, b) => b.at.getTime() - a.at.getTime());
+      return {
+        from,
+        to,
+        total: items.length,
+        counted: items.filter((item) => item.counted).length,
+        items: items.slice(0, LIMIT),
+        truncated: items.length > LIMIT,
       };
     });
   }
@@ -878,12 +1014,12 @@ export class ReportsService {
       const params: unknown[] = [scope.tenantId, start, end];
       const work = await rowsOf<{
         agentCode: string;
-        clientCode: string;
+        clientId: string;
         type: string;
       }>(
         db,
-        `SELECT agent_code AS "agentCode", client_code AS "clientCode", type FROM interactions
-          WHERE tenant_id = $1 AND client_code IS NOT NULL AND agent_code IS NOT NULL
+        `SELECT agent_code AS "agentCode", client_id AS "clientId", type FROM interactions
+          WHERE tenant_id = $1 AND client_id IS NOT NULL AND agent_code IS NOT NULL
             AND occurred_at >= $2 AND occurred_at < $3
             ${agentFilter(scope, 'agent_code', params)}`,
         params,
@@ -893,7 +1029,7 @@ export class ReportsService {
         if (item.type === 'NOTE') bump(item.agentCode, 'notes');
         else {
           bump(item.agentCode, 'contacts');
-          const key = `${item.agentCode}|${item.clientCode}`;
+          const key = `${item.agentCode}|${item.clientId}`;
           if (!contacted.has(key)) {
             contacted.add(key);
             bump(item.agentCode, 'clientsContacted');

@@ -50,7 +50,6 @@ export interface LeadOption {
   builtIn: boolean
 }
 export const LEAD_STAGES = ['NEW', 'CONTACTED', 'APPOINTMENT', 'MET', 'PROPOSAL', 'SUBMITTED', 'ISSUED', 'LOST'] as const
-export const LEAD_ORIGINS = ['GA', 'IMPORT', 'FC_OWN', 'PUBLIC_FORM', 'REFERRAL'] as const
 export type LeadStage = (typeof LEAD_STAGES)[number]
 /** LEAD-19: where a lead can be moved by hand. */
 export const LEAD_WORK_STAGES: readonly LeadStage[] = ['CONTACTED', 'APPOINTMENT', 'MET', 'PROPOSAL', 'SUBMITTED', 'LOST']
@@ -79,6 +78,8 @@ export interface LeadRow {
   isNew: boolean
   newComment: boolean
   overdue: boolean
+  /** Decided 26/11/2026: the viewer sees this lead only because they support it; its phone is masked. */
+  supporting: boolean
 }
 
 export interface LeadCounts {
@@ -101,6 +102,21 @@ export interface LeadTask {
   doneBy: string | null
 }
 
+/** A province or a commune after 1/7/2025 (decided 26/11/2026). */
+export interface Place {
+  code: string
+  name: string
+  fullName: string
+}
+
+export interface LeadSupporter {
+  userId: string
+  name: string
+  agentCode: string | null
+  addedAt: string
+  addedByName: string | null
+}
+
 export interface LeadDetail {
   lead: Omit<LeadRow, 'agentName' | 'campaignName' | 'assignedAt'> & {
     email: string | null
@@ -108,7 +124,23 @@ export interface LeadDetail {
     dob: string | null
     province: string | null
     productInterest: string | null
+    /** TENANT-5: the catalogue product the lead is interested in, and its name there. */
+    productCode: string | null
+    productName: string | null
     extraInfo: string | null
+    /** Decided 26/11/2026: the province and commune after 1/7/2025, with their names, and the street address. */
+    provinceCode: string | null
+    provinceName: string | null
+    wardCode: string | null
+    wardName: string | null
+    addressLine: string | null
+    /** A GA's file: follow-ups after 10, 15 and 20 days, the handling note and the CDYT columns. */
+    followUp10d: string | null
+    followUp15d: string | null
+    followUp20d: string | null
+    handlingNote: string | null
+    cdytStats: string | null
+    cdytProfile: string | null
     lostReason: string | null
     applicationNo: string | null
     policyNo: string | null
@@ -125,9 +157,15 @@ export interface LeadDetail {
   /** LEAD-28: oldest first; `to` is null for the current holder. */
   handovers: { agentCode: string; name: string | null; from: string; to: string | null; days: number; contacts: number }[]
   /** LEAD-32: the client this lead became. */
-  /** clientCode is null for someone who does not see client pages (CUS-5, PDP-4) */
-  link: { clientCode: string | null; clientName: string | null; linkedAt: string | null } | null
+  /** clientId is null for someone who does not see client pages (CUS-5, PDP-4) */
+  link: { clientId: string | null; clientName: string | null; linkedAt: string | null } | null
   canLink: boolean
+  /** Decided 26/11/2026: "Người hỗ trợ": who helps with the lead, whether the viewer is one, and whether they may change the list. */
+  supporters: LeadSupporter[]
+  supporting: boolean
+  canSupport: boolean
+  /** Notes and tasks: whoever works the lead, and its supporters. */
+  canContribute: boolean
   canWork: boolean
   canManage: boolean
   /** LEAD-21, or a line manager for a lead of their line (open question 4). */
@@ -137,13 +175,13 @@ export interface LeadDetail {
 
 /** LEAD-32: one client a lead may be linked to, with why it was suggested. */
 export interface LinkSuggestion {
-  clientCode: string
+  clientId: string
   name: string
   gender: string | null
   ageBand: string | null
   score: number
   reasons: ('NAME' | 'PHONE' | 'GENDER' | 'AGE' | 'APPLICATION')[]
-  policies: { policyNo: string; status: string }[]
+  policies: { policyNo: string; status: string | null }[]
   applications: { applicationNo: string; status: string; createdDate: string }[]
 }
 
@@ -298,12 +336,14 @@ export interface AuditItem {
 
 /** CUS-14: one row of the client list, with its signal labels (SIG-1). */
 export type ClientRow = {
-  clientCode: string
+  id: string
   name: string
   phone: string | null
   tier: string | null
   ageBand: string | null
   gender: string | null
+  /** The policies the client is on, with their roles there. */
+  policies: { policyNo: string; roles: PolicyRole[] }[]
   activePolicies: number
   nextDue: string | null
   agents: { agentCode: string; name: string | null }[]
@@ -328,7 +368,8 @@ export interface FamilyMember {
   linkId: string | null
   relation: Relation | null
   name: string
-  code: string | null
+  /** The person's client id, when they are a client. */
+  clientId: string | null
   isClient: boolean
   canOpen: boolean
   gender: string | null
@@ -336,14 +377,14 @@ export interface FamilyMember {
   birth: { day: number | null; month: number | null; year: number | null } | null
   note: string | null
   leadId: string | null
-  sharedPolicies: { policyNo: string; roles: ('PO' | 'LI' | 'BEN')[] }[]
+  sharedPolicies: { policyNo: string; roles: PolicyRole[] }[]
 }
 
 /** COV-5 */
 export interface CoverageRow {
   key: string
   name: string
-  code: string | null
+  clientId: string | null
   groups: Partial<Record<CoverageGroup, number>>
   hasDetail: boolean
   gaps: CoverageGroup[]
@@ -359,7 +400,7 @@ export interface ClientSignal {
 export interface ClientChange {
   id: string
   entity: 'client' | 'policy' | 'policy_product'
-  /** The client code, the policy number, or "policyNo/productCode/insuredCode". */
+  /** The client id, the policy number, or "policyNo/productCode/insuredClientId". */
   entityKey: string
   field: string
   oldValue: string | null
@@ -379,31 +420,51 @@ export interface ClientNote {
   createdBy: string
 }
 
+/** CUS-11: a person's role on a policy. */
+export type PolicyRole = 'PO' | 'LI' | 'BEN'
+
 export interface ClientPolicy {
   policyNo: string
-  status: string
+  /** Null for a policy known only by its number. */
+  status: string | null
   active: boolean
-  roles: ('PO' | 'LI' | 'BEN')[]
-  holderClientCode: string
-  holderName: string
-  insuredClientCode: string | null
-  insuredName: string
-  effectiveDate: string
-  maturityDate: string
-  premiumFrequency: string
+  roles: PolicyRole[]
+  /** Everyone on the policy; clientId is null when the viewer may not open that person, self marks the client on screen. */
+  people: { clientId: string | null; name: string; roles: PolicyRole[]; self: boolean }[]
+  holderClientId: string | null
+  holderName: string | null
+  insuredClientId: string | null
+  insuredName: string | null
+  effectiveDate: string | null
+  maturityDate: string | null
+  premiumFrequency: string | null
   premiumDueDate: string | null
   plannedPremiumVnd: number | null
-  basePremiumVnd: number
+  basePremiumVnd: number | null
   unpaidPremiumVnd: number | null
   aplDebtVnd: number | null
   hasBeneficiary: boolean | null
+  /** The address itself comes only from the audited reveal (decided 25/11/2026). */
+  hasContactAddress: boolean
+  /** The main product line's sum assured; the page falls back to `sumAssuredVnd`. */
+  mainSumAssuredVnd: number | null
+  sumAssuredVnd: number | null
+  graceEndDate: string | null
+  assignmentType: string | null
+  assignmentDate: string | null
+  advancePremiumVnd: number | null
+  totalPaidPremiumVnd: number | null
+  basicPremiumVnd: number | null
+  topUpPremiumVnd: number | null
   servicingAgentCode: string | null
   agents: { agentCode: string; name: string | null; splitPercent: number | null; isServicing: boolean }[]
   products: {
     productCode: string
     productName: string | null
+    /** TENANT-5: the catalogue's name when the code is in it; the product page exists then. */
+    catalogueName: string | null
     productRole: string
-    insuredCode: string | null
+    insuredClientId: string | null
     insuredName: string | null
     sumAssuredVnd: number | null
     annualPremiumVnd: number | null
@@ -419,10 +480,43 @@ export interface ClientPolicy {
   canDelete: boolean
 }
 
+/** Decided 26/11/2026: what a GA records about caring for a client. */
+export const CARE_RECORD_KINDS = ['CLAIM', 'SEMINAR', 'HEALTH_CHECK', 'GIFT', 'VISIT', 'SIGNING_CASH', 'SIGNING_GIFT'] as const
+export type CareRecordKind = (typeof CARE_RECORD_KINDS)[number]
+
+export interface CareRecord {
+  id: string
+  kind: CareRecordKind
+  occurredOn: string
+  /** What: the event's or the gift's name. */
+  title: string | null
+  /** Where: the hospital of a claim, the venue of an event. */
+  place: string | null
+  amountVnd: number | null
+  policyNo: string | null
+  note: string | null
+}
+
+export const REFERRAL_RELATIONS = ['FAMILY', 'FRIEND', 'COLLEAGUE', 'NEIGHBOR', 'OTHER'] as const
+export type ReferralRelation = (typeof REFERRAL_RELATIONS)[number]
+export const REFERRAL_RESULTS = ['PENDING', 'SUCCESS', 'FAILED'] as const
+export type ReferralResult = (typeof REFERRAL_RESULTS)[number]
+
+export interface ClientReferral {
+  id: string
+  personName: string
+  relation: ReferralRelation
+  referredOn: string
+  result: ReferralResult
+  /** The premium of the policy a successful referral brought. */
+  premiumVnd: number | null
+  note: string | null
+}
+
 /** CUS-15: the client page. */
 export interface ClientDetail {
   client: {
-    clientCode: string
+    id: string
     name: string
     phone: string | null
     tier: string | null
@@ -453,10 +547,18 @@ export interface ClientDetail {
     issuedDate: string | null
     status: string
     productCode: string | null
+    /** The catalogue's name for productCode. */
+    productName: string | null
     apeVnd: number | null
   }[]
   clientNames: Record<string, string>
   canEdit: boolean
+  /** Decided 26/11/2026: care entered by hand, newest first, and what the client received on signing. */
+  careRecords: CareRecord[]
+  signingSummary: { cashVnd: number; gifts: number; giftValueVnd: number }
+  /** The people this client referred, and how many became policies. */
+  referrals: ClientReferral[]
+  referralSummary: { total: number; success: number; pending: number; failed: number; premiumVnd: number }
   family: FamilyMember[]
   coverage: CoverageRow[]
   signals: ClientSignal[]
@@ -491,15 +593,67 @@ export const MARITAL_STATUSES = ['Độc thân', 'Đã kết hôn', 'Ly hôn'] a
 export const AGE_BANDS = ['<18', '18-29', '30-39', '40-49', '50-59', '60+'] as const
 export const PREMIUM_FREQUENCIES = ['Năm', 'Nửa năm', 'Quý', 'Tháng'] as const
 
-/** PRG-1 */
-export interface InsuranceProgram {
-  id: string
-  code: string
-  label: string
+/** TENANT-5: a product of the shared catalogue, as everyone in a GA sees it. */
+export interface ProductView {
+  productCode: string
+  productName: string
   productRole: string
-  productCode: string | null
+  /** The benefit group text, e.g. "Sức khỏe". */
+  category: string | null
+  minEntryAge: number | null
+  maxEntryAge: number | null
+  maxCoverAge: number | null
+  gender: string | null
+  waitingPeriod: string | null
+  keyBenefits: string | null
   active: boolean
-  sortOrder: number
+}
+
+export const RULE_STATUSES = ['DRAFT', 'APPROVED'] as const
+export type RuleStatus = (typeof RULE_STATUSES)[number]
+
+/** TENANT-5: the Platform Admin sees every column. */
+export interface Product extends ProductView {
+  fitRule: string | null
+  triggerEvent: string | null
+  ruleStatus: RuleStatus
+  nameNorm: string
+  createdAt: string
+  updatedAt: string
+  updatedBy: string | null
+}
+
+/** One row of the 11_Products file, also what the add / edit form sends. Blank means null. */
+export interface ProductRow {
+  productCode: string
+  productName: string
+  productRole: string
+  category: string | null
+  minEntryAge: number | null
+  maxEntryAge: number | null
+  maxCoverAge: number | null
+  gender: string | null
+  waitingPeriod: string | null
+  keyBenefits: string | null
+  fitRule: string | null
+  triggerEvent: string | null
+  ruleStatus?: RuleStatus
+}
+
+/** A policy in the viewer's scope that carries a product, with that product's lines. */
+export interface ProductPolicy {
+  policyNo: string
+  status: string | null
+  active: boolean
+  effectiveDate: string | null
+  people: { clientId: string | null; name: string; roles: PolicyRole[] }[]
+  lines: { insuredName: string | null; sumAssuredVnd: number | null; annualPremiumVnd: number | null }[]
+}
+
+/** `policies` is null for Marketing and Admin, who have no client book (CUS-5). */
+export interface ProductDetail {
+  product: ProductView
+  policies: ProductPolicy[] | null
 }
 
 /** CMP-1 */
@@ -605,6 +759,38 @@ export interface ReportData {
   total: Record<string, number>
   /** R1 only: a column per interest of the GA's catalogue (OPT-11). */
   interests?: { code: string; label: string; isOpportunity: boolean }[]
+  /** R2 only (26/11/2026): the latest Success activity day and when a file last brought activities. */
+  successAsOf?: { lastActivityDate: string | null; lastImportedAt: string | null }
+}
+
+/** R2 (26/11/2026): one activity behind a number, and whether it counts. */
+export interface ActivityDetail {
+  day: string
+  at: string
+  type: string
+  source: 'CRM' | 'SUCCESS'
+  agentCode: string
+  agentName: string | null
+  counted: boolean
+  /** Why it does not count: the same person that day, or a Success draft / rejected row. */
+  excluded: 'duplicate' | 'status' | null
+  /** The contact's id in the CRM, or the activity's id on Success. */
+  ref: string
+  status: string | null
+  leadId: string | null
+  clientId: string | null
+  person: string | null
+  text: string | null
+  location: string | null
+}
+
+export interface ActivityDetails {
+  from: string
+  to: string
+  total: number
+  counted: number
+  items: ActivityDetail[]
+  truncated: boolean
 }
 
 /** TASK-1: a task of a lead, of a client, or of the person alone. */
@@ -617,7 +803,7 @@ export interface TaskItem {
   source: string
   signal: string | null
   lead: { id: string; fullName: string } | null
-  client: { code: string; name: string } | null
+  client: { id: string; name: string } | null
   agentCode: string | null
   agentName: string | null
   doneAt: string | null
@@ -630,8 +816,8 @@ export interface TodayData {
   tasks: { overdue: TaskItem[]; today: TaskItem[] }
   leads: LeadCounts
   care: {
-    premiumDue: { clientCode: string; name: string; policyNo: string; date: string; amountVnd: number }[]
-    birthdays: { clientCode: string; name: string; date: string; isToday: boolean }[]
+    premiumDue: { clientId: string; name: string; policyNo: string; date: string; amountVnd: number }[]
+    birthdays: { clientId: string; name: string; date: string; isToday: boolean }[]
   }
   isManager: boolean
   manages: boolean

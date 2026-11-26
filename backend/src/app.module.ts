@@ -29,6 +29,8 @@ import { LeadsModule } from './modules/leads/leads.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { PlatformModule } from './modules/platform/platform.module.js';
 import { PresenceModule } from './modules/presence/presence.module.js';
+import { GeoModule } from './modules/geo/geo.module.js';
+import { ProductsModule } from './modules/products/products.module.js';
 import {
   RealtimeGatewayModule,
   RealtimeModule,
@@ -63,6 +65,8 @@ import { UsersModule } from './modules/users/users.module.js';
     UsersModule,
     AuthModule,
     PlatformModule,
+    ProductsModule,
+    GeoModule,
     AgentsModule,
     NotificationsModule,
     LeadsModule,

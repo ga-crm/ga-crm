@@ -11,7 +11,7 @@ import type { PlanIssue } from './agent-plan.js';
 export interface ParsedLeadRow {
   phone: string;
   fullName: string;
-  source: string;
+  source?: string;
   rowDate?: string;
   agentValue?: string;
   externalId?: string;
@@ -23,6 +23,12 @@ export interface ParsedLeadRow {
   progressNote?: string;
   lostReason?: string;
   messageStatus?: string;
+  followUp10d?: string;
+  followUp15d?: string;
+  followUp20d?: string;
+  handlingNote?: string;
+  cdytStats?: string;
+  cdytProfile?: string;
   registeredAt?: string;
   gender?: string;
   email?: string;
@@ -129,6 +135,9 @@ export function matchAgent(
 export const rowInstant = (date: string): Date =>
   new Date(`${date}T00:00:00+07:00`);
 
+/** The source a new lead gets when its file row leaves "Nguồn" blank (decided 25/11/2026). */
+export const UNKNOWN_SOURCE = 'Chưa rõ nguồn';
+
 const COPIED = [
   'fullName',
   'source',
@@ -137,6 +146,12 @@ const COPIED = [
   'region',
   'lostReason',
   'messageStatus',
+  'followUp10d',
+  'followUp15d',
+  'followUp20d',
+  'handlingNote',
+  'cdytStats',
+  'cdytProfile',
   'registeredAt',
   'gender',
   'email',
@@ -272,7 +287,8 @@ export function planLeads(
         values: {
           phone: key,
           fullName: data.fullName,
-          source: data.source,
+          // A blank source keeps the lead's own
+          ...(data.source && { source: data.source }),
           ...copied(data),
           ...(data.interest && { interest: data.interest }),
           ...(data.careStatus && { careStatus: data.careStatus }),
@@ -303,7 +319,8 @@ export function planLeads(
       values: {
         phone: key,
         fullName: data.fullName,
-        source: data.source,
+        // Decided 25/11/2026: only the name and phone are required in a GA's file
+        source: data.source ?? UNKNOWN_SOURCE,
         ...copied(data),
         ...(data.interest && { interest: data.interest }),
         ...(data.careStatus && { careStatus: data.careStatus }),

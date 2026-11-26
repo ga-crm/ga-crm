@@ -41,7 +41,7 @@ function EntryChip({ entry, onDragStart }: { entry: Entry; onDragStart: (task: T
     )
   const { task } = entry
   const movable = task.canEdit && task.status === 'OPEN'
-  const target = task.lead ? `/leads/${task.lead.id}?tab=tasks` : task.client ? `/clients/${task.client.code}` : '/tasks'
+  const target = task.lead ? `/leads/${task.lead.id}?tab=tasks` : task.client ? `/clients/${task.client.id}` : '/tasks'
   return (
     <Link
       to={target}

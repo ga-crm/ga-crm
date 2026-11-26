@@ -6,9 +6,11 @@ import { ClientAssignDialog } from '../components/ClientAssignDialog'
 import { CreateClientForm } from '../components/ClientForms'
 import { hasPermission, hasRole } from '../auth/access'
 import { useMe } from '../auth/useMe'
+import { TierBadge } from '../components/TierBadge'
 import { Alert, Badge, Button, Card, Container, Dialog, ClearFilters, EmptyState, FilterBand, FilterField, PageHeader, Pagination, SearchInput, Select, Spinner, TableScroll, TabBar, Checkbox } from '../components/ui'
 import { t, tDynamic } from '../i18n'
 import { errorMessage } from '../lib/api'
+import { policyRolesLabel } from '../lib/clientLabels'
 import { showDate } from '../lib/leadLabels'
 import { queries } from '../lib/queries'
 import { CLIENT_TIERS, LIST_SIGNALS } from '../lib/types'
@@ -17,20 +19,25 @@ import { useListSearch } from '../lib/useListSearch'
 import { usePrefetchNextPage } from '../lib/usePrefetchNextPage'
 import { useLeaveEmptyPage, useUrlState } from '../lib/useUrlState'
 
-/** CUS-14: name, code, tier and the phone the GA keeps. */
+/** CUS-14: name, the policies the client is on with their roles, tier and the phone the GA keeps. */
 function ClientCell({ client }: { client: ClientRow }) {
+  const policies = client.policies.map(policyRolesLabel)
   return (
     <>
-      <Link to={`/clients/${client.clientCode}`} title={client.name} className="block truncate font-medium text-primary hover:underline">
+      <Link to={`/clients/${client.id}`} title={client.name} className="block truncate font-medium text-primary hover:underline">
         {client.name}
       </Link>
-      <span className="block text-ink-meta tabular-nums">
-        {client.clientCode}
-        {client.phone && ` · ${client.phone}`}
-      </span>
+      {policies.length > 0 && (
+        <span className="flex flex-wrap gap-x-3 text-ink-meta tabular-nums">
+          {policies.map((label) => (
+            <span key={label}>{label}</span>
+          ))}
+        </span>
+      )}
+      {client.phone && <span className="block text-ink-meta tabular-nums">{client.phone}</span>}
       {(client.tier || client.manual) && (
         <span className="mt-1 flex flex-wrap gap-1">
-          {client.tier && <Badge tone="info">{client.tier}</Badge>}
+          {client.tier && <TierBadge tier={client.tier} />}
           {client.manual && <Badge tone="muted">{t('clients.badgeManual')}</Badge>}
         </span>
       )}
@@ -82,20 +89,20 @@ export function ClientsPage() {
   const canAssign = hasRole(me, 'GA_HEAD') || hasPermission(me, 'clients.assign')
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [assigning, setAssigning] = useState(false)
-  const allOnPage = items.length > 0 && items.every((item) => selected.has(item.clientCode))
-  const toggleOne = (code: string) =>
+  const allOnPage = items.length > 0 && items.every((item) => selected.has(item.id))
+  const toggleOne = (id: string) =>
     setSelected((current) => {
       const next = new Set(current)
-      if (next.has(code)) next.delete(code)
-      else next.add(code)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   const setPage = (on: boolean) =>
     setSelected((current) => {
       const next = new Set(current)
       for (const item of items) {
-        if (on) next.add(item.clientCode)
-        else next.delete(item.clientCode)
+        if (on) next.add(item.id)
+        else next.delete(item.id)
       }
       return next
     })
@@ -199,10 +206,10 @@ export function ClientsPage() {
                   {items.map((client) => {
                     const names = client.agents.map((agent) => agent.name ?? agent.agentCode).join(', ')
                     return (
-                      <tr key={client.clientCode}>
+                      <tr key={client.id}>
                         {canAssign && (
                           <td>
-                            <Checkbox aria-label={t('clients.selectOne', { name: client.name })} checked={selected.has(client.clientCode)} onChange={() => toggleOne(client.clientCode)} />
+                            <Checkbox aria-label={t('clients.selectOne', { name: client.name })} checked={selected.has(client.id)} onChange={() => toggleOne(client.id)} />
                           </td>
                         )}
                         <td>
@@ -249,7 +256,7 @@ export function ClientsPage() {
         </div>
       )}
       <ClientAssignDialog
-        clientCodes={[...selected]}
+        clientIds={[...selected]}
         open={assigning}
         onClose={() => setAssigning(false)}
         onDone={() => {
@@ -258,7 +265,7 @@ export function ClientsPage() {
         }}
       />
       <Dialog wide title={t('clients.addTitle')} open={creating} onClose={() => url.set({ create: null })}>
-        {creating && <CreateClientForm onClose={() => url.set({ create: null })} onCreated={(code) => navigate(`/clients/${code}`)} />}
+        {creating && <CreateClientForm onClose={() => url.set({ create: null })} onCreated={(id) => navigate(`/clients/${id}`)} />}
       </Dialog>
     </>
   )

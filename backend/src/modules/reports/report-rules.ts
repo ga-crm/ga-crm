@@ -186,63 +186,117 @@ export const ACTIVITY_TYPES = [
 /** R2: contacts with one person the same day count once, across and within sources. */
 const ONCE_A_DAY = new Set(['CALL', 'ZALO', 'MEETING']);
 
+/** R2: why an activity does not count. */
+export type ActivityExclusion = 'duplicate' | 'status';
+
+export interface CrmActivity {
+  agentCode: string;
+  type: string;
+  occurredAt: Date;
+  phone?: string | null;
+}
+
+export interface SuccessActivity {
+  agentCode: string;
+  activityType: string;
+  callType?: string | null;
+  activityDate: string;
+  status: string;
+  phoneKey?: string | null;
+}
+
 /**
- * R2: activities per agent per Vietnam day, from CRM contacts (on leads and clients) and from
- * 07_Activities. Draft and rejected Success rows are left out; a Success call of type "zalo" is
- * ZALO. A CRM contact wins over a Success row of the same person, type and day.
+ * R2: each activity with its report column, Vietnam day and whether it counts, in the order CRM
+ * contacts then 07_Activities. Draft and rejected Success rows are left out; a Success call of type
+ * "zalo" is ZALO. A call, Zalo or meeting with one person counts once a day, a CRM contact winning
+ * over a Success row of the same person, type and day. The report's numbers and the list behind
+ * them (decided 26/11/2026) come from this one function, so they always agree.
  */
-export function countActivities(input: {
-  crm: readonly {
-    agentCode: string;
-    type: string;
-    occurredAt: Date;
-    phone?: string | null;
-  }[];
-  success: readonly {
-    agentCode: string;
-    activityType: string;
-    callType?: string | null;
-    activityDate: string;
-    status: string;
-    phoneKey?: string | null;
-  }[];
-}): Map<string, Metrics> {
-  const result = new Map<string, Metrics>();
+export function classifyActivities<
+  C extends CrmActivity,
+  S extends SuccessActivity,
+>(input: {
+  crm: readonly C[];
+  success: readonly S[];
+}): (
+  | {
+      source: 'CRM';
+      item: C;
+      type: string;
+      day: string;
+      excluded: ActivityExclusion | null;
+    }
+  | {
+      source: 'SUCCESS';
+      item: S;
+      type: string;
+      day: string;
+      excluded: ActivityExclusion | null;
+    }
+)[] {
   const seen = new Set<string>();
-  const add = (
+  const duplicate = (
     agentCode: string,
     type: string,
     day: string,
     phoneKey: string | null | undefined,
-    source: 'fromCrm' | 'fromSuccess',
   ) => {
-    if (ONCE_A_DAY.has(type) && phoneKey) {
-      const key = `${agentCode}|${day}|${type}|${phoneKey}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-    }
-    const row = result.get(agentCode) ?? {};
-    row[type] = (row[type] ?? 0) + 1;
-    row.total = (row.total ?? 0) + 1;
-    row[source] = (row[source] ?? 0) + 1;
-    result.set(agentCode, row);
+    if (!ONCE_A_DAY.has(type) || !phoneKey) return false;
+    const key = `${agentCode}|${day}|${type}|${phoneKey}`;
+    if (seen.has(key)) return true;
+    seen.add(key);
+    return false;
   };
-  for (const item of input.crm)
-    add(
-      item.agentCode,
-      item.type,
-      vietnamDay(item.occurredAt),
-      item.phone ? maskPhone(item.phone) : null,
-      'fromCrm',
-    );
-  for (const item of input.success) {
-    if (item.status === 'draft' || item.status === 'rejected') continue;
+  const crm = input.crm.map((item) => {
+    const day = vietnamDay(item.occurredAt);
+    const phoneKey = item.phone ? maskPhone(item.phone) : null;
+    return {
+      source: 'CRM' as const,
+      item,
+      type: item.type,
+      day,
+      excluded: duplicate(item.agentCode, item.type, day, phoneKey)
+        ? ('duplicate' as const)
+        : null,
+    };
+  });
+  const success = input.success.map((item) => {
     const type =
       item.activityType === 'CALL' &&
       item.callType?.trim().toLowerCase() === 'zalo'
         ? 'ZALO'
         : item.activityType;
-    add(item.agentCode, type, item.activityDate, item.phoneKey, 'fromSuccess');
+    const excluded: ActivityExclusion | null =
+      item.status === 'draft' || item.status === 'rejected'
+        ? 'status'
+        : duplicate(item.agentCode, type, item.activityDate, item.phoneKey)
+          ? 'duplicate'
+          : null;
+    return {
+      source: 'SUCCESS' as const,
+      item,
+      type,
+      day: item.activityDate,
+      excluded,
+    };
+  });
+  return [...crm, ...success];
+}
+
+/** R2: the counted activities per agent: one column per type, the total and each source. */
+export function countActivities(input: {
+  crm: readonly CrmActivity[];
+  success: readonly SuccessActivity[];
+}): Map<string, Metrics> {
+  const result = new Map<string, Metrics>();
+  for (const entry of classifyActivities(input)) {
+    if (entry.excluded) continue;
+    const row = result.get(entry.item.agentCode) ?? {};
+    const source = entry.source === 'CRM' ? 'fromCrm' : 'fromSuccess';
+    row[entry.type] = (row[entry.type] ?? 0) + 1;
+    row.total = (row.total ?? 0) + 1;
+    row[source] = (row[source] ?? 0) + 1;
+    result.set(entry.item.agentCode, row);
   }
   return result;
 }

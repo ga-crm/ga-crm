@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom'
 import { z } from 'zod'
 import { t, tDynamic } from '../i18n'
 import { api, ApiError, errorField, errorMessage } from '../lib/api'
-import { coverageSummary } from '../lib/clientLabels'
+import { coverageSummary, policyRolesLabel } from '../lib/clientLabels'
 import { showDate } from '../lib/leadLabels'
 import { keys, queries } from '../lib/queries'
 import { toast } from '../lib/toast'
@@ -17,11 +17,6 @@ import { optionalText, phoneField, requiredText } from '../lib/validation'
 import { Badge, Button, ConfirmDialog, Dialog, EmptyState, Field, FormError, Input, MODAL_FOOTER, Notice, PickList, RowMenu, Select, TableScroll, Textarea, WIDE_FORM_GRID } from './ui'
 
 const relationLabel = (relation: Relation | null) => (relation ? tDynamic(`relation.${relation}`, relation) : t('family.unlabelled'))
-const ROLE_KEYS = {
-  PO: 'clients.rolePO',
-  LI: 'clients.roleLI',
-  BEN: 'clients.roleBEN',
-} as const
 
 /** FAM-4: a birth date with any part missing, written as far as it is known. */
 function birthText(member: FamilyMember): string | null {
@@ -61,7 +56,7 @@ const RELATIVE_ERRORS = { already_client: 'fullName' } as const
  * FAM-4: a relative who is not a client, added or edited. Labelling someone known only by a name on a
  * policy (FAM-5) adds them with that name.
  */
-function RelativeForm({ clientCode, member, onClose }: { clientCode: string; member?: FamilyMember; onClose: () => void }) {
+function RelativeForm({ clientId, member, onClose }: { clientId: string; member?: FamilyMember; onClose: () => void }) {
   const refresh = useRefresh()
   const editing = !!member?.linkId
   const form = useForm<RelativeValues>({
@@ -85,7 +80,7 @@ function RelativeForm({ clientCode, member, onClose }: { clientCode: string; mem
         birthYear: toNumber(values.birthYear),
       }
       if (editing)
-        return api.patch(`/clients/${clientCode}/family/${member.linkId}`, {
+        return api.patch(`/clients/${clientId}/family/${member.linkId}`, {
           ...birth,
           fullName: values.fullName,
           relation: values.relation,
@@ -100,7 +95,7 @@ function RelativeForm({ clientCode, member, onClose }: { clientCode: string; mem
           note: values.note,
         }).filter(([, value]) => value !== null && value !== ''),
       )
-      return api.post(`/clients/${clientCode}/family`, {
+      return api.post(`/clients/${clientId}/family`, {
         ...known,
         fullName: values.fullName,
         relation: values.relation,
@@ -183,15 +178,15 @@ const relationSchema = z.object({
 type RelationValues = z.infer<typeof relationSchema>
 
 /**
- * FAM-2 + FAM-3: the relation with someone who has a client code: a client chosen from the search,
+ * FAM-2 + FAM-3: the relation with someone who is a client: a client chosen from the search,
  * someone on a policy (FAM-5), or an existing relation being edited.
  */
-function RelationForm({ clientCode, member, onClose }: { clientCode: string; member?: FamilyMember; onClose: () => void }) {
+function RelationForm({ clientId, member, onClose }: { clientId: string; member?: FamilyMember; onClose: () => void }) {
   const refresh = useRefresh()
   const editing = !!member?.linkId
   const [query, setQuery] = useState('')
   const [debounced, setDebounced] = useState('')
-  const [picked, setPicked] = useState<{ code: string; name: string } | null>(member?.code ? { code: member.code, name: member.name } : null)
+  const [picked, setPicked] = useState<{ id: string; name: string } | null>(member?.clientId ? { id: member.clientId, name: member.name } : null)
   const [pickError, setPickError] = useState(false)
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(query.trim()), 300)
@@ -212,13 +207,13 @@ function RelationForm({ clientCode, member, onClose }: { clientCode: string; mem
   const save = useMutation({
     mutationFn: (values: RelationValues) =>
       editing
-        ? api.patch(`/clients/${clientCode}/family/${member.linkId}`, {
+        ? api.patch(`/clients/${clientId}/family/${member.linkId}`, {
             relation: values.relation,
             note: values.note || null,
           })
-        : api.post(`/clients/${clientCode}/family`, {
+        : api.post(`/clients/${clientId}/family`, {
             relation: values.relation,
-            relatedClientCode: picked!.code,
+            relatedClientId: picked!.id,
             ...(values.note && { note: values.note }),
           }),
     onSuccess: async () => {
@@ -232,7 +227,7 @@ function RelationForm({ clientCode, member, onClose }: { clientCode: string; mem
     },
   })
   const { errors } = form.formState
-  const options = (results.data?.items ?? []).filter((item) => item.clientCode !== clientCode)
+  const options = (results.data?.items ?? []).filter((item) => item.id !== clientId)
 
   return (
     <form
@@ -245,7 +240,6 @@ function RelationForm({ clientCode, member, onClose }: { clientCode: string; mem
       {member ? (
         <p className="mb-3 text-caption text-ink-body">
           <span className="font-medium">{member.name}</span>
-          {member.code && <span className="ml-1 text-ink-meta tabular-nums">{member.code}</span>}
         </p>
       ) : (
         // FAM-7: clients in scope, at most 10
@@ -259,12 +253,16 @@ function RelationForm({ clientCode, member, onClose }: { clientCode: string; mem
             label={t('family.search')}
             className="h-48"
             empty={debounced.length >= 2 && results.data ? t('family.noResults') : undefined}
-            options={options.map((item) => ({ value: item.clientCode, label: item.name, meta: [item.clientCode, item.ageBand, item.gender].filter(Boolean).join(' · ') }))}
-            value={picked?.code ?? null}
-            onChange={(code) => {
-              const item = options.find((option) => option.clientCode === code)
+            options={options.map((item) => ({
+              value: item.id,
+              label: item.name,
+              meta: [...item.policies.map((policy) => t('clients.policyNo', { no: policy.policyNo })), item.ageBand, item.gender].filter(Boolean).join(' · '),
+            }))}
+            value={picked?.id ?? null}
+            onChange={(id) => {
+              const item = options.find((option) => option.id === id)
               if (!item) return
-              setPicked({ code: item.clientCode, name: item.name })
+              setPicked({ id: item.id, name: item.name })
               setPickError(false)
             }}
           />
@@ -304,19 +302,20 @@ const LEAD_ERRORS = { invalid_phone: 'phone', phone_exists: 'phone' } as const
 
 const leadSchema = z.object({
   phone: phoneField,
-  consent: z.enum(['yes', 'no'], { error: t('leads.consentRequired') }),
+  // LEAD-3, changed 26/11/2026: may stay blank and be answered later
+  consent: z.enum(['', 'yes', 'no']),
 })
 type LeadValues = z.infer<typeof leadSchema>
 
 /** FAM-6: a relative who is not a client becomes a lead, or joins the lead that has the number. */
-function FamilyLeadForm({ clientCode, member, onClose }: { clientCode: string; member: FamilyMember; onClose: () => void }) {
+function FamilyLeadForm({ clientId, member, onClose }: { clientId: string; member: FamilyMember; onClose: () => void }) {
   const refresh = useRefresh()
   const form = useForm<LeadValues>({
     resolver: zodResolver(leadSchema),
     mode: 'onTouched',
-    defaultValues: { phone: '' },
+    defaultValues: { phone: '', consent: '' },
   })
-  const path = `/clients/${clientCode}/family/${member.linkId}/lead`
+  const path = `/clients/${clientId}/family/${member.linkId}/lead`
   const done = async (linked: boolean) => {
     await refresh()
     if (linked) toast.success(t('toast.familyLeadLinked', { name: member.name }))
@@ -326,7 +325,7 @@ function FamilyLeadForm({ clientCode, member, onClose }: { clientCode: string; m
   const create = useMutation({
     mutationFn: (values: LeadValues) =>
       api.post(path, {
-        create: { phone: values.phone, consent: values.consent === 'yes' },
+        create: { phone: values.phone, ...(values.consent && { consent: values.consent === 'yes' }) },
       }),
     onSuccess: () => done(false),
     onError: (error) => {
@@ -348,11 +347,9 @@ function FamilyLeadForm({ clientCode, member, onClose }: { clientCode: string; m
         <Field label={t('leads.phone')} htmlFor="family-lead-phone" required error={errors.phone?.message}>
           <Input id="family-lead-phone" inputMode="tel" placeholder={t('agents.phonePlaceholder')} aria-invalid={!!errors.phone} {...form.register('phone')} />
         </Field>
-        <Field label={t('leads.consent')} htmlFor="family-lead-consent" required error={errors.consent?.message}>
-          <Select id="family-lead-consent" defaultValue="" aria-invalid={!!errors.consent} {...form.register('consent')}>
-            <option value="" disabled>
-              {t('leads.consentChoose')}
-            </option>
+        <Field label={t('leads.consent')} htmlFor="family-lead-consent" error={errors.consent?.message}>
+          <Select id="family-lead-consent" aria-invalid={!!errors.consent} {...form.register('consent')}>
+            <option value="">{t('leads.consentLater')}</option>
             <option value="yes">{t('leads.consentYes')}</option>
             <option value="no">{t('leads.consentNo')}</option>
           </Select>
@@ -385,10 +382,10 @@ function FamilyLeadForm({ clientCode, member, onClose }: { clientCode: string; m
 export function FamilyTab({ detail }: { detail: ClientDetail }) {
   const url = useUrlState()
   const refresh = useRefresh()
-  const code = detail.client.clientCode
+  const clientId = detail.client.id
   const [removing, setRemoving] = useState<FamilyMember | null>(null)
   const remove = useMutation({
-    mutationFn: (member: FamilyMember) => api.delete(`/clients/${code}/family/${member.linkId}`),
+    mutationFn: (member: FamilyMember) => api.delete(`/clients/${clientId}/family/${member.linkId}`),
     onSuccess: async (_, member) => {
       await refresh()
       setRemoving(null)
@@ -404,9 +401,9 @@ export function FamilyTab({ detail }: { detail: ClientDetail }) {
   const close = () => url.set({ family: null })
   const canEdit = detail.canEdit
 
-  const relativeOpen = canEdit && (dialog === 'relative' || (!!target && !target.code && (dialog.startsWith('edit:') || dialog.startsWith('label:'))))
-  const relationOpen = canEdit && (dialog === 'client' || (!!target && !!target.code && (dialog.startsWith('edit:') || dialog.startsWith('label:'))))
-  const leadOpen = canEdit && !!target && dialog.startsWith('lead:') && !!target.linkId && !target.code
+  const relativeOpen = canEdit && (dialog === 'relative' || (!!target && !target.clientId && (dialog.startsWith('edit:') || dialog.startsWith('label:'))))
+  const relationOpen = canEdit && (dialog === 'client' || (!!target && !!target.clientId && (dialog.startsWith('edit:') || dialog.startsWith('label:'))))
+  const leadOpen = canEdit && !!target && dialog.startsWith('lead:') && !!target.linkId && !target.clientId
 
   return (
     <>
@@ -456,7 +453,7 @@ export function FamilyTab({ detail }: { detail: ClientDetail }) {
             <tbody>
               {detail.family.map((member) => {
                 const menu = [
-                  ...(member.linkId && !member.code && !member.leadId
+                  ...(member.linkId && !member.clientId && !member.leadId
                     ? [
                         {
                           label: t('family.createLead'),
@@ -478,7 +475,7 @@ export function FamilyTab({ detail }: { detail: ClientDetail }) {
                   <tr key={member.key}>
                     <td>
                       {member.canOpen ? (
-                        <Link to={`/clients/${member.code}`} title={member.name} className="block truncate font-medium text-primary hover:underline">
+                        <Link to={`/clients/${member.clientId}`} title={member.name} className="block truncate font-medium text-primary hover:underline">
                           {member.name}
                         </Link>
                       ) : (
@@ -486,8 +483,8 @@ export function FamilyTab({ detail }: { detail: ClientDetail }) {
                           {member.name}
                         </span>
                       )}
-                      <span className="block truncate text-ink-meta tabular-nums" title={member.note ?? undefined}>
-                        {[member.code, member.note].filter(Boolean).join(' · ') || (member.linkId ? '' : t('family.fromPolicy'))}
+                      <span className="block truncate text-ink-meta" title={member.note ?? undefined}>
+                        {member.note || (member.linkId ? '' : t('family.fromPolicy'))}
                       </span>
                       {member.leadId && (
                         <Link to={`/leads/${member.leadId}`} className="text-caption text-primary hover:underline">
@@ -506,8 +503,8 @@ export function FamilyTab({ detail }: { detail: ClientDetail }) {
                         <span className="text-ink-meta">-</span>
                       ) : (
                         member.sharedPolicies.map((policy) => (
-                          <span key={policy.policyNo} className="block truncate tabular-nums">
-                            {`${policy.policyNo} · ${policy.roles.map((role) => t(ROLE_KEYS[role])).join(', ')}`}
+                          <span key={policy.policyNo} className="block truncate tabular-nums" title={policyRolesLabel(policy)}>
+                            {policyRolesLabel(policy)}
                           </span>
                         ))
                       )}
@@ -545,7 +542,7 @@ export function FamilyTab({ detail }: { detail: ClientDetail }) {
         open={relativeOpen}
         onClose={close}
       >
-        {relativeOpen && <RelativeForm key={dialog} clientCode={code} member={target} onClose={close} />}
+        {relativeOpen && <RelativeForm key={dialog} clientId={clientId} member={target} onClose={close} />}
       </Dialog>
       <Dialog
         title={
@@ -558,10 +555,10 @@ export function FamilyTab({ detail }: { detail: ClientDetail }) {
         open={relationOpen}
         onClose={close}
       >
-        {relationOpen && <RelationForm key={dialog} clientCode={code} member={target} onClose={close} />}
+        {relationOpen && <RelationForm key={dialog} clientId={clientId} member={target} onClose={close} />}
       </Dialog>
       <Dialog title={target ? t('family.leadTitle', { name: target.name }) : t('family.createLead')} open={leadOpen} onClose={close}>
-        {leadOpen && target && <FamilyLeadForm clientCode={code} member={target} onClose={close} />}
+        {leadOpen && target && <FamilyLeadForm clientId={clientId} member={target} onClose={close} />}
       </Dialog>
       <ConfirmDialog
         message={removing ? t('family.confirmRemove', { name: removing.name }) : null}
