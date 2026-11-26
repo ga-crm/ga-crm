@@ -51,6 +51,18 @@ function assertAgentCode(
   }
 }
 
+/**
+ * Decided 27/11/2026: a GA has one director, created by the Platform Admin with the GA (TENANT-2).
+ * Nobody inside the GA invites a director or makes someone one.
+ */
+function assertNoNewDirector(
+  roles: readonly string[] | undefined,
+  before: readonly string[] = [],
+): void {
+  if (roles?.includes(Role.GAD) && !before.includes(Role.GAD))
+    throw new ApiException(HttpStatus.FORBIDDEN, ErrorCode.DirectorByPlatform);
+}
+
 /** ROLE-4: only a GA_HEAD may touch a GA_HEAD account or grant that role. */
 function assertCanManageHead(
   actor: Actor,
@@ -169,6 +181,7 @@ export class UsersService {
     dto: InviteUserDto,
   ): Promise<{ user: User; inviteUrl: string; addedToTree: boolean }> {
     assertCanManageHead(actor, dto.roles);
+    assertNoNewDirector(dto.roles);
     assertAgentCode(dto.roles, dto.agentCode);
     try {
       return await this.tenantDb.run(scope, async (db) => {
@@ -261,6 +274,7 @@ export class UsersService {
         await this.tenants.lockHeads(scope, db);
         const user = await this.getById(scope, id, db);
         assertCanManageHead(actor, user.roles, dto.roles);
+        assertNoNewDirector(dto.roles, user.roles);
 
         const roles = dto.roles ?? (user.roles as Role[]);
         const agentCode =

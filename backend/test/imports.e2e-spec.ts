@@ -1123,6 +1123,7 @@ describe('Agent tree and imports (e2e)', () => {
           name: 'FC Mới',
           roles: ['FC'],
           agentCode: '00100800',
+          managerCode: '00100003',
         })
         .expect(201);
       // Decided 26/11/2026: an invite by someone who edits the tree adds the FC to it. An account

@@ -37,6 +37,8 @@ const baseSchema = z.object({
     .regex(/^\d{0,20}$/, t('validation.agentCode')),
   // Decided 26/11/2026: where a new agent code joins the tree
   managerCode: z.string(),
+  // Decided 27/11/2026: set by the manager field when the account joins the tree under someone
+  managerNeeded: z.boolean().optional(),
 })
 
 // ROLE-2
@@ -48,6 +50,7 @@ const agentCodeRule = { path: ['agentCode'], message: t('errors.agent_code_requi
 const inviteSchema = baseSchema
   .extend({ email: z.string().trim().pipe(z.email(t('validation.email'))) })
   .refine(needsAgentCode, agentCodeRule)
+  .refine((values) => !values.managerNeeded || values.managerCode.length > 0, { path: ['managerCode'], message: t('errors.manager_required') })
 
 type InviteValues = z.infer<typeof inviteSchema>
 
@@ -57,10 +60,13 @@ const statusBadge = (status: UserStatus) => (
   </Badge>
 )
 
-/** ROLE-4: only a GAD is offered the GAD role. The API enforces the same rule. */
-function useRoleOptions() {
-  const { data: me } = useMe()
-  return TENANT_ROLES.filter((role) => role !== 'GAD' || hasRole(me, 'GAD')).map((role) => ({
+/**
+ * Decided 27/11/2026: the GA has one director, created by the Platform Admin, so nobody here is
+ * offered the role; an account that already holds it keeps the chip so a save does not drop it.
+ * The API refuses it too (director_by_platform).
+ */
+function useRoleOptions(held: readonly string[] = []) {
+  return TENANT_ROLES.filter((role) => role !== 'GAD' || held.includes('GAD')).map((role) => ({
     value: role,
     label: tDynamic(`role.${role}`, role),
   }))
@@ -100,12 +106,18 @@ function ManagerField({ form }: { form: ReturnType<typeof useForm<InviteValues>>
     if (picked && !onTree && !choices.some((row) => row.agent.agentCode === picked)) form.setValue('managerCode', '')
   }, [picked, onTree, choices, form])
   // Decided 27/11/2026: the person adding the account is its manager unless someone else is picked,
-  // when they are on the tree above the new rank. A choice by hand (even "none") stays.
+  // when they are on the tree above the new rank. A choice by hand stays.
   const [chosenByHand, setChosenByHand] = useState(false)
   const mine = me?.user.agentCode ?? null
   useEffect(() => {
     if (joins && !chosenByHand && !picked && mine && choices.some((row) => row.agent.agentCode === mine)) form.setValue('managerCode', mine)
   }, [joins, chosenByHand, picked, mine, choices, form])
+  // Decided 27/11/2026: every agent hangs under someone above them; only when nobody is above yet
+  // may the account start a branch
+  const needed = joins && choices.length > 0
+  useEffect(() => {
+    if (form.getValues('managerNeeded') !== needed) form.setValue('managerNeeded', needed)
+  }, [needed, form])
   const registered = form.register('managerCode')
   const hint = !canEditTree
     ? t('users.managerNoRight')
@@ -128,7 +140,9 @@ function ManagerField({ form }: { form: ReturnType<typeof useForm<InviteValues>>
         }}
         value={onTree ? (onTree.managerCode ?? '') : picked}
       >
-        <option value="">{t('users.managerNone')}</option>
+        <option value="" disabled={needed}>
+          {needed || !joins ? t('users.managerPick') : t('users.managerNone')}
+        </option>
         {choices.map((row) => (
           <option key={row.agent.agentCode} value={row.agent.agentCode}>
             {pickerLabel(row)}
@@ -140,7 +154,7 @@ function ManagerField({ form }: { form: ReturnType<typeof useForm<InviteValues>>
 }
 
 function UserFormFields({ form, emailHint }: { form: ReturnType<typeof useForm<InviteValues>>; emailHint?: string }) {
-  const roleOptions = useRoleOptions()
+  const roleOptions = useRoleOptions(form.getValues('roles') ?? [])
   const { errors } = form.formState
   const roles = form.watch('roles') ?? []
   return (
@@ -169,7 +183,7 @@ function UserFormFields({ form, emailHint }: { form: ReturnType<typeof useForm<I
 function InviteDialog({ onClose, onInvited }: { onClose: () => void; onInvited: (url: string, addedToTree: boolean, name: string) => void }) {
   const form = useForm<InviteValues>({ resolver: zodResolver(inviteSchema), defaultValues: { email: '', name: '', roles: [], agentCode: '', managerCode: '' } })
   const invite = useMutation({
-    mutationFn: ({ agentCode, managerCode, ...values }: InviteValues) =>
+    mutationFn: ({ agentCode, managerCode, managerNeeded: _needed, ...values }: InviteValues) =>
       api.post<{ inviteUrl: string; addedToTree: boolean }>('/users/invite', { ...values, agentCode: agentCode || undefined, managerCode: managerCode || undefined }),
     onSuccess: ({ inviteUrl, addedToTree }, values) => onInvited(inviteUrl, addedToTree, values.name),
     onError: (error) => {

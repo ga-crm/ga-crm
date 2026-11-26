@@ -558,7 +558,7 @@
   "users.agentCode": "Mã đại lý",
   "users.manager": "Quản lý trực tiếp",
   "users.managerNone": "Không có (đứng đầu một nhánh)",
-  "users.managerHint": "Dùng khi mã đại lý chưa có trong cây.",
+  "users.managerHint": "Bắt buộc khi thêm đại lý mới vào cây.",
   "users.managerJoins": "Mã chưa có trong cây: lưu sẽ thêm vào cây, hạng {rank}.",
   "users.managerOnTree": "Đã có trong cây ({name}). Đổi quản lý ở Cây đại lý.",
   "users.managerNoRight": "Cần quyền sửa cây đại lý để thêm vào cây.",
@@ -2394,5 +2394,8 @@
   "imports.noSheetHere": "File không có sheet nào cho màn hình này. Cần ít nhất một trong các sheet: {sheets}.",
   "imports.optionManualClient": "Thêm từng khách hàng",
   "imports.manualClientHint": "Phù hợp khi chỉ có vài khách hàng. Mở form thêm khách hàng theo mã hợp đồng.",
-  "clients.import": "Nhập từ Excel"
+  "clients.import": "Nhập từ Excel",
+  "errors.director_by_platform": "Giám đốc GA do Quản trị viên nền tảng tạo; trong GA không mời hay cấp vai trò này.",
+  "errors.manager_required": "Chọn quản lý trực tiếp cho người này.",
+  "users.managerPick": "Chọn quản lý trực tiếp"
 }

@@ -110,16 +110,33 @@ describe('Accounts added by hand join the agent tree (e2e)', () => {
     ).toBe(1);
   });
 
-  it('the rank follows the highest agent role; no manager makes a root', async () => {
-    await invite(head, {
-      email: 'gad.tay@test.local',
-      name: 'Giám Đốc Nhập Tay',
-      roles: ['FC', 'GAD'],
+  it('the rank follows the highest agent role; a manager is required; the director is never granted', async () => {
+    // Decided 27/11/2026: someone is above every new agent, so none starts a branch
+    const missing = await invite(head, {
+      email: 'khong.quan.ly@test.local',
+      name: 'Không Quản Lý',
+      roles: ['FC', 'UM'],
       agentCode: '00100092',
+    }).expect(400);
+    expect(missing.body.error).toBe('manager_required');
+    await invite(head, {
+      email: 'khong.quan.ly@test.local',
+      name: 'Trưởng Nhóm Nhập Tay',
+      roles: ['FC', 'UM'],
+      agentCode: '00100092',
+      managerCode: BM,
     }).expect(201);
     expect(
       (await tree(head)).find((agent) => agent.agentCode === '00100092'),
-    ).toMatchObject({ rank: 'SUM', managerCode: null, depth: 0 });
+    ).toMatchObject({ rank: 'UM', managerCode: BM });
+    // The GA's one director comes from the platform
+    const director = await invite(head, {
+      email: 'giam.doc.hai@test.local',
+      name: 'Giám Đốc Thứ Hai',
+      roles: ['GAD'],
+      agentCode: '00100088',
+    }).expect(403);
+    expect(director.body.error).toBe('director_by_platform');
   });
 
   it('a code already on the tree is left as it is; the manager field changes nothing', async () => {

@@ -289,6 +289,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
           name: 'C',
           roles: ['FC'],
           agentCode: '00900099',
+          managerCode: '00100001',
         })
         .expect(201);
       expect(invited.body.user.agentCode).toBe('00900099');
@@ -302,6 +303,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
           name: 'D',
           roles: ['FC'],
           agentCode: '00900099',
+          managerCode: '00200001',
         })
         .expect(201);
     });
@@ -343,10 +345,9 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
         .send({ roles: ['ADMIN'] })
         .expect(409);
       expect(demote.body.error).toBe('last_ga_head');
-      await head
-        .patch(`${API}/users/${other.id}`)
-        .send({ roles: ['GAD'] })
-        .expect(200);
+      await ownerDb().query(`UPDATE users SET roles = '{GAD}' WHERE id = $1`, [
+        other.id,
+      ]);
     });
 
     it('USER-10: disabling applies immediately and deletes all sessions', async () => {
@@ -415,9 +416,11 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       ga = 1,
     ) => {
       const head = await signIn(demoEmail(ga, 'head'));
+      // Decided 27/11/2026: a new agent hangs under someone above them, here the GA's top agent
+      const manager = body.agentCode ? { managerCode: `00${ga}00001` } : {};
       const invited = await head
         .post(`${API}/users/invite`)
-        .send({ email, name: 'Vòng đời', roles: ['ADMIN'], ...body })
+        .send({ email, name: 'Vòng đời', roles: ['ADMIN'], ...manager, ...body })
         .expect(201);
       const device = request.agent(app.getHttpServer());
       await device
@@ -652,12 +655,17 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
         await admin.post(`${API}/users/${me.id}/${action}`).expect(403);
       }
 
-      // A GA_HEAD may archive another GA_HEAD while one active GA_HEAD remains
-      const second = await activated(
-        'second.head@test.local',
-        { roles: ['GAD'] },
-        2,
-      );
+      // Decided 27/11/2026: nobody in the GA makes a director (the platform creates the one)
+      const refused = await ownHead
+        .post(`${API}/users/invite`)
+        .send({ email: 'second.head@test.local', name: 'H', roles: ['GAD'] })
+        .expect(403);
+      expect(refused.body.error).toBe('director_by_platform');
+      // A director may archive another director while one active director remains
+      const second = await activated('second.head@test.local', {}, 2);
+      await ownerDb().query(`UPDATE users SET roles = '{GAD}' WHERE id = $1`, [
+        second.id,
+      ]);
       await ownHead
         .post(`${API}/users/${second.id}/archive`)
         .send({})
@@ -1309,7 +1317,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
 
       await head
         .patch(`${API}/users/${id}`)
-        .send({ roles: ['GAD'] })
+        .send({ roles: ['FC'], agentCode: '00200098', managerCode: '00200001' })
         .expect(200);
       await http()
         .post(`${API}/invites/accept`)

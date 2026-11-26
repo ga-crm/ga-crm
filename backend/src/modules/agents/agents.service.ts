@@ -297,6 +297,19 @@ export class AgentsService {
     )
       return false;
     const managerCode = user.managerCode || null;
+    // Decided 27/11/2026: every agent hangs under someone above them, unless nobody is yet
+    if (
+      !managerCode &&
+      AGENT_RANKS.indexOf(rank) > 0 &&
+      (await agents
+        .createQueryBuilder('agent')
+        .where('agent.tenantId = :tenantId', { tenantId: scope.tenantId })
+        .andWhere('agent.rank IN (:...above)', {
+          above: AGENT_RANKS.slice(0, AGENT_RANKS.indexOf(rank)),
+        })
+        .getExists())
+    )
+      throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.ManagerRequired);
     if (managerCode) {
       const manager =
         managerCode === user.agentCode

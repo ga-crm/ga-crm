@@ -70,6 +70,10 @@ export const ErrorCode = {
   ManagerRankTooLow: 'manager_rank_too_low',
   /** Decided 27/11/2026: the assignment request was already approved, refused or withdrawn. */
   RequestDecided: 'request_decided',
+  /** Decided 27/11/2026: the GA director is created by the platform, never granted inside a GA. */
+  DirectorByPlatform: 'director_by_platform',
+  /** Decided 27/11/2026: an agent joining the tree needs a direct manager above them. */
+  ManagerRequired: 'manager_required',
   AgentExists: 'agent_exists',
   ImportNotOpen: 'import_not_open',
   ImportNotValidated: 'import_not_validated',
