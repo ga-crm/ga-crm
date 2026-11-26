@@ -429,7 +429,19 @@ describe('Clients and policies entered by hand (e2e)', () => {
       });
       expect((await policyOf('500000099'))?.clients).toHaveLength(1);
 
-      ids.branch = await add(um, '500000010', 'PO', {
+      // Changed 27/11/2026: a line manager adds only for themselves; the director gives a client
+      // to another agent
+      expect(
+        (
+          await create(um, {
+            policyNo: '500000010',
+            role: 'PO',
+            name: 'Của FC Tuyến Dưới',
+            agentCode: FC,
+          }).expect(400)
+        ).body.error,
+      ).toBe('agent_not_found');
+      ids.branch = await add(head, '500000010', 'PO', {
         name: 'Của FC Tuyến Dưới',
         agentCode: FC,
       });
@@ -459,13 +471,14 @@ describe('Clients and policies entered by hand (e2e)', () => {
         name: 'Vợ Khách Nhánh Khác',
       });
       expect((await stored(spouse))?.ownerAgentCodes).toEqual([PEER]);
+      // Changed 27/11/2026: Admin sees every client but gives none to another agent
       for (const agent of [admin])
         await create(agent, {
           policyNo: '500000014',
           role: 'PO',
           name: 'Không Được',
           agentCode: FC,
-        }).expect(403);
+        }).expect(400);
       expect(await policyOf('500000014')).toBeNull();
     });
 
@@ -535,14 +548,14 @@ describe('Clients and policies entered by hand (e2e)', () => {
       ).toEqual([ids.holder]);
     });
 
-    it('test 38 + test 43 + CUS-6: a line manager only reads; GA_HEAD edits any client', async () => {
-      const refused = await um
+    it('test 38 + test 43 + CUS-6: Admin only reads (changed 27/11/2026); the director edits any client', async () => {
+      const refused = await admin
         .patch(`${API}/clients/${ids.holder}`)
         .send({ name: 'Quản Lý Sửa' })
         .expect(403);
       expect(refused.body.error).toBe('client_not_yours');
       expect(
-        (await um.get(`${API}/clients/${ids.holder}`).expect(200)).body.canEdit,
+        (await admin.get(`${API}/clients/${ids.holder}`).expect(200)).body.canEdit,
       ).toBe(false);
       await head
         .patch(`${API}/clients/${ids.peer}`)
@@ -609,7 +622,7 @@ describe('Clients and policies entered by hand (e2e)', () => {
 
       expect(
         (
-          await um
+          await admin
             .post(`${API}/clients/${ids.second}/policies`)
             .send(policyBody('500000031'))
             .expect(403)
@@ -738,7 +751,7 @@ describe('Clients and policies entered by hand (e2e)', () => {
         .patch(`${API}/clients/${ids.holder}/policies/500000020`)
         .send(edit)
         .expect(404);
-      await um
+      await admin
         .patch(`${API}/clients/${ids.second}/policies/500000020`)
         .send(edit)
         .expect(403);

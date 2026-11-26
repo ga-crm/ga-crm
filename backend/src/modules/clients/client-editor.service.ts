@@ -148,8 +148,9 @@ export class ClientEditorService {
   }
 
   /**
-   * MAN-3 + POL-2: whose client or policy it becomes. A chosen agent must be one the person may
-   * act for: GA_HEAD any agent of the GA, a manager their branch, a FC only themselves.
+   * MAN-3 + POL-2: whose client or policy it becomes. Changed 27/11/2026: only the GA director
+   * picks any agent of the GA; everyone else adds for themselves (giving a client to someone else is
+   * an assignment, which the director approves).
    */
   private async resolveAgent(
     actor: Actor,
@@ -163,7 +164,7 @@ export class ClientEditorService {
       throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.AgentRequired);
     const allowed =
       actor.roles.includes(Role.GAD) ||
-      (await this.agents.scopeCodes(actor, db)).includes(agentCode) ||
+      agentCode === actor.agentCode ||
       (!chosen && agentCode === fallback);
     const known = await this.agents.namesByCode(scope, [agentCode], db);
     if (!allowed || !known.has(agentCode))
@@ -483,7 +484,7 @@ export class ClientEditorService {
    */
   async create(actor: Actor, dto: CreateClientDto): Promise<{ id: string }> {
     const scope = this.scopeOf(actor);
-    const reach = await this.reader.reach(actor); // MAN-1: Marketing and Admin are refused here
+    const reach = await this.reader.reach(actor); // MAN-1: someone with no book is refused here
     if (!POLICY_NO.test(dto.policyNo))
       throw new ApiException(
         HttpStatus.BAD_REQUEST,

@@ -170,16 +170,19 @@ export class WorkService {
     });
   }
 
-  /** Section 17.14 GET /tasks: one's own, or the line's for a manager (`team=1`). */
+  /**
+   * Section 17.14 GET /tasks: one's own, or every task of the GA for the GA director (`team=1`).
+   * Changed 27/11/2026: a line manager no longer sees the tasks of their line, which name the
+   * line's customers.
+   */
   async list(actor: Actor, query: ListTasksQueryDto) {
     const scope = this.scopeOf(actor);
     return this.tenantDb.run(scope, async (db) => {
       const params: unknown[] = [scope.tenantId];
       const where = [`t.tenant_id = $1`];
       if (query.team) {
-        const codes = await this.agents.scopeCodes(actor, db);
-        if (codes.length === 0) throw forbidden();
-        where.push(`t.agent_code = ANY($${params.push(codes)}::text[])`);
+        if (!actor.roles.includes(Role.GAD)) throw forbidden();
+        where.push(`t.agent_code IS NOT NULL`);
       } else where.push(mine(actor, params));
       where.push(`t.status = $${params.push(query.status ?? 'OPEN')}`);
       if (query.dueFrom)

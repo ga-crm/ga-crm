@@ -52,7 +52,8 @@ describe('Client care records and referrals (e2e)', () => {
     await seedDemoData(app, PASSWORD);
     [fc, um, head, marketing, head2] = await Promise.all([
       as('fc'),
-      as('um'),
+      // Decided 27/11/2026: Admin now plays the one who sees but does not own
+      as('admin'),
       as('head'),
       as('admin'),
       as('head', 2),

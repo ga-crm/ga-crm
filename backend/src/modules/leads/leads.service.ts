@@ -11,7 +11,7 @@ import {
 import { normalizeName, parsePhone } from '../../common/normalize.js';
 import { escapeLike, isId } from '../../common/pagination.js';
 import type { Actor, Scope } from '../../common/rbac.js';
-import { Permission } from '../../common/rbac.js';
+import { Permission, Role, seesPhoneOf } from '../../common/rbac.js';
 import { newId, withoutNulls } from '../../core/persistence/ids.js';
 import { rowsOf } from '../../core/persistence/sql.js';
 import { insertRows, updateRows } from '../../core/persistence/upsert.js';
@@ -243,12 +243,22 @@ export class LeadsService {
     );
   }
 
-  /** PDP-3: whoever cannot work on a lead sees its phone masked. */
+  /**
+   * PDP-3, changed 27/11/2026: only whoever the lead is assigned to, and the GA director, see its
+   * phone. A lead manager (Admin), a line manager and a supporter get it masked.
+   */
+  private seesPhone(
+    actor: Actor,
+    lead: Pick<Lead, 'assignedAgentCode'>,
+  ): boolean {
+    return seesPhoneOf(actor, [lead.assignedAgentCode]);
+  }
+
   private phoneFor(
     actor: Actor,
     lead: Pick<Lead, 'assignedAgentCode' | 'phone'>,
   ): string {
-    return this.canWork(actor, lead) ? lead.phone : maskPhone(lead.phone);
+    return this.seesPhone(actor, lead) ? lead.phone : maskPhone(lead.phone);
   }
 
   /** LEAD-40, LEAD-41: the lead this person sees, for the removal service. */
@@ -819,11 +829,17 @@ export class LeadsService {
       if (query.q) {
         const name = `%${escapeLike(normalizeName(query.q))}%`;
         const digits = query.q.replace(/\D/g, '');
-        // PDP-3: searching by phone would let others confirm a number they only see masked
-        if (this.manages(actor) && digits.length >= 3)
+        // PDP-3: searching by phone would let others confirm a number they only see masked, so a
+        // number finds only the leads whose phone the person sees (decided 27/11/2026)
+        if (digits.length >= 3 && actor.roles.includes(Role.GAD))
           builder.andWhere(
             '(lead.nameNorm LIKE :name OR lead.phone LIKE :digits)',
             { name, digits: `%${digits}%` },
+          );
+        else if (digits.length >= 3 && actor.agentCode)
+          builder.andWhere(
+            '(lead.nameNorm LIKE :name OR (lead.phone LIKE :digits AND lead.assignedAgentCode = :ownCode))',
+            { name, digits: `%${digits}%`, ownCode: actor.agentCode },
           );
         else builder.andWhere('lead.nameNorm LIKE :name', { name });
       }
@@ -1344,7 +1360,8 @@ export class LeadsService {
           const mask = (value: string | null) =>
             !value
               ? value
-              : (item.field === 'phone' || item.field === 'merge') && !canWork
+              : (item.field === 'phone' || item.field === 'merge') &&
+                  !this.seesPhone(actor, lead)
                 ? maskPhone(value)
                 : item.field === 'client' && !seesClients
                   ? null

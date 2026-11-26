@@ -306,31 +306,34 @@ describe('Leads (e2e)', () => {
   });
 
   describe('who sees what', () => {
-    it('LEAD-6 + test 23: scope follows the tree; the line manager sees a masked phone', async () => {
+    it('LEAD-6 (changed 27/11/2026): each sees their own leads; Admin sees all masked; the director sees all', async () => {
       const { id, phone } = await newLead(fc);
       const peer = await newLead(marketing, { assignedAgentCode: OTHER_FC });
+      const masked = `${phone.slice(0, 4)}***${phone.slice(-3)}`;
 
-      const managerView = await open(um, id);
-      expect(managerView.lead.phone).toBe(
-        `${phone.slice(0, 4)}***${phone.slice(-3)}`,
-      );
-      expect(managerView.canWork).toBe(false);
-      const row = (await list(um)).items.find(
-        (item: { id: string }) => item.id === id,
-      );
-      expect(row.phone).not.toBe(phone);
+      // A line manager no longer sees the leads of their line
+      await um.get(`${API}/leads/${id}`).expect(404);
+      expect(
+        (await list(um)).items.some((item: { id: string }) => item.id === id),
+      ).toBe(false);
+      const bm = await as('bm');
+      await bm.get(`${API}/leads/${peer.id}`).expect(404);
 
-      await um.get(`${API}/leads/${peer.id}`).expect(404);
       await fc.get(`${API}/leads/${peer.id}`).expect(404);
       const fcIds = (await list(fc)).items.map(
         (item: { id: string }) => item.id,
       );
       expect(fcIds).not.toContain(peer.id);
 
-      const bm = await as('bm');
-      expect((await open(bm, peer.id)).lead.phone).toContain('***');
+      // Admin (leads.manage) sees and works every lead, never its phone
+      const adminView = await open(marketing, id);
+      expect(adminView.lead.phone).toBe(masked);
+      expect(
+        (await list(marketing)).items.find(
+          (item: { id: string }) => item.id === id,
+        ).phone,
+      ).toBe(masked);
       expect((await open(fc, id)).lead.phone).toBe(phone);
-      expect((await open(marketing, id)).lead.phone).toBe(phone);
       expect((await open(head, peer.id)).lead.phone).toBe(peer.phone);
     });
 
@@ -341,21 +344,21 @@ describe('Leads (e2e)', () => {
       await head.get(`${API}/leads/${id}`).expect(200);
     });
 
-    it('PDP-3 + test 23: only lead managers can search by phone', async () => {
+    it('PDP-3 (changed 27/11/2026): a number finds a lead only for whoever sees its phone', async () => {
       const { phone } = await newLead(fc);
       const found = async (agent: Agent) =>
         (await list(agent, { q: phone })).total;
-      expect(await found(marketing)).toBe(1);
+      expect(await found(fc)).toBe(1);
       expect(await found(head)).toBe(1);
+      expect(await found(marketing)).toBe(0);
       expect(await found(um)).toBe(0);
-      expect(await found(fc)).toBe(0);
     });
 
-    it('PDP-3: history of a phone change is masked for the line manager', async () => {
+    it('PDP-3: history of a phone change is masked for Admin', async () => {
       const { id } = await newLead(fc);
       const changed = nextPhone();
       await update(fc, id, { phone: changed }).expect(200);
-      const row = (await open(um, id)).history.find(
+      const row = (await open(marketing, id)).history.find(
         (item: { field: string }) => item.field === 'phone',
       );
       expect(row.newValue).toContain('***');
@@ -421,10 +424,10 @@ describe('Leads (e2e)', () => {
   });
 
   describe('working on a lead', () => {
-    it('LEAD-7 + test 23: a line manager gets lead_not_yours for everything except comments', async () => {
+    it('LEAD-7 (changed 27/11/2026): a line manager does not reach the leads of their line at all', async () => {
       const { id } = await newLead(fc);
       const expectNotYours = async (req: request.Test) =>
-        expect((await req.expect(403)).body.error).toBe('lead_not_yours');
+        expect((await req.expect(404)).body.error).toBe('not_found');
       await expectNotYours(update(um, id, { interest: 'LIFE' }));
       await expectNotYours(
         um.post(`${API}/leads/${id}/notes`).send({ body: 'x' }),
@@ -442,7 +445,7 @@ describe('Leads (e2e)', () => {
       await um
         .post(`${API}/leads/${id}/comments`)
         .send({ body: 'Góp ý' })
-        .expect(201);
+        .expect(404);
     });
 
     it('LEAD-8: the agent edits details; source and campaign are for lead managers', async () => {
@@ -747,7 +750,7 @@ describe('Leads (e2e)', () => {
     it('CMT-2: comments and views leave updatedAt alone, so imports are not affected', async () => {
       const { id } = await newLead(fc);
       const before = (await rawLead(id))?.updatedAt;
-      await um
+      await head
         .post(`${API}/leads/${id}/comments`)
         .send({ body: 'Góp ý' })
         .expect(201);
@@ -763,7 +766,7 @@ describe('Leads (e2e)', () => {
         );
       expect(await flagged()).toBe(false);
 
-      await um
+      await head
         .post(`${API}/leads/${id}/comments`)
         .send({ body: 'Gọi lại sớm nhé' })
         .expect(201);
@@ -790,17 +793,17 @@ describe('Leads (e2e)', () => {
         .expect(201);
       expect(await flagged()).toBe(false);
       // A manager opening the lead does not clear the agent's flag
-      await um
+      await head
         .post(`${API}/leads/${id}/comments`)
         .send({ body: 'Tốt' })
         .expect(201);
-      await open(um, id);
+      await open(head, id);
       expect(await flagged()).toBe(true);
     });
 
     it('CMT-1 + test 25: oldest first, with the author; CMT-6: audited', async () => {
       const { id } = await newLead(fc);
-      await um
+      await head
         .post(`${API}/leads/${id}/comments`)
         .send({ body: 'Một' })
         .expect(201);
@@ -808,13 +811,15 @@ describe('Leads (e2e)', () => {
         .post(`${API}/leads/${id}/comments`)
         .send({ body: 'Hai' })
         .expect(201);
-      const { comments, userNames } = await open(um, id);
+      const { comments, userNames } = await open(head, id);
       expect(comments.map((item: { body: string }) => item.body)).toEqual([
         'Một',
         'Hai',
       ]);
-      expect(userNames[comments[0].authorUserId]).toBe('Trưởng nhóm 1');
-      await um
+      expect(userNames[comments[0].authorUserId]).toBe(
+        'Giám đốc điều hành 1',
+      );
+      await head
         .post(`${API}/leads/${id}/comments`)
         .send({ body: 'x'.repeat(2001) })
         .expect(400);
@@ -871,7 +876,7 @@ describe('Leads (e2e)', () => {
         .patch(`${API}/leads/${id}/tasks/${randomUUID().toString()}`)
         .send({ done: true })
         .expect(404);
-      await um.patch(url).send({ done: true }).expect(403);
+      await um.patch(url).send({ done: true }).expect(404);
     });
 
     it('TASK-4: listed by due date', async () => {
@@ -1144,8 +1149,9 @@ describe('Leads (e2e)', () => {
       expect(afterFc.isNew).toBe(beforeFc.isNew + 1);
       expect(afterFc.unassigned).toBe(0);
 
+      // Changed 27/11/2026: the line manager does not count the leads of their line
       const afterUm = await count(um);
-      expect(afterUm.all).toBe(beforeUm.all + 1);
+      expect(afterUm.all).toBe(beforeUm.all);
       expect(afterUm.mine).toBe(beforeUm.mine);
       expect(afterUm.unassigned).toBe(0);
 
@@ -1333,9 +1339,10 @@ describe('Leads (e2e)', () => {
         recordKey: string;
       }[];
     const byPhone = async (phone: string) => {
-      const { items } = await list(marketing, { q: phone });
+      // Decided 27/11/2026: only the GA director finds any lead by its number
+      const { items } = await list(head, { q: phone });
       expect(items).toHaveLength(1);
-      return open(marketing, items[0].id);
+      return open(head, items[0].id);
     };
 
     it('IMP-11: the template downloads and imports with no errors', async () => {

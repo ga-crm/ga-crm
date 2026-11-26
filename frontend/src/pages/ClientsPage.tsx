@@ -73,7 +73,8 @@ export function ClientsPage() {
   const search = useListSearch(url)
   const tier = url.oneOf('tier', CLIENT_TIERS)
   // CUS-14: "Khách hàng của" is hidden from a FC, whose book is only their own
-  const canPickAgents = me?.reach === 'TENANT' || me?.reach === 'DOWNLINE'
+  // Changed 27/11/2026: only who sees every client filters by owner
+  const canPickAgents = hasRole(me, 'GAD') || hasRole(me, 'ADMIN')
   const tree = useQuery({ ...queries.agentTree(), enabled: canPickAgents })
   const agents = canPickAgents ? url.get('agents') : ''
 

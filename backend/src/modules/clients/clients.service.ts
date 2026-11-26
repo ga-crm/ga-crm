@@ -3,7 +3,8 @@ import type { EntityManager } from 'typeorm';
 import { forbidden, notFound } from '../../common/errors.js';
 import { normalizeName } from '../../common/normalize.js';
 import { escapeLike } from '../../common/pagination.js';
-import { Role } from '../../common/rbac.js';
+import { Role, seesPhoneOf } from '../../common/rbac.js';
+import { maskPhone } from '../leads/lead-rules.js';
 import type { Actor, Scope } from '../../common/rbac.js';
 import {
   and,
@@ -139,14 +140,28 @@ export class ClientsService {
   }
 
   /**
-   * CUS-5: GA_HEAD sees every client, a manager the branch, a FC their own. Marketing and Admin
-   * have no client book (they get the masked portfolio, CUS-16), so they are refused.
+   * CUS-5, changed 27/11/2026: the GA director and Admin see every client (Admin without the
+   * phone, `phoneOf`); everyone else sees only the clients they look after: a line manager no
+   * longer sees the clients of their line. Someone with no agent code and neither role has no book.
    */
-  async reach(actor: Actor, db?: EntityManager): Promise<Reach> {
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async reach(actor: Actor, _db?: EntityManager): Promise<Reach> {
     this.scopeOf(actor);
-    if (actor.reach === 'TENANT') return { all: true, codes: [] };
-    if (actor.reach === 'NONE') throw forbidden();
-    return { all: false, codes: await this.agents.scopeCodes(actor, db) };
+    if (actor.roles.includes(Role.GAD) || actor.roles.includes(Role.Admin))
+      return { all: true, codes: [] };
+    if (!actor.agentCode) throw forbidden();
+    return { all: false, codes: [actor.agentCode] };
+  }
+
+  /** Decided 27/11/2026: a client's phone is for whoever looks after them and the GA director. */
+  phoneOf(
+    actor: Actor,
+    client: { phone: string | null; ownerAgentCodes: readonly string[] },
+  ): string | null {
+    if (!client.phone) return client.phone;
+    return seesPhoneOf(actor, client.ownerAgentCodes)
+      ? client.phone
+      : maskPhone(client.phone);
   }
 
   /** CMT-5: whether someone (the actor or a user being mentioned) sees this client (CUS-5). */
@@ -574,7 +589,12 @@ export class ClientsService {
                 sql`EXISTS (SELECT 1 FROM policies p
                              WHERE p.tenant_id = c.tenant_id AND p.client_ids @> ARRAY[c.id]
                                AND p.policy_no LIKE ${`${digits}%`})`,
-                sql`c.phone LIKE ${`%${digits}%`}`,
+                // A number finds only the clients whose phone the person sees (27/11/2026)
+                actor.roles.includes(Role.GAD)
+                  ? sql`c.phone LIKE ${`%${digits}%`}`
+                  : actor.agentCode
+                    ? sql`(c.phone LIKE ${`%${digits}%`} AND c.owner_agent_codes && ${[actor.agentCode]}::text[])`
+                    : null,
               )
             : name;
       }
@@ -625,7 +645,7 @@ export class ClientsService {
           return {
             id: client.id,
             name: client.name,
-            phone: client.phone,
+            phone: this.phoneOf(actor, client),
             tier: client.tier,
             ageBand: client.ageBand,
             // The policies the client is on and in which role, shown under the name
@@ -757,6 +777,9 @@ export class ClientsService {
         and(sql`c.id = ${clientId}`, clientsSeen(reach)),
       ).getOne();
       if (!client) throw notFound();
+      // Decided 27/11/2026: contact data, like the phone, is for whoever looks after the client
+      // and the GA director; Admin sees the client without it
+      if (!seesPhoneOf(actor, client.ownerAgentCodes)) throw forbidden();
       const [policy] = await this.visiblePolicies(
         db,
         scope,
@@ -862,7 +885,7 @@ export class ClientsService {
         client: {
           id: client.id,
           name: client.name,
-          phone: client.phone,
+          phone: this.phoneOf(actor, client),
           tier: client.tier,
           activePolicies: client.activePolicies,
           lapsedPolicies: client.lapsedPolicies,

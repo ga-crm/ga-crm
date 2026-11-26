@@ -150,6 +150,6 @@ Nguồn: `requirement/10-khach-hang-va-hop-dong.md:123`
 
 Nguồn: `requirement/10-khach-hang-va-hop-dong.md:130`
 
-Đã trích dẫn trong: `backend/src/modules/clients/clients.service.ts`, `backend/src/modules/reports/reports.service.ts`
+Đã trích dẫn trong: `backend/src/modules/reports/reports.service.ts`
 
 - **CUS-16** Marketing có "Danh mục khách hàng (ẩn danh)": khách / hợp đồng / hồ sơ đã che (PDP-4) để phân tích danh mục (cơ cấu sản phẩm, phí, mất hiệu lực) và chọn phân khúc cho chiến dịch. Không truy ngược danh tính; xuất đã che và có audit.

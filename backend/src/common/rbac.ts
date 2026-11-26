@@ -96,6 +96,18 @@ export function resolveReach(roles: readonly Role[]): Reach {
   return 'NONE';
 }
 
+/**
+ * Decided 27/11/2026: a customer's phone (lead or client) is for whoever looks after the customer
+ * and for the GA director, nobody else; everyone else gets it masked from the API.
+ */
+export function seesPhoneOf(
+  actor: Pick<Actor, 'roles' | 'agentCode'>,
+  ownerCodes: readonly (string | null | undefined)[],
+): boolean {
+  if (actor.roles.includes(Role.GAD)) return true;
+  return !!actor.agentCode && ownerCodes.includes(actor.agentCode);
+}
+
 /** ROLE-1 + section 4.2: union of all role grants; the GA director always holds every permission. */
 export function resolvePermissions(
   roles: readonly Role[],

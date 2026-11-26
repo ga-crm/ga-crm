@@ -4,6 +4,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Controller, useFieldArray, useForm } from 'react-hook-form'
 import type { Control, FieldErrors, UseFormRegister } from 'react-hook-form'
 import { z } from 'zod'
+import { hasRole } from '../auth/access'
 import { useMe } from '../auth/useMe'
 import { t } from '../i18n'
 import { api, ApiError, errorMessage } from '../lib/api'
@@ -447,7 +448,8 @@ export function CreateClientForm({ onClose, onCreated }: { onClose: () => void; 
   const { data: me } = useMe()
   const queryClient = useQueryClient()
   // MAN-3: managers and GAD pick the agent from the tree (AGT-9); a FC's client is theirs
-  const picksAgent = me?.reach === 'TENANT' || me?.reach === 'DOWNLINE'
+  // Changed 27/11/2026: only the GA director gives a new client to another agent
+  const picksAgent = hasRole(me, 'GAD')
   const tree = useQuery({ ...queries.agentTree(), enabled: picksAgent })
   const form = useForm<CreateValues>({
     resolver: zodResolver(createSchema),

@@ -76,8 +76,8 @@ describe('Comments on clients and mentions (e2e)', () => {
     await stopApp(app);
   });
 
-  it('CMT-5: a line manager comments on a client of their line; the owner hears about it', async () => {
-    await um
+  it('CMT-5: Admin comments on a client (changed 27/11/2026); the owner hears about it', async () => {
+    await marketing
       .post(`${API}/clients/${CLIENT}/comments`)
       .send({ body: 'Em nhắc khách đóng phí tháng này nhé' })
       .expect(201);
@@ -91,9 +91,9 @@ describe('Comments on clients and mentions (e2e)', () => {
       'Em nhắc khách đóng phí tháng này nhé',
       'Dạ em gọi rồi ạ',
     ]);
-    expect(body.userNames[ids.um]).toBe('Trưởng nhóm 1');
+    expect(body.userNames[ids.admin]).toBe('Quản trị viên 1');
     expect(await notices('fc', 'CLIENT_COMMENT')).toBe(1);
-    expect(await notices('um', 'CLIENT_COMMENT')).toBe(0);
+    expect(await notices('admin', 'CLIENT_COMMENT')).toBe(0);
     // CMT-6 style audit for the client comment
     expect(
       await connection
@@ -102,11 +102,12 @@ describe('Comments on clients and mentions (e2e)', () => {
     ).toBe(2);
   });
 
-  it('CMT-5: roles without a client book cannot comment; another GA gets 404 (TEN-7)', async () => {
-    await marketing
+  it('CMT-5: someone who does not see the client cannot comment; another GA gets 404 (TEN-7)', async () => {
+    // A line manager no longer sees the clients of their line (27/11/2026)
+    await um
       .post(`${API}/clients/${CLIENT}/comments`)
       .send({ body: 'x' })
-      .expect(403);
+      .expect(404);
     await head2
       .post(`${API}/clients/${CLIENT}/comments`)
       .send({ body: 'x' })
@@ -116,15 +117,15 @@ describe('Comments on clients and mentions (e2e)', () => {
 
   it('CMT-5: the @ picker offers only people who see the record, never oneself', async () => {
     const onClient = (
-      await um.get(`${API}/clients/${CLIENT}/mentionable`).expect(200)
+      await marketing.get(`${API}/clients/${CLIENT}/mentionable`).expect(200)
     ).body.items as { id: string; name: string }[];
     const clientIds = onClient.map((item) => item.id);
     expect(clientIds).toEqual(expect.arrayContaining([ids.head, ids.fc]));
-    expect(clientIds).not.toContain(ids.um);
     expect(clientIds).not.toContain(ids.admin);
+    expect(clientIds).not.toContain(ids.um);
 
     const searched = (
-      await um
+      await marketing
         .get(`${API}/clients/${CLIENT}/mentionable`)
         .query({ q: 'tư vấn' })
         .expect(200)
@@ -135,7 +136,7 @@ describe('Comments on clients and mentions (e2e)', () => {
       await head.get(`${API}/leads/${leadId}/mentionable`).expect(200)
     ).body.items as { id: string }[];
     expect(onLead.map((item) => item.id)).toEqual(
-      expect.arrayContaining([ids.fc, ids.um]),
+      expect.arrayContaining([ids.fc, ids.admin]),
     );
     expect(onLead.map((item) => item.id)).not.toContain(ids.head);
   });
@@ -143,9 +144,9 @@ describe('Comments on clients and mentions (e2e)', () => {
   it('CMT-5: a mentioned person is told directly, and the assignee is not told twice', async () => {
     await head
       .post(`${API}/leads/${leadId}/comments`)
-      .send({ body: '@Trưởng nhóm 1 kèm em này nhé', mentions: [ids.um] })
+      .send({ body: '@Quản trị viên 1 kèm em này nhé', mentions: [ids.admin] })
       .expect(201);
-    expect(await notices('um', 'MENTION')).toBe(1);
+    expect(await notices('admin', 'MENTION')).toBe(1);
     expect(await notices('fc', 'LEAD_COMMENT')).toBe(1);
 
     await head
@@ -157,9 +158,9 @@ describe('Comments on clients and mentions (e2e)', () => {
 
     const { body } = await fc.get(`${API}/leads/${leadId}`).expect(200);
     expect(body.comments.at(-1).mentions).toEqual([ids.fc]);
-    expect(body.userNames[ids.um]).toBe('Trưởng nhóm 1');
+    expect(body.userNames[ids.admin]).toBe('Quản trị viên 1');
 
-    await um
+    await marketing
       .post(`${API}/clients/${CLIENT}/comments`)
       .send({ body: '@Chủ GA 1 xem giúp', mentions: [ids.head] })
       .expect(201);
@@ -173,8 +174,8 @@ describe('Comments on clients and mentions (e2e)', () => {
   });
 
   it('CMT-5: mentioning someone who cannot see the record is refused', async () => {
-    for (const mention of [ids.admin, ids.head2]) {
-      const { body } = await um
+    for (const mention of [ids.um, ids.head2]) {
+      const { body } = await marketing
         .post(`${API}/clients/${CLIENT}/comments`)
         .send({ body: '@ai đó', mentions: [mention] })
         .expect(400);

@@ -107,9 +107,11 @@ describe('Lead assignment within a line (e2e)', () => {
     expect(owners.rows.every((row) => [UM, FC].includes(row.code))).toBe(true);
   });
 
-  it('the lead page offers the action to line managers, not to agents', async () => {
+  it("the lead page offers the action to whoever sees the lead and may assign, not to agents", async () => {
     const id = await lead(FC);
-    expect((await um.get(`${API}/leads/${id}`).expect(200)).body.canAssign).toBe(true);
+    // Changed 27/11/2026: a line manager no longer opens the leads of their line
+    await um.get(`${API}/leads/${id}`).expect(404);
+    expect((await head.get(`${API}/leads/${id}`).expect(200)).body.canAssign).toBe(true);
     expect((await fc.get(`${API}/leads/${id}`).expect(200)).body.canAssign).toBe(false);
   });
 

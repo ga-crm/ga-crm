@@ -293,13 +293,13 @@ describe('Clients from Success files (e2e)', () => {
     ).toEqual(['CLIENTS_SHEET', 'POLICY_HOLDER', 'POLICY_INSURED']);
     expect(stored?.ownerAgentCodes).toEqual([FC]);
 
-    // CUS-7: the manager's own list is theirs; "all" shows the branch
+    // CUS-7, changed 27/11/2026: a line manager sees only their own clients, never the branch
     expect(await codesOf(await list(um))).toEqual([]);
-    expect(await codesOf(await list(um, { agents: 'ALL' }))).toEqual([
-      '0100000002',
-      '1000000001',
-    ]);
-    expect(await codesOf(await list(um, { agents: FC }))).toEqual([
+    expect(await codesOf(await list(um, { agents: 'ALL' }))).toEqual([]);
+    expect(await codesOf(await list(um, { agents: FC }))).toEqual([]);
+    // Admin sees every client (phones masked), by owner too
+    const admin = await as('admin');
+    expect(await codesOf(await list(admin, { agents: FC }))).toEqual([
       '0100000002',
       '1000000001',
     ]);
@@ -477,11 +477,10 @@ describe('Clients from Success files (e2e)', () => {
         }),
     ).toBeGreaterThan(0);
 
-    for (const key of ['admin']) {
-      const agent = await as(key);
-      await agent.get(`${API}/clients`).expect(403);
-      await open(agent, '1000000001', 403);
-    }
+    // Changed 27/11/2026: Admin has a client book of every client, without phones
+    const admin = await as('admin');
+    await admin.get(`${API}/clients`).expect(200);
+    await open(admin, '1000000001', 200);
     const head2 = await as('head', 2);
     await open(head2, '1000000001', 404);
     expect(await codesOf(await list(head2, { agents: 'ALL' }))).not.toContain(

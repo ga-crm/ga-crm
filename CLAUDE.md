@@ -6,7 +6,7 @@ Non-negotiable:
 
 1. Tenant isolation: every business table has `tenant_id` and a `FORCE` row-level security policy on `app_tenant()`, and code reaches it only through `TenantDb.run(scope, ...)`; cross-tenant paths use `PlatformDb.run(reason, ...)` with a named reason. Queries filter by the `Scope`; `CROSS_TENANT` is only for sign-in, invite lookup and audited platform reads. A record of another tenant returns 404. Tests must prove GA-1 cannot read GA-2.
 2. Scope is derived on the server, never from client input.
-3. Marketing sees Success data masked only. Line managers see lead phones masked only.
+3. A customer's phone and contact data (lead or client) reach only whoever looks after that customer and the GA director (`seesPhoneOf` in `common/rbac.ts`); the API masks them for everyone else, Admin included, and a number never finds a customer whose phone the searcher cannot see. Line managers do not see the customers of their line (decided 27/11/2026).
 4. Audit every create, update, assign, import, export, client view and AI read, in the same transaction as the change. `meta` never holds secrets.
 5. PDP: never store ID card numbers, bank account numbers or health data from Success imports. AI never receives real identities.
 6. Natural keys are strings: policy number, application number, agent code and the hidden Success client code keep leading zeros. A client is addressed by its id; people work with the policy number ("Mã hợp đồng"). The Success client code is only `clients.success_code`, read by the Success import, never returned by the API or shown (`docs/decisions.md`, 25/11/2026).

@@ -126,7 +126,7 @@ describe('Policy details (e2e)', () => {
       }),
     ).toBe(2);
 
-    // Marketing has no client book; another GA does not see the client
+    // Admin sees the client but not its contact data (27/11/2026); another GA does not see it
     await marketing.get(url).expect(403);
     await head2.get(url).expect(404);
 

@@ -236,8 +236,9 @@ describe('Demo seed (e2e)', () => {
     expect(history.length).toBeGreaterThan(0);
   });
 
-  it('keeps the rules: a line manager sees masked phones, and a won lead has its number', async () => {
-    const um = await signIn(demoEmail(1, 'um'));
+  it('keeps the rules: Admin sees masked phones, and a won lead has its number', async () => {
+    // Decided 27/11/2026: only whoever looks after a lead and the director see its phone
+    const um = await signIn(demoEmail(1, 'admin'));
     const row = (await leadsOf(um)).items.find(
       (item: { assignedAgentCode: string }) =>
         item.assignedAgentCode !== '00100003',

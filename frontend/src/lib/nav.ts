@@ -42,9 +42,9 @@ export const canUseLeads = (me: Me) => hasPermission(me, 'leads.manage') || !!me
 export const canSeeReports = (me: Me) => !!me.tenant && (!!me.user.agentCode || hasRole(me, 'GAD') || hasPermission(me, 'reports.view_all') || hasPermission(me, 'leads.manage'))
 export const canImportLeads = (me: Me) => hasPermission(me, 'leads.import')
 /** LEAD-21 for lead managers; open question 4: line managers within their line (`leads.assign_line`). */
-export const canAssignLeads = (me: Me) => hasPermission(me, 'leads.manage') || (hasPermission(me, 'leads.assign_line') && me.reach === 'DOWNLINE' && !!me.user.agentCode)
-/** CUS-5: GAD, managers and agents have a client book; Admin does not. */
-export const canUseClients = (me: Me) => !!me.tenant && me.reach !== 'NONE'
+export const canAssignLeads = (me: Me) => hasPermission(me, 'leads.manage') || hasRole(me, 'GAD')
+/** CUS-5, changed 27/11/2026: the director and Admin see every client, everyone else their own. */
+export const canUseClients = (me: Me) => !!me.tenant && (hasRole(me, 'GAD') || hasRole(me, 'ADMIN') || !!me.user.agentCode)
 /**
  * Section 16.8 + 4.3: GAD edits the lead catalogue, Admin reads it. `catalog.manage` alone no
  * longer opens it: its only tab, the GA's programmes, gave way to the shared products (TENANT-5).
