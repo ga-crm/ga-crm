@@ -1266,6 +1266,23 @@ export const ACTIVITIES_SHEET: SheetTemplate = {
   ],
 };
 
+/**
+ * Decided 27/11/2026: the "Dữ liệu" screens say what they take in. "Nhập khách hàng" takes the
+ * clients and their policies, policy lines and applications; "Nhập đại lý" the agent tree and the
+ * agents' activities. Both are cuts of the same Success workbook, so a full file still imports on
+ * either screen, which keeps only its own sheets.
+ */
+export const SUCCESS_SCOPES = {
+  clients: [
+    '02_Clients',
+    '03_Policies',
+    '04_Policy_Products',
+    '05_Applications',
+  ],
+  agents: ['01_Agents', '07_Activities'],
+} as const;
+export type SuccessScope = keyof typeof SUCCESS_SCOPES;
+
 export const TEMPLATES_BY_KIND = {
   SUCCESS: [
     AGENTS_SHEET,

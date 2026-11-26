@@ -82,8 +82,11 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/users/activity', label: 'nav.userActivity', icon: Activity, group: 'nav.groupTeam', visible: (me) => !!me.tenant && hasPermission(me, 'users.manage'), chunk: pages.userActivity, prefetch: queries.activeUsers },
   { to: '/assignment-requests', label: 'nav.assignments', icon: ClipboardCheck, group: 'nav.groupTeam', visible: canSeeAssignments, chunk: pages.assignmentRequests },
   { to: '/permissions', label: 'nav.permissions', icon: ShieldCheck, group: 'nav.groupTeam', visible: (me) => hasRole(me, 'GAD'), chunk: pages.permissions, prefetch: () => queries.permissions() },
-  // Files coming in. "Nhập dữ liệu" opens from a button on the agent tree and the history: not a row
+  // Files coming in, one row per kind of data (decided 27/11/2026). The full Success file
+  // ("Nhập dữ liệu") opens from the import history: not a row
   { to: '/leads/import', label: 'nav.leadImport', icon: FileInput, group: 'nav.groupData', visible: canImportLeads, chunk: pages.leadImport },
+  { to: '/clients/import', label: 'nav.clientImport', icon: FileInput, group: 'nav.groupData', visible: canImport, chunk: pages.clientImport },
+  { to: '/agents/import', label: 'nav.agentImport', icon: FileInput, group: 'nav.groupData', visible: canImport, chunk: pages.agentImport },
   { to: '/imports/new', label: 'nav.importNew', icon: FileUp, group: 'nav.groupData', visible: canImport, chunk: pages.importNew, parent: '/imports' },
   { to: '/imports', label: 'nav.imports', icon: History, group: 'nav.groupData', visible: canReadImports, chunk: pages.imports, prefetch: () => queries.imports(FIRST_PAGE_WITH_FILTERS.imports) },
   // Looking back at what was done
@@ -135,8 +138,8 @@ export const PERMISSION_FEATURES: Partial<Record<string, string>> = {
   'users.manage': '/users',
   'agents.view_all': '/agents',
   'agents.edit_tree': '/agents',
-  'imports.upload': '/imports/new',
-  'imports.agent_tree': '/imports/new',
+  'imports.upload': '/clients/import',
+  'imports.agent_tree': '/agents/import',
   'imports.view_all': '/imports',
   'leads.manage': '/leads',
   'leads.assign_line': '/leads',

@@ -318,7 +318,7 @@ export function AgentsPage() {
         action={
           <span className="flex flex-wrap gap-2">
             {canUpload && (
-              <Link to="/imports/new" className={buttonClass('secondary')}>
+              <Link to="/agents/import" className={buttonClass('secondary')}>
                 <FileUp aria-hidden size={16} />
                 {t('agents.import')}
               </Link>

@@ -1,15 +1,17 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { FileUp, Plus } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ClientAssignDialog } from '../components/ClientAssignDialog'
 import { CreateClientForm } from '../components/ClientForms'
 import { hasPermission, hasRole } from '../auth/access'
 import { useMe } from '../auth/useMe'
+import { buttonClass } from '../components/buttonStyles'
 import { TierBadge } from '../components/TierBadge'
 import { Alert, Badge, Button, Card, Container, Dialog, ClearFilters, EmptyState, FilterBand, FilterField, PageHeader, Pagination, SearchInput, Select, Spinner, TableScroll, TabBar, Checkbox } from '../components/ui'
 import { t, tDynamic } from '../i18n'
 import { errorMessage } from '../lib/api'
+import { canImport } from '../lib/nav'
 import { policyRolesLabel } from '../lib/clientLabels'
 import { showDate } from '../lib/leadLabels'
 import { queries } from '../lib/queries'
@@ -117,11 +119,20 @@ export function ClientsPage() {
       <PageHeader
         title={t('clients.title')}
         action={
-          // MAN-1: anyone with a client book may add a client
-          <Button onClick={() => url.set({ create: 1 }, { push: true })}>
-            <Plus size={16} aria-hidden />
-            {t('clients.add')}
-          </Button>
+          <span className="flex flex-wrap gap-2">
+            {/* Decided 27/11/2026: clients and their policies also come in from an Excel file */}
+            {canImport(me!) && (
+              <Link to="/clients/import" className={buttonClass('secondary')}>
+                <FileUp size={16} aria-hidden />
+                {t('clients.import')}
+              </Link>
+            )}
+            {/* MAN-1: anyone with a client book may add a client */}
+            <Button onClick={() => url.set({ create: 1 }, { push: true })}>
+              <Plus size={16} aria-hidden />
+              {t('clients.add')}
+            </Button>
+          </span>
         }
       />
       <Container className="flex-none">

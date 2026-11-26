@@ -20,7 +20,7 @@ describe('sidebar groups (decided 25/11/2026: one group per kind of work)', () =
       ['nav.groupSales', ['/leads', '/campaigns', '/clients', '/products']],
       ['nav.groupComms', ['/chat', '/notifications']],
       ['nav.groupTeam', ['/agents', '/users', '/users/activity', '/assignment-requests', '/permissions']],
-      ['nav.groupData', ['/leads/import', '/imports']],
+      ['nav.groupData', ['/leads/import', '/clients/import', '/agents/import', '/imports']],
       ['nav.groupOversight', ['/audit', '/chat/review']],
       ['nav.groupSetup', ['/catalog', '/ai', '/ga-settings']],
     ])

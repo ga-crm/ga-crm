@@ -43,6 +43,8 @@ export const pages = {
   leadImport: () => import('../pages/LeadImportPage').then((module) => module.LeadImportPage),
   agents: () => import('../pages/AgentsPage').then((module) => module.AgentsPage),
   importNew: () => import('../pages/ImportNewPage').then((module) => module.ImportNewPage),
+  clientImport: () => import('../pages/ImportNewPage').then((module) => module.ClientImportPage),
+  agentImport: () => import('../pages/ImportNewPage').then((module) => module.AgentImportPage),
   imports: () => import('../pages/ImportsPage').then((module) => module.ImportsPage),
   importDetail: () => import('../pages/ImportDetailPage').then((module) => module.ImportDetailPage),
 }

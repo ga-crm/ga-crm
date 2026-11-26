@@ -1282,6 +1282,18 @@ Chủ dự án yêu cầu ngày 26-27/11/2026, trả lời các câu hỏi làm 
 | Phần 4 (xong 27/11/2026) | Bảng `assignment_requests` (migration `AssignmentRequests`). Giám đốc phân công lead (`POST /leads/assign`) hay khách (`POST /clients/assign`) thì có hiệu lực ngay. Người khác có quyền phân công (Quản trị viên với `leads.manage`, quản lý tuyến với `leads.assign_line`, ai được cấp `clients.assign`) thì API tạo **yêu cầu chờ duyệt** (trả `{ assigned: 0, requested, requestId }`), khách ở nguyên chỗ cũ, Giám đốc nhận thông báo `ASSIGN_REQUESTED`. Không ai yêu cầu chuyển khách mình không thấy (quản lý tuyến chỉ chuyển được lead của chính mình). Trang "Duyệt phân công" (`/assignment-requests`): Giám đốc thấy mọi yêu cầu, Duyệt (áp dụng như Giám đốc tự giao: lịch sử, audit, thông báo người nhận) hoặc Từ chối kèm ghi chú; người gửi thấy yêu cầu của mình, rút được yêu cầu còn chờ, nhận thông báo `ASSIGN_DECIDED`. Trang không trả số điện thoại khách. Audit `assignment_request` khi gửi và khi xử lý |
 | Ngoại lệ phần 4 | Tạo lead có chọn người phụ trách và file 13_Leads có cột TÊN TVV vẫn giao ngay, không qua duyệt: đây là việc chia lead mới hằng ngày của Quản trị viên. Chỉ việc chuyển lead hoặc khách đã có người phụ trách sang người khác mới chờ Giám đốc duyệt | Chủ dự án quyết định ngày 27/11/2026 |
 
+## 2026-11-27: Nhóm "Dữ liệu" tách theo loại dữ liệu: Nhập lead, Nhập khách hàng, Nhập đại lý
+
+Chủ dự án yêu cầu ngày 27/11/2026: thêm nhập khách hàng bằng Excel, định nghĩa rõ các chỗ nhập dữ liệu, và có nút nhập Excel ở danh sách khách hàng.
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Thanh bên, nhóm Dữ liệu | **Nhập lead** (`/leads/import`, sheet 13_Leads), **Nhập khách hàng** (`/clients/import`), **Nhập đại lý** (`/agents/import`), **Lịch sử nhập** | Trước đây một màn "Nhập dữ liệu" nhận cả file Success, người dùng không biết đưa khách hàng vào đâu |
+| Nhập khách hàng | Sheet 02_Clients, 03_Policies, 04_Policy_Products, 05_Applications của file Success. File mẫu `templates/CLIENTS.xlsx` chỉ có các sheet này | Cùng bộ máy nhập và kiểm tra như trước (xem trước rồi mới ghi, IMP-3); sheet khác trong file bị bỏ qua, không file nào sai sheet được ghi nhầm |
+| Nhập đại lý | Sheet 01_Agents và 07_Activities (hoạt động của đại lý). File mẫu `templates/AGENTS.xlsx` | Nút "Nhập" ở Cây đại lý mở màn này |
+| Danh sách khách hàng | Nút **"Nhập từ Excel"** cạnh "Thêm khách hàng", cho người có `imports.upload` | |
+| File Success đủ sheet | Màn `/imports/new` vẫn còn, mở từ nút ở Lịch sử nhập | Một file Success đầy đủ vẫn nhập được một lần |
+
 ## Not built yet
 
 | Rule | Item | Needed before go-live |

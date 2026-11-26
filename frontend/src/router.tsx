@@ -71,6 +71,9 @@ export const router = createBrowserRouter([
                   { path: 'agents', lazy: screen(pages.agents, inTenant) },
                   { path: 'imports', lazy: screen(pages.imports, canReadImports) },
                   { path: 'imports/new', lazy: screen(pages.importNew, canImport) },
+                  // Decided 27/11/2026: one screen per kind of data
+                  { path: 'clients/import', lazy: screen(pages.clientImport, canImport) },
+                  { path: 'agents/import', lazy: screen(pages.agentImport, canImport) },
                   { path: 'imports/:id', lazy: screen(pages.importDetail, canReadImports) },
                   { path: 'users', lazy: screen(pages.users, (me) => hasPermission(me, 'users.manage')) },
                   { path: 'chat', lazy: screen(pages.chat, (me) => !!me.tenant) },

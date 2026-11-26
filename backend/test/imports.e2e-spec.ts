@@ -409,9 +409,9 @@ describe('Agent tree and imports (e2e)', () => {
   });
 
   describe('template', () => {
-    const download = async (agent: Agent) => {
+    const download = async (agent: Agent, file = 'SUCCESS.xlsx') => {
       const res = await agent
-        .get(`${API}/imports/templates/SUCCESS.xlsx`)
+        .get(`${API}/imports/templates/${file}`)
         .buffer(true)
         .parse((response, callback) => {
           const chunks: Buffer[] = [];
@@ -423,6 +423,31 @@ describe('Agent tree and imports (e2e)', () => {
       await workbook.xlsx.load(res.body as never);
       return { workbook, res };
     };
+
+    it('decided 27/11/2026: "Nhập khách hàng" and "Nhập đại lý" each download only their sheets', async () => {
+      const head = await signIn(demoEmail(1, 'head'));
+      const clients = await download(head, 'CLIENTS.xlsx');
+      expect(clients.res.get('Content-Disposition')).toContain(
+        'GA_CRM_Mau_Nhap_Khach_Hang.xlsx',
+      );
+      expect(
+        clients.workbook.worksheets
+          .map((sheet) => sheet.name)
+          .filter((name) => /^0[1-9]_/.test(name)),
+      ).toEqual([
+        '02_Clients',
+        '03_Policies',
+        '04_Policy_Products',
+        '05_Applications',
+      ]);
+      const agents = await download(head, 'AGENTS.xlsx');
+      expect(
+        agents.workbook.worksheets
+          .map((sheet) => sheet.name)
+          .filter((name) => /^0[1-9]_/.test(name)),
+      ).toEqual([SHEET, '07_Activities']);
+      await head.get(`${API}/imports/templates/OTHER.xlsx`).expect(404);
+    });
 
     it('IMP-11: is a real workbook with instructions, lookups and text columns', async () => {
       const head = await signIn(demoEmail(1, 'head'));

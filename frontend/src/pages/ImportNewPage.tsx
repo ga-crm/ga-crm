@@ -13,14 +13,25 @@ import { keys } from '../lib/queries'
 import { parseWorkbook, pickCells } from '../lib/spreadsheet'
 import type { ImportPlan } from '../lib/types'
 
-const TEMPLATE_URL = '/api/v1/imports/templates/SUCCESS.xlsx'
+/**
+ * Decided 27/11/2026: "Dữ liệu" has one screen per kind of data: leads (their own page), clients and
+ * their policies, agents and their activities. Each takes only its sheets of a Success workbook, so a
+ * full file works on either; "all" stays for the import history's button.
+ */
+export type ImportScope = 'all' | 'clients' | 'agents'
+const SCOPES: Record<ImportScope, { template: string; sheets: readonly string[] | null; title: 'imports.newTitle' | 'imports.clientsTitle' | 'imports.agentsTitle'; hint: 'imports.newHint' | 'imports.clientsHint' | 'imports.agentsHint' }> = {
+  all: { template: '/api/v1/imports/templates/SUCCESS.xlsx', sheets: null, title: 'imports.newTitle', hint: 'imports.newHint' },
+  clients: { template: '/api/v1/imports/templates/CLIENTS.xlsx', sheets: ['02_Clients', '03_Policies', '04_Policy_Products', '05_Applications'], title: 'imports.clientsTitle', hint: 'imports.clientsHint' },
+  agents: { template: '/api/v1/imports/templates/AGENTS.xlsx', sheets: ['01_Agents', '07_Activities'], title: 'imports.agentsTitle', hint: 'imports.agentsHint' },
+}
 const CHUNK_SIZE = 500 // Section 17.10
 const MAX_FILE_BYTES = 25 * 1024 * 1024
 
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())
 
 /** IMP-3: plan, send in chunks, check. Nothing is written until the next screen confirms it. */
-export function ImportNewPage() {
+export function ImportNewPage({ scope = 'all' }: { scope?: ImportScope }) {
+  const config = SCOPES[scope]
   const { data: me } = useMe()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -59,6 +70,16 @@ export function ImportNewPage() {
         setError(t('imports.unreadable'))
         setProgress(null)
         return
+      }
+      // This screen keeps only its own sheets of the workbook
+      const wanted = config.sheets?.map((name) => name.toLowerCase())
+      if (wanted) {
+        sheets = sheets.filter((sheet) => wanted.includes(sheet.name.trim().toLowerCase()))
+        if (sheets.length === 0) {
+          setError(t('imports.noSheetHere', { sheets: config.sheets!.join(', ') }))
+          setProgress(null)
+          return
+        }
       }
 
       const plan = await api.post<ImportPlan>('/imports', {
@@ -109,7 +130,7 @@ export function ImportNewPage() {
 
   return (
     <>
-      <PageHeader title={t('imports.newTitle')} subtitle={t('imports.newHint')} />
+      <PageHeader title={t(config.title)} subtitle={t(config.hint)} />
       <Container className="grid gap-6 pb-8 lg:grid-cols-2">
         <section className="rounded-lg bg-chrome p-5">
           <h2 className="text-subhead text-ink">{t('imports.optionFile')}</h2>
@@ -118,7 +139,7 @@ export function ImportNewPage() {
             <li>{t('imports.step2')}</li>
             <li>{t('imports.step3')}</li>
           </ol>
-          <a href={TEMPLATE_URL} download className={buttonClass('secondary')}>
+          <a href={config.template} download className={buttonClass('secondary')}>
             <Download aria-hidden size={16} />
             {t('imports.downloadTemplate')}
           </a>
@@ -158,17 +179,33 @@ export function ImportNewPage() {
           </Button>
         </section>
 
-        <section className="rounded-lg bg-chrome p-5">
-          <h2 className="text-subhead text-ink">{t('imports.optionManual')}</h2>
-          <p className="mt-3 mb-4 text-caption text-ink-list">{t(hasPermission(me, 'agents.edit_tree') ? 'imports.manualHint' : 'imports.manualNotAllowed')}</p>
-          {hasPermission(me, 'agents.edit_tree') && (
-            <Link to="/agents?create=1" className={buttonClass('secondary')}>
+        {scope === 'clients' ? (
+          <section className="rounded-lg bg-chrome p-5">
+            <h2 className="text-subhead text-ink">{t('imports.optionManualClient')}</h2>
+            <p className="mt-3 mb-4 text-caption text-ink-list">{t('imports.manualClientHint')}</p>
+            <Link to="/clients?create=1" className={buttonClass('secondary')}>
               <PencilLine aria-hidden size={16} />
-              {t('agents.add')}
+              {t('clients.add')}
             </Link>
-          )}
-        </section>
+          </section>
+        ) : (
+          <section className="rounded-lg bg-chrome p-5">
+            <h2 className="text-subhead text-ink">{t('imports.optionManual')}</h2>
+            <p className="mt-3 mb-4 text-caption text-ink-list">{t(hasPermission(me, 'agents.edit_tree') ? 'imports.manualHint' : 'imports.manualNotAllowed')}</p>
+            {hasPermission(me, 'agents.edit_tree') && (
+              <Link to="/agents?create=1" className={buttonClass('secondary')}>
+                <PencilLine aria-hidden size={16} />
+                {t('agents.add')}
+              </Link>
+            )}
+          </section>
+        )}
       </Container>
     </>
   )
 }
+
+/** Decided 27/11/2026: "Nhập khách hàng". */
+export const ClientImportPage = () => <ImportNewPage scope="clients" />
+/** Decided 27/11/2026: "Nhập đại lý". */
+export const AgentImportPage = () => <ImportNewPage scope="agents" />
