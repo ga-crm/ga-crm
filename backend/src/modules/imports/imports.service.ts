@@ -676,7 +676,7 @@ export class ImportsService implements OnModuleInit, OnModuleDestroy {
     return {
       tenantWide:
         actor.permissions.includes(Permission.ImportsTenantWide) ||
-        actor.roles.includes(Role.GaHead),
+        actor.roles.includes(Role.GAD),
       reach: actor.reach,
       agentCode: actor.agentCode,
       scope: new Set(scope),
@@ -1841,10 +1841,14 @@ export class ImportsService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
-  template(actor: Actor, kind: ImportKind): Promise<Buffer> {
+  template(
+    actor: Actor,
+    kind: ImportKind,
+    only?: readonly string[],
+  ): Promise<Buffer> {
     this.scopeOf(actor);
     if (!actor.permissions.includes(permissionFor(kind))) throw forbidden();
-    return buildTemplate(kind);
+    return buildTemplate(kind, only);
   }
 
   /** IMP-23 and IMP-24: what the mapping screen needs. */

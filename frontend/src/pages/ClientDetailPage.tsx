@@ -46,7 +46,7 @@ function ClientInfo({ detail, onEdit }: { detail: ClientDetail; onEdit: () => vo
       <dl className="grid gap-x-8 md:grid-cols-2 xl:grid-cols-3">
         <Fact narrow label={t('clients.phone')} value={client.phone ? `${client.phone} · ${t('clients.phoneKept')}` : null} />
         <Fact narrow label={t('clients.tier')}>{client.tier ? <TierBadge tier={client.tier} /> : '-'}</Fact>
-        <Fact narrow label={t('clients.dobAndBand')} value={[showDate(client.dob) ?? client.birthDayMonth, client.ageBand].filter(Boolean).join(' · ') || null} />
+        <Fact narrow label={t('clients.dobAndBand')} value={showDate(client.dob) ?? client.birthDayMonth} />
         <Fact narrow label={t('clients.gender')} value={client.gender} />
         <Fact narrow label={t('clients.marital')} value={client.maritalStatus} />
         <Fact narrow label={t('clients.policyCount')} value={detail.policies.length > 0 ? t('clients.policyCountValue', { active, total: detail.policies.length }) : null} />

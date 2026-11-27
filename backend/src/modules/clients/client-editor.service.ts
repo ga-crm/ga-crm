@@ -1,4 +1,8 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import {
+  assignsOutright,
+  requestAssignment,
+} from '../assignments/assignment-requests.js';
 import { In } from 'typeorm';
 import type { EntityManager } from 'typeorm';
 import {
@@ -20,7 +24,6 @@ import { maskPhone } from '../leads/lead-rules.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { HIDDEN_FIELDS, POLICY_NO } from './client.constants.js';
 import {
-  ageBandOf,
   birthDayMonthOf,
   buildProductLines,
   policyDeletable,
@@ -63,7 +66,6 @@ const CLIENT_FIELDS = [
   'phone',
   'tier',
   'dob',
-  'ageBand',
   'gender',
   'maritalStatus',
   'loyaltyPoints',
@@ -148,8 +150,9 @@ export class ClientEditorService {
   }
 
   /**
-   * MAN-3 + POL-2: whose client or policy it becomes. A chosen agent must be one the person may
-   * act for: GA_HEAD any agent of the GA, a manager their branch, a FC only themselves.
+   * MAN-3 + POL-2: whose client or policy it becomes. Changed 27/11/2026: only the GA director
+   * picks any agent of the GA; everyone else adds for themselves (giving a client to someone else is
+   * an assignment, which the director approves).
    */
   private async resolveAgent(
     actor: Actor,
@@ -158,12 +161,14 @@ export class ClientEditorService {
     db: EntityManager,
   ): Promise<string> {
     const scope = this.scopeOf(actor);
-    const agentCode = chosen ?? actor.agentCode ?? fallback;
+    // On a policy already there, its serving agent comes before the person adding (27/11/2026:
+    // the director has a code of their own now)
+    const agentCode = chosen ?? fallback ?? actor.agentCode;
     if (!agentCode)
       throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.AgentRequired);
     const allowed =
-      actor.roles.includes(Role.GaHead) ||
-      (await this.agents.scopeCodes(actor, db)).includes(agentCode) ||
+      actor.roles.includes(Role.GAD) ||
+      agentCode === actor.agentCode ||
       (!chosen && agentCode === fallback);
     const known = await this.agents.namesByCode(scope, [agentCode], db);
     if (!allowed || !known.has(agentCode))
@@ -191,7 +196,7 @@ export class ClientEditorService {
           .getOne();
         if (!client) throw notFound();
         const owns =
-          actor.roles.includes(Role.GaHead) ||
+          actor.roles.includes(Role.GAD) ||
           (!!actor.agentCode &&
             client.ownerAgentCodes.includes(actor.agentCode));
         if (!owns)
@@ -250,10 +255,6 @@ export class ClientEditorService {
         set.birthMonth = Number(dob.slice(5, 7));
       } else {
         unset.push('birthDayMonth', 'birthMonth');
-      }
-      if (dto.ageBand === undefined) {
-        if (dob) set.ageBand = ageBandOf(dob, todayInVietnam());
-        else unset.push('ageBand');
       }
     }
     return { set, unset };
@@ -483,7 +484,7 @@ export class ClientEditorService {
    */
   async create(actor: Actor, dto: CreateClientDto): Promise<{ id: string }> {
     const scope = this.scopeOf(actor);
-    const reach = await this.reader.reach(actor); // MAN-1: Marketing and Admin are refused here
+    const reach = await this.reader.reach(actor); // MAN-1: someone with no book is refused here
     if (!POLICY_NO.test(dto.policyNo))
       throw new ApiException(
         HttpStatus.BAD_REQUEST,
@@ -924,17 +925,17 @@ export class ClientEditorService {
   async assign(
     actor: Actor,
     dto: AssignClientsDto,
-  ): Promise<{ assigned: number }> {
+  ): Promise<{ assigned: number; requested: number; requestId?: string }> {
     // ASG-1: GA_HEAD, or someone granted clients.assign; agents never assign, even their own
     if (
-      !actor.roles.includes(Role.GaHead) &&
+      !actor.roles.includes(Role.GAD) &&
       !actor.permissions.includes(Permission.ClientsAssign)
     )
       throw forbidden();
     const scope = this.scopeOf(actor);
     const ids = [...new Set(dto.clientIds)];
     return this.tenantDb.run(scope, async (db) => {
-      // ASG-7: Marketing and Admin have no client book, so reach() refuses them
+      // ASG-7: only clients the person sees
       const reach = await this.reader.reach(actor, db);
       const clients = await this.reader
         .clients(
@@ -957,6 +958,37 @@ export class ClientEditorService {
             HttpStatus.BAD_REQUEST,
             ErrorCode.AgentNotFound,
           );
+      }
+      // Decided 27/11/2026: only the GA director assigns outright; anyone else asks them, and the
+      // clients stay with their agents until the director approves
+      if (!assignsOutright(actor)) {
+        const changing = clients.filter(
+          (client) =>
+            client.agentLinks.find((link) => link.source === 'MANUAL')
+              ?.agentCode !== (agentCode ?? undefined),
+        );
+        if (changing.length === 0) return { assigned: 0, requested: 0 };
+        const requestId = await requestAssignment(
+          db,
+          scope,
+          actor,
+          'CLIENT',
+          changing.map((client) => client.id),
+          agentCode ?? null,
+          this.notifications,
+        );
+        await this.audit.record(
+          {
+            tenantId: scope.tenantId,
+            userId: actor.id,
+            action: AuditAction.Create,
+            entity: 'assignment_request',
+            entityId: requestId,
+            meta: { kind: 'CLIENT', count: changing.length, to: agentCode },
+          },
+          db,
+        );
+        return { assigned: 0, requested: changing.length, requestId };
       }
       const now = new Date();
       const changes: Change[] = [];
@@ -1020,7 +1052,7 @@ export class ClientEditorService {
               },
           { except: actor.id, db },
         );
-      return { assigned: ids.length };
+      return { assigned: ids.length, requested: 0 };
     });
   }
 }

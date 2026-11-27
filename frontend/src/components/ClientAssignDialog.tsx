@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
+import { hasRole } from '../auth/access'
+import { useMe } from '../auth/useMe'
 import { t } from '../i18n'
 import { normalizeName } from '../lib/agentTree'
 import { api, errorMessage } from '../lib/api'
@@ -18,6 +20,7 @@ export function ClientAssignDialog({ clientIds, open, onClose, onDone }: { clien
   const [search, setSearch] = useState('')
   const [chosen, setChosen] = useState<string | null>(null)
   const tree = useQuery({ ...queries.agentTree(), enabled: open })
+  const director = hasRole(useMe().data, 'GAD')
 
   const shown = useMemo(() => {
     const wanted = normalizeName(search)
@@ -25,11 +28,13 @@ export function ClientAssignDialog({ clientIds, open, onClose, onDone }: { clien
   }, [tree.data, search])
 
   const assign = useMutation({
-    mutationFn: () => api.post<{ assigned: number }>('/clients/assign', { clientIds, agentCode: chosen === NOBODY ? null : chosen }),
-    onSuccess: async ({ assigned }) => {
-      await queryClient.invalidateQueries({ queryKey: keys.clients })
+    mutationFn: () => api.post<{ assigned: number; requested: number }>('/clients/assign', { clientIds, agentCode: chosen === NOBODY ? null : chosen }),
+    onSuccess: async ({ assigned, requested }) => {
+      await Promise.all([queryClient.invalidateQueries({ queryKey: keys.clients }), queryClient.invalidateQueries({ queryKey: keys.assignments })])
       const agent = tree.data?.items.find((item) => item.agentCode === chosen)
-      if (agent) toast.success(t('toast.clientsAssigned', { count: assigned, name: agent.name }))
+      // Decided 27/11/2026: anyone but the GA director asks them first
+      if (requested > 0) toast.info(t('toast.assignRequested', { count: requested }), t('toast.assignRequestedDetail'))
+      else if (agent) toast.success(t('toast.clientsAssigned', { count: assigned, name: agent.name }))
       else toast.info(t('toast.clientsUnassigned', { count: assigned }), t('toast.clientsUnassignedDetail'))
       setChosen(null)
       setSearch('')
@@ -64,7 +69,7 @@ export function ClientAssignDialog({ clientIds, open, onClose, onDone }: { clien
           {t('common.cancel')}
         </Button>
         <Button disabled={chosen === null || assign.isPending} onClick={() => assign.mutate()}>
-          {t('clients.assign')}
+          {t(director ? 'clients.assign' : 'assignments.send')}
         </Button>
       </div>
     </Dialog>

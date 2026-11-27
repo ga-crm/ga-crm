@@ -38,7 +38,7 @@ describe('Campaigns and seminars (e2e)', () => {
     await seedDemoData(app, PASSWORD);
     [head, marketing, fc, head2] = await Promise.all([
       as('head'),
-      as('marketing'),
+      as('admin'),
       as('fc'),
       as('head', 2),
     ]);

@@ -51,16 +51,20 @@ describe('Lead assignment within a line (e2e)', () => {
     await stopApp(app);
   });
 
-  it('a UM moves a lead of their line to another agent of the line, with the usual history and task (LEAD-22)', async () => {
-    const id = await lead(FC);
-    const res = await um.post(`${API}/leads/assign`).send({ leadIds: [id], agentCode: UM }).expect(201);
-    expect(res.body).toEqual({ assigned: 1 });
+  it('a UM asks to move their own lead to an agent of the line; the director approves it, with the usual history (LEAD-22)', async () => {
+    // Changed 27/11/2026: a UM sees only their own leads, and their assignments wait for the director
+    await um.post(`${API}/leads/assign`).send({ leadIds: [await lead(FC)], agentCode: UM }).expect(404);
+    const id = await lead(UM);
+    const res = await um.post(`${API}/leads/assign`).send({ leadIds: [id], agentCode: FC }).expect(201);
+    expect(res.body).toMatchObject({ assigned: 0, requested: 1 });
     expect(await assigneeOf(id)).toBe(UM);
+    await head.post(`${API}/assignment-requests/${res.body.requestId}/approve`).expect(200);
+    expect(await assigneeOf(id)).toBe(FC);
     const { rows } = await ownerDb().query(
       `SELECT action, meta FROM audit_events WHERE entity_id = $1 AND action = 'ASSIGN' ORDER BY id DESC LIMIT 1`,
       [id],
     );
-    expect(rows[0].meta).toEqual({ from: FC, to: UM });
+    expect(rows[0].meta).toEqual({ from: UM, to: FC });
   });
 
   it('only to agents of the line: someone above them is agent_out_of_line', async () => {
@@ -90,7 +94,9 @@ describe('Lead assignment within a line (e2e)', () => {
       .post(`${API}/leads`)
       .send({ fullName: 'Khách tự khai thác', phone: `0${phone++}`, source: 'Facebook', consent: true })
       .expect(201);
-    const res = await um.post(`${API}/leads/assign`).send({ leadIds: [body.id], agentCode: UM }).expect(409);
+    // Changed 27/11/2026: the UM no longer sees it; even the director cannot move it
+    await um.post(`${API}/leads/assign`).send({ leadIds: [body.id], agentCode: UM }).expect(404);
+    const res = await head.post(`${API}/leads/assign`).send({ leadIds: [body.id], agentCode: UM }).expect(409);
     expect(res.body.error).toBe('own_lead_locked');
   });
 
@@ -107,9 +113,11 @@ describe('Lead assignment within a line (e2e)', () => {
     expect(owners.rows.every((row) => [UM, FC].includes(row.code))).toBe(true);
   });
 
-  it('the lead page offers the action to line managers, not to agents', async () => {
+  it("the lead page offers the action to whoever sees the lead and may assign, not to agents", async () => {
     const id = await lead(FC);
-    expect((await um.get(`${API}/leads/${id}`).expect(200)).body.canAssign).toBe(true);
+    // Changed 27/11/2026: a line manager no longer opens the leads of their line
+    await um.get(`${API}/leads/${id}`).expect(404);
+    expect((await head.get(`${API}/leads/${id}`).expect(200)).body.canAssign).toBe(true);
     expect((await fc.get(`${API}/leads/${id}`).expect(200)).body.canAssign).toBe(false);
   });
 
@@ -127,17 +135,17 @@ describe('Lead assignment within a line (e2e)', () => {
     await head.put(`${API}/permissions`).send({ grants }).expect((res) => expect(res.status).toBeLessThan(300));
   });
 
-  it('test 11 + PERM-2: GAs from before get leads.assign_line for GAD, BM and UM once', async () => {
+  it('test 11 + PERM-2: GAs from before get leads.assign_line for BM and UM once', async () => {
+    // Decided 27/11/2026: the GA director holds every permission, outside the matrix
     const owner = ownerDb();
     const drop = `UPDATE tenant_settings SET grants = grants
-      || jsonb_build_object('GAD', (grants -> 'GAD') - 'leads.assign_line')
       || jsonb_build_object('BM', (grants -> 'BM') - 'leads.assign_line')
       || jsonb_build_object('UM', (grants -> 'UM') - 'leads.assign_line')`;
     await owner.query(`${drop}, permissions_version = 1`);
     await app.get(TenantsService).onModuleInit();
     const { rows } = await owner.query<{ grants: Record<string, string[]> }>('SELECT grants FROM tenant_settings');
     for (const { grants } of rows)
-      for (const role of ['GAD', 'BM', 'UM']) expect(grants[role]).toContain('leads.assign_line');
+      for (const role of ['BM', 'UM']) expect(grants[role]).toContain('leads.assign_line');
     // A GA that takes it away afterwards keeps its choice
     await owner.query(drop);
     await app.get(TenantsService).onModuleInit();

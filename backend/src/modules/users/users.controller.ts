@@ -11,6 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiConflictResponse,
   ApiCookieAuth,
   ApiCreatedResponse,
@@ -38,6 +39,7 @@ import {
   ListUsersQueryDto,
   ResetUrlDto,
   toUserDto,
+  UpdatedUserDto,
   UpdateUserDto,
   UserDto,
   UsersPageDto,
@@ -103,16 +105,19 @@ export class UsersController {
   })
   @ApiCreatedResponse({ type: InvitedUserDto })
   @ApiConflictResponse({ description: 'email_taken, agent_code_taken' })
+  @ApiBadRequestResponse({
+    description: 'manager_not_found, manager_rank_too_low',
+  })
   async invite(
     @CurrentActor() actor: Actor,
     @Body() dto: InviteUserDto,
   ): Promise<InvitedUserDto> {
-    const { user, inviteUrl } = await this.users.invite(
+    const { user, inviteUrl, addedToTree } = await this.users.invite(
       scopeOf(actor),
       actor,
       dto,
     );
-    return { user: toUserDto(user), inviteUrl };
+    return { user: toUserDto(user), inviteUrl, addedToTree };
   }
 
   @Post(':id/invite')
@@ -138,16 +143,25 @@ export class UsersController {
     description:
       'Quyền: `users.manage`. Đổi email không làm mất mật khẩu (USER-6). Khóa, lưu trữ, kích hoạt lại dùng các route riêng.',
   })
-  @ApiOkResponse({ type: UserDto })
+  @ApiOkResponse({ type: UpdatedUserDto })
   @ApiConflictResponse({
     description: 'email_taken, agent_code_taken, last_ga_head',
+  })
+  @ApiBadRequestResponse({
+    description: 'manager_not_found, manager_rank_too_low',
   })
   async update(
     @CurrentActor() actor: Actor,
     @Param('id', IdPipe) id: string,
     @Body() dto: UpdateUserDto,
-  ): Promise<UserDto> {
-    return toUserDto(await this.users.update(scopeOf(actor), actor, id, dto));
+  ): Promise<UpdatedUserDto> {
+    const { user, addedToTree } = await this.users.update(
+      scopeOf(actor),
+      actor,
+      id,
+      dto,
+    );
+    return { ...toUserDto(user), addedToTree };
   }
 
   @Post(':id/disable')

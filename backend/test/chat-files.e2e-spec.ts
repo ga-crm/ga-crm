@@ -76,10 +76,10 @@ describe('Chat files, search and notices (e2e)', () => {
     const { rows } = await ownerDb().query<{ id: string; email: string; tenant_id: string }>(
       `SELECT id, email, tenant_id FROM users WHERE email LIKE '%.gacrm.local'`,
     );
-    for (const key of ['head', 'admin', 'bm', 'um', 'fc', 'gad', 'marketing'])
+    for (const key of ['head', 'admin', 'bm', 'um', 'fc'])
       ids[key] = rows.find((row) => row.email === demoEmail(1, key))!.id;
     tenantId = rows.find((row) => row.email === demoEmail(1, 'fc'))!.tenant_id;
-    for (const key of ['head', 'admin', 'bm', 'um', 'fc', 'gad', 'marketing']) cookies[key] = await signIn(key);
+    for (const key of ['head', 'admin', 'bm', 'um', 'fc']) cookies[key] = await signIn(key);
     cookies.head2 = await signIn('head', 2);
   });
 
@@ -119,7 +119,7 @@ describe('Chat files, search and notices (e2e)', () => {
     });
 
     it('refuses other types whatever their name, oversized files, too many files and non-members', async () => {
-      const id = await direct('fc', 'gad');
+      const id = await direct('fc', 'head');
       const svg = await upload('fc', id, [[Buffer.from('<svg onload="alert(1)"/>'), 'logo.png']]).expect(415);
       expect(svg.body.error).toBe('chat_file_type');
       const big = await upload('fc', id, [[Buffer.concat([PDF, Buffer.alloc(10 * 1024 * 1024)]), 'lon.pdf']]).expect(413);
@@ -147,21 +147,21 @@ describe('Chat files, search and notices (e2e)', () => {
     });
 
     it('PDP: recalling a message deletes its files from storage', async () => {
-      const id = await direct('fc', 'marketing');
+      const id = await direct('fc', 'bm');
       const [file] = (await upload('fc', id, [[PDF, 'cccd.pdf']]).expect(201)).body.items as { id: string }[];
       const message = await send('fc', id, 'giấy tờ', { fileIds: [file.id] });
       const { rows } = await ownerDb().query<{ storage_key: string }>(`SELECT storage_key FROM chat_files WHERE id = $1`, [file.id]);
 
       await as('fc').delete(`/chat/conversations/${id}/messages/${message.seq}`).expect(204);
 
-      await as('marketing').get(`/chat/files/${file.id}`).expect(404);
+      await as('bm').get(`/chat/files/${file.id}`).expect(404);
       await expect(app.get(ObjectStorage).get(rows[0].storage_key)).rejects.toThrow();
-      const [stored] = (await as('marketing').get(`/chat/conversations/${id}/messages`).expect(200)).body.items as Message[];
+      const [stored] = (await as('bm').get(`/chat/conversations/${id}/messages`).expect(200)).body.items as Message[];
       expect(stored.data.files).toBeUndefined();
     });
 
     it('uploads never sent are removed after a day', async () => {
-      const id = await direct('um', 'gad');
+      const id = await direct('um', 'head');
       const [file] = (await upload('um', id, [[PDF, 'nhap.pdf']]).expect(201)).body.items as { id: string }[];
       await ownerDb().query(`UPDATE chat_files SET created_at = now() - interval '25 hours' WHERE id = $1`, [file.id]);
       await app.get(ChatNoticesService).tick(new Date());
@@ -217,9 +217,9 @@ describe('Chat files, search and notices (e2e)', () => {
       ]);
 
     it('tells a member once about messages unread for 5 minutes, and again only after new ones', async () => {
-      const id = await direct('gad', 'marketing');
-      await send('gad', id, 'một');
-      await send('gad', id, 'hai');
+      const id = await direct('head', 'admin');
+      await send('head', id, 'một');
+      await send('head', id, 'hai');
       const notices = app.get(ChatNoticesService);
 
       await notices.tick(new Date());
@@ -230,15 +230,15 @@ describe('Chat files, search and notices (e2e)', () => {
       await notices.tick(new Date());
       const [notice] = await noticesFor();
       expect(await noticesFor()).toHaveLength(1);
-      expect(notice).toEqual({ data: { count: 2, userId: ids.gad }, link: `/chat?c=${id}` });
+      expect(notice).toEqual({ data: { count: 2, userId: ids.head }, link: `/chat?c=${id}` });
 
-      await send('gad', id, 'ba');
+      await send('head', id, 'ba');
       await age(id, 6);
       await notices.tick(new Date());
-      expect((await noticesFor()).at(-1)!.data).toEqual({ count: 1, userId: ids.gad });
+      expect((await noticesFor()).at(-1)!.data).toEqual({ count: 1, userId: ids.head });
 
       async function noticesFor() {
-        return (await notices_('marketing')).filter((row) => row.link === `/chat?c=${id}`);
+        return (await notices_('admin')).filter((row) => row.link === `/chat?c=${id}`);
       }
     });
 
@@ -266,13 +266,13 @@ describe('Chat files, search and notices (e2e)', () => {
 
     it('a group notice names the group; an @mention notifies at once, muted or not', async () => {
       const group = (
-        await as('gad').post('/chat/groups').send({ title: 'Đội GAD', memberIds: [ids.um, ids.bm] }).expect(201)
+        await as('head').post('/chat/groups').send({ title: 'Đội GAD', memberIds: [ids.um, ids.bm] }).expect(201)
       ).body.id as string;
       await as('um').put(`/chat/conversations/${group}/prefs`).send({ muted: true }).expect(204);
-      const message = await send('gad', group, '@Trưởng nhóm 1 xem giúp', { mentions: [ids.um] });
+      const message = await send('head', group, '@Trưởng nhóm 1 xem giúp', { mentions: [ids.um] });
 
       const [mention] = (await notices_('um')).filter((row) => row.link.startsWith(`/chat?c=${group}`));
-      expect(mention).toEqual({ data: { userId: ids.gad, conversationId: group }, link: `/chat?c=${group}&m=${message.seq}` });
+      expect(mention).toEqual({ data: { userId: ids.head, conversationId: group }, link: `/chat?c=${group}&m=${message.seq}` });
       await age(group, 6);
       await app.get(ChatNoticesService).tick(new Date());
       const listed = (await as('bm').get('/notifications').expect(200)).body.items as { type: string; subject: string }[];

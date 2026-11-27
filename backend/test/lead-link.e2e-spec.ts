@@ -268,8 +268,8 @@ describe('Lead - client link (e2e)', () => {
       .expect(201);
   });
 
-  it('CUS-5 + PDP-4: Marketing and Admin see that a lead became a client, never which one', async () => {
-    for (const key of ['marketing', 'admin']) {
+  it('CUS-5 + PDP-4: Admin sees that a lead became a client, never which one', async () => {
+    for (const key of ['admin']) {
       const agent = await as(key);
       const { body } = await agent.get(`${API}/leads/${leadId}`).expect(200);
       expect(body.link, key).toMatchObject({

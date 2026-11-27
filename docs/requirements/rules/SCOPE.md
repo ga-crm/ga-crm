@@ -8,7 +8,7 @@
 
 Nguồn: `requirement/03-quy-tac-chung.md:13`
 
-Đã trích dẫn trong: `backend/src/common/rbac.spec.ts`, `backend/src/common/rbac.ts`, `backend/src/modules/access/access.service.ts`, `backend/src/modules/agents/agents.service.ts`
+Đã trích dẫn trong: `backend/src/common/rbac.spec.ts`, `backend/src/common/rbac.ts`, `backend/src/modules/access/access.service.ts`, `backend/src/modules/agents/agents.service.ts`, `backend/test/user-agent-tree.e2e-spec.ts`
 
 - **SCOPE-1** Tầm nhìn (reach) suy ra từ vai trò (lấy rộng nhất khi có nhiều vai trò):
   | Vai trò có | Reach | Bản ghi thuộc đại lý được thấy |

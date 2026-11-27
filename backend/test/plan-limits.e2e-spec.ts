@@ -32,7 +32,7 @@ describe('Plan limits and the platform console (e2e)', () => {
   const invite = (email: string) =>
     head
       .post(`${API}/users/invite`)
-      .send({ email, name: 'Người Mới', roles: ['MARKETING'] });
+      .send({ email, name: 'Người Mới', roles: ['ADMIN'] });
 
   beforeAll(async () => {
     app = await startApp();
@@ -106,7 +106,7 @@ describe('Plan limits and the platform console (e2e)', () => {
 
     const marketing = await connection
       .collection('users')
-      .findOne({ email: demoEmail(1, 'marketing') });
+      .findOne({ email: demoEmail(1, 'admin') });
     await head
       .post(`${API}/users/${marketing!._id.toString()}/archive`)
       .send({})

@@ -31,9 +31,15 @@ const columnLetter = (index: number): string => {
  * IMP-11: generated from the same column definitions the validation reads, so the two cannot drift.
  * Every column is formatted as text: this is what stops Excel removing leading zeros (IMP-6).
  */
-export async function buildTemplate(kind: ImportKind): Promise<Buffer> {
+export async function buildTemplate(
+  kind: ImportKind,
+  only?: readonly string[],
+): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
-  const templates = TEMPLATES_BY_KIND[kind];
+  // Decided 27/11/2026: a template for one screen holds only that screen's sheets
+  const templates = TEMPLATES_BY_KIND[kind].filter(
+    (sheet) => !only || only.includes(sheet.name),
+  );
   const lookupValues = kind === 'LEADS' ? LEAD_LOOKUPS : LOOKUPS;
 
   const readme = workbook.addWorksheet(README_SHEET);
@@ -43,7 +49,7 @@ export async function buildTemplate(kind: ImportKind): Promise<Buffer> {
   };
   addTitle('Hướng dẫn điền file');
   for (const line of [
-    '1. Mỗi đại lý một dòng trong sheet dữ liệu. Giữ nguyên tiêu đề cột.',
+    '1. Mỗi dòng một bản ghi trong sheet dữ liệu. Giữ nguyên tiêu đề cột.',
     '2. Các dòng mẫu chỉ để tham khảo: hãy xóa chúng trước khi điền dữ liệu thật.',
     '3. Tải file lên màn hình Nhập dữ liệu. Hệ thống chỉ ghi dữ liệu sau khi bạn xem trước và bấm xác nhận.',
     '4. Không thêm cột CCCD/CMND, tài khoản ngân hàng hoặc thông tin sức khỏe.',

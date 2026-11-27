@@ -161,7 +161,7 @@ describe('Client assignment, history and Success activities (e2e)', () => {
 
   describe('assignment', () => {
     it('ASG-1 + ASG-7: only GA_HEAD or clients.assign; an agent cannot, even for their own client; Marketing and Admin never', async () => {
-      for (const agent of [fc, um, await as('marketing'), await as('admin')])
+      for (const agent of [fc, um, await as('admin'), await as('admin')])
         await assign(agent, {
           clientIds: [NO_POLICY],
           agentCode: FC2,
@@ -174,7 +174,7 @@ describe('Client assignment, history and Success activities (e2e)', () => {
         clientIds: [WITH_POLICY, NO_POLICY],
         agentCode: FC2,
       }).expect(200);
-      expect(body).toEqual({ assigned: 2 });
+      expect(body).toEqual({ assigned: 2, requested: 0 });
       expect(await manualOf(NO_POLICY)).toEqual([FC2]);
       expect(await stored(NO_POLICY)).toMatchObject({
         visibleAgentCodes: [FC2],
@@ -244,7 +244,7 @@ describe('Client assignment, history and Success activities (e2e)', () => {
       }).expect(400);
     });
 
-    it('ASG-1: a manager granted clients.assign works within their line only', async () => {
+    it('ASG-1 (changed 27/11/2026): a manager granted clients.assign reaches only the clients they see', async () => {
       const { grants } = (await head.get(`${API}/permissions`).expect(200))
         .body;
       await head
@@ -252,23 +252,23 @@ describe('Client assignment, history and Success activities (e2e)', () => {
         .send({ grants: { ...grants, UM: [...grants.UM, 'clients.assign'] } })
         .expect(204);
       const manager = await as('um');
+      // The FC's client is no longer in the line manager's sight
       await assign(manager, {
         clientIds: [NO_POLICY],
         agentCode: FC2,
-      }).expect(200);
+      }).expect(404);
+      await assign(head, { clientIds: [NO_POLICY], agentCode: FC2 }).expect(
+        200,
+      );
       expect(await manualOf(NO_POLICY)).toEqual([FC2]);
       await assign(manager, {
         clientIds: [PEERS_CLIENT],
         agentCode: FC2,
       }).expect(404);
-      expect(
-        (
-          await assign(manager, {
-            clientIds: [NO_POLICY],
-            agentCode: PEER,
-          }).expect(400)
-        ).body.error,
-      ).toBe('agent_not_found');
+      await assign(manager, {
+        clientIds: [NO_POLICY],
+        agentCode: PEER,
+      }).expect(404);
       await head.put(`${API}/permissions`).send({ grants }).expect(204);
       await assign(head, { clientIds: [NO_POLICY], agentCode: FC }).expect(200);
     });
@@ -323,7 +323,7 @@ describe('Client assignment, history and Success activities (e2e)', () => {
         },
       ]);
       expect(await clientIdOf(WITH_POLICY_CODE)).toBe(WITH_POLICY);
-      const { body } = await um
+      const { body } = await head
         .get(`${API}/clients/${WITH_POLICY}`)
         .expect(200);
       const rows = body.history as {
@@ -348,7 +348,7 @@ describe('Client assignment, history and Success activities (e2e)', () => {
       ]);
       expect(rows[0].fileName).toBe('success.xlsx');
       expect(rows[1].fileName).toBeNull();
-      expect(body.userNames[rows[0].changedBy]).toBe('Chủ GA 1');
+      expect(body.userNames[rows[0].changedBy]).toBe('Giám đốc GA 1');
       expect(body.userNames[rows[1].changedBy]).toBe('Tư vấn viên 1');
       await head2.get(`${API}/clients/${WITH_POLICY}`).expect(404);
     });

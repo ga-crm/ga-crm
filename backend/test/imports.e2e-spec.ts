@@ -191,7 +191,7 @@ describe('Agent tree and imports (e2e)', () => {
       expect(bm).toContain('00100091');
       expect(bm).not.toContain('00100001');
       // Marketing and Admin hold agents.view_all by default
-      expect(await codes(demoEmail(1, 'marketing'))).toContain('00100001');
+      expect(await codes(demoEmail(1, 'admin'))).toContain('00100001');
       expect(await codes(demoEmail(1, 'head'))).toContain('00100091');
 
       const um = await signIn(demoEmail(1, 'um'));
@@ -243,7 +243,7 @@ describe('Agent tree and imports (e2e)', () => {
       const admin = await signIn(demoEmail(1, 'admin'));
       expect(await getAgent(admin, '00100004')).toHaveProperty('phone');
 
-      for (const key of ['marketing', 'um', 'fc']) {
+      for (const key of ['um', 'fc']) {
         const body = await getAgent(
           await signIn(demoEmail(1, key)),
           '00100004',
@@ -268,7 +268,7 @@ describe('Agent tree and imports (e2e)', () => {
         status: ACTIVE,
         startDate: '2024-01-01',
       };
-      for (const key of ['fc', 'um', 'marketing']) {
+      for (const key of ['fc', 'um']) {
         const agent = await signIn(demoEmail(1, key));
         await agent.post(`${API}/agents`).send(valid).expect(403);
         await agent
@@ -409,9 +409,9 @@ describe('Agent tree and imports (e2e)', () => {
   });
 
   describe('template', () => {
-    const download = async (agent: Agent) => {
+    const download = async (agent: Agent, file = 'SUCCESS.xlsx') => {
       const res = await agent
-        .get(`${API}/imports/templates/SUCCESS.xlsx`)
+        .get(`${API}/imports/templates/${file}`)
         .buffer(true)
         .parse((response, callback) => {
           const chunks: Buffer[] = [];
@@ -423,6 +423,31 @@ describe('Agent tree and imports (e2e)', () => {
       await workbook.xlsx.load(res.body as never);
       return { workbook, res };
     };
+
+    it('decided 27/11/2026: "Nhập khách hàng" and "Nhập đại lý" each download only their sheets', async () => {
+      const head = await signIn(demoEmail(1, 'head'));
+      const clients = await download(head, 'CLIENTS.xlsx');
+      expect(clients.res.get('Content-Disposition')).toContain(
+        'GA_CRM_Mau_Nhap_Khach_Hang.xlsx',
+      );
+      expect(
+        clients.workbook.worksheets
+          .map((sheet) => sheet.name)
+          .filter((name) => /^0[1-9]_/.test(name)),
+      ).toEqual([
+        '02_Clients',
+        '03_Policies',
+        '04_Policy_Products',
+        '05_Applications',
+      ]);
+      const agents = await download(head, 'AGENTS.xlsx');
+      expect(
+        agents.workbook.worksheets
+          .map((sheet) => sheet.name)
+          .filter((name) => /^0[1-9]_/.test(name)),
+      ).toEqual([SHEET, '07_Activities']);
+      await head.get(`${API}/imports/templates/OTHER.xlsx`).expect(404);
+    });
 
     it('IMP-11: is a real workbook with instructions, lookups and text columns', async () => {
       const head = await signIn(demoEmail(1, 'head'));
@@ -892,16 +917,35 @@ describe('Agent tree and imports (e2e)', () => {
     });
 
     it('AGT-4: someone with no code and no tree permission cannot import this sheet', async () => {
-      const marketing = await signIn(demoEmail(1, 'marketing'));
-      const { id, sheets } = await startImport(marketing);
-      expect(sheets[0]).toMatchObject({
-        status: 'BLOCKED',
-        reason: 'sheet_not_allowed',
-      });
-      await marketing
-        .post(`${API}/imports/${id}/rows`)
-        .send({ sheet: SHEET, rows: [] })
-        .expect(409);
+      // Admin has no agent code; the GA takes the tree permission away from the role for a moment
+      const head = await signIn(demoEmail(1, 'head'));
+      const { grants } = (await head.get(`${API}/permissions`).expect(200))
+        .body as { grants: Record<string, string[]> };
+      await head
+        .put(`${API}/permissions`)
+        .send({
+          grants: {
+            ...grants,
+            ADMIN: grants.ADMIN.filter(
+              (permission) => permission !== 'imports.agent_tree',
+            ),
+          },
+        })
+        .expect(204);
+      try {
+        const admin = await signIn(demoEmail(1, 'admin'));
+        const { id, sheets } = await startImport(admin);
+        expect(sheets[0]).toMatchObject({
+          status: 'BLOCKED',
+          reason: 'sheet_not_allowed',
+        });
+        await admin
+          .post(`${API}/imports/${id}/rows`)
+          .send({ sheet: SHEET, rows: [] })
+          .expect(409);
+      } finally {
+        await head.put(`${API}/permissions`).send({ grants }).expect(204);
+      }
     });
   });
 
@@ -1079,8 +1123,13 @@ describe('Agent tree and imports (e2e)', () => {
           name: 'FC Mới',
           roles: ['FC'],
           agentCode: '00100800',
+          managerCode: '00100003',
         })
         .expect(201);
+      // Decided 26/11/2026: an invite by someone who edits the tree adds the FC to it. An account
+      // made before that, or by someone without agents.edit_tree, is not on the tree yet.
+      expect(invited.body.addedToTree).toBe(true);
+      await ownerDb().query(`DELETE FROM agents WHERE agent_code = '00100800'`);
       const agent = request.agent(app.getHttpServer());
       await agent
         .post(`${API}/invites/accept`)

@@ -54,8 +54,6 @@ describe('Demo seed (e2e)', () => {
       for (const key of [
         'head',
         'admin',
-        'marketing',
-        'gad',
         'bm',
         'um',
         'fc',
@@ -154,7 +152,7 @@ describe('Demo seed (e2e)', () => {
   });
 
   it('gives every lead tab, filter and status something to show', async () => {
-    const marketing = await signIn(demoEmail(1, 'marketing'));
+    const marketing = await signIn(demoEmail(1, 'admin'));
     const counts = (await marketing.get(`${API}/leads/counts`).expect(200))
       .body;
     expect(counts.all).toBe(44);
@@ -207,7 +205,7 @@ describe('Demo seed (e2e)', () => {
   });
 
   it('fills a lead so its detail screen has no empty sections', async () => {
-    const marketing = await signIn(demoEmail(1, 'marketing'));
+    const marketing = await signIn(demoEmail(1, 'admin'));
     const { items } = await leadsOf(marketing, { care: 'CARING' });
     const made = (items as { id: string; origin: string }[]).find(
       (item) => item.origin === 'GA',
@@ -237,15 +235,16 @@ describe('Demo seed (e2e)', () => {
     expect(history.length).toBeGreaterThan(0);
   });
 
-  it('keeps the rules: a line manager sees masked phones, and a won lead has its number', async () => {
-    const um = await signIn(demoEmail(1, 'um'));
+  it('keeps the rules: Admin sees masked phones, and a won lead has its number', async () => {
+    // Decided 27/11/2026: only whoever looks after a lead and the director see its phone
+    const um = await signIn(demoEmail(1, 'admin'));
     const row = (await leadsOf(um)).items.find(
       (item: { assignedAgentCode: string }) =>
         item.assignedAgentCode !== '00100003',
     );
     expect(row.phone).toContain('***');
 
-    const marketing = await signIn(demoEmail(1, 'marketing'));
+    const marketing = await signIn(demoEmail(1, 'admin'));
     const raw = await connection
       .collection('leads')
       .find({ careStatus: 'WON', origin: 'GA' })
@@ -258,8 +257,8 @@ describe('Demo seed (e2e)', () => {
   });
 
   it('TEN-7: the two GAs share nothing', async () => {
-    const one = await signIn(demoEmail(1, 'marketing'));
-    const two = await signIn(demoEmail(2, 'marketing'));
+    const one = await signIn(demoEmail(1, 'admin'));
+    const two = await signIn(demoEmail(2, 'admin'));
     const ids = (agent: Awaited<ReturnType<typeof signIn>>) =>
       leadsOf(agent).then(({ items }) =>
         items.map((item: { id: string }) => item.id),

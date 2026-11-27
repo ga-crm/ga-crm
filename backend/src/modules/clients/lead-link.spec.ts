@@ -38,12 +38,13 @@ describe('lead - client link (section 8.8)', () => {
     expect(
       linkScore(
         lead,
-        { nameNorm: 'NGUYEN VAN AN', gender: 'Nữ', ageBand: '30-39' },
+        // Decided 27/11/2026: no age band, so a client without a birth date gives no age
+        { nameNorm: 'NGUYEN VAN AN', gender: 'Nữ' },
         // Before the lead, and more than 60 days after it: neither counts
         [{ createdDate: '2026-08-31' }, { createdDate: '2026-11-01' }],
         TODAY,
       ),
-    ).toEqual({ score: 0.7, reasons: ['NAME', 'AGE'] });
+    ).toEqual({ score: 0.6, reasons: ['NAME'] });
     // Four years apart is not the same age
     expect(
       linkScore(

@@ -23,6 +23,11 @@ export interface LeadRules {
   managersMayReassign: boolean;
   /** LEAD-26: applies with telesales campaigns. */
   consentForTelesales: boolean;
+  /**
+   * Decided 27/11/2026: days without contact after which an assigned lead goes back to the GA's
+   * pool. The GA director changes it.
+   */
+  abandonDays: number;
 }
 
 export const DEFAULT_LEAD_RULES: LeadRules = {
@@ -30,6 +35,7 @@ export const DEFAULT_LEAD_RULES: LeadRules = {
   contactedInTimeHours: 24,
   managersMayReassign: false,
   consentForTelesales: true,
+  abandonDays: 30,
 };
 
 export const DEFAULT_NOTIFICATIONS = {

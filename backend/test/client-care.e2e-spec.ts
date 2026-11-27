@@ -92,7 +92,8 @@ describe('Family, coverage and care opportunities (e2e)', () => {
     [head, fc, um, head2] = await Promise.all([
       as('head'),
       as('fc'),
-      as('um'),
+      // Decided 27/11/2026: Admin now plays the one who sees but does not own
+      as('admin'),
       as('head', 2),
     ]);
     await head

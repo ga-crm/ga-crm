@@ -80,6 +80,9 @@ export class CampaignMember {
 }
 
 /** Section 18.4. Unset fields are null. */
+/** Decided 27/11/2026: why a lead went back to the GA's pool. */
+export type LeadReleaseReason = 'IDLE' | 'DROPPED' | 'NOT_INTERESTED';
+
 @Entity('leads')
 export class Lead {
   @id() id: string;
@@ -133,6 +136,10 @@ export class Lead {
   @text() assignedAgentCode: string | null;
   @ref() assignedBy: string | null;
   @time() assignedAt: Date | null;
+  /** Decided 27/11/2026: back in the GA's pool, when, from whom and why, until assigned again. */
+  @time() releasedAt: Date | null;
+  @text() releasedFrom: string | null;
+  @text() releaseReason: LeadReleaseReason | null;
   @time() assigneeSeenAt: Date | null;
   @time() assigneeViewedAt: Date | null;
   @time() lastCommentAt: Date | null;
@@ -192,7 +199,8 @@ export class LeadHistory {
   @text() newValue: string | null;
   @text() note: string | null;
   @ref() importId: string | null;
-  @Column({ type: 'uuid' }) changedBy: string;
+  /** Null for the daily round that returns idle leads to the pool (27/11/2026). */
+  @Column({ type: 'uuid', nullable: true }) changedBy: string | null;
   @Column({ type: 'timestamptz' }) changedAt: Date;
 }
 

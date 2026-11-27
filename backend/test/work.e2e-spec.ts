@@ -133,9 +133,10 @@ describe('Tasks, Today and calendar (e2e)', () => {
         await um
           .post(`${API}/clients/${CLIENT}/tasks`)
           .send({ title: 'Quản lý', dueAt: noon(TODAY) })
-          .expect(403)
+          // Changed 27/11/2026: a line manager no longer sees the clients of their line
+          .expect(404)
       ).body.error,
-    ).toBe('client_not_yours');
+    ).toBe('not_found');
     const mine = await tasksOf(fc);
     expect(mine.find((task) => task.id === ids.signal)).toMatchObject({
       kind: 'client',
@@ -152,9 +153,10 @@ describe('Tasks, Today and calendar (e2e)', () => {
         (task) => task.kind === 'lead' && task.source === 'AUTO_ASSIGN',
       ),
     ).toBe(true);
-    // A manager sees the line's tasks, read only
-    const team = await tasksOf(um, { team: '1' });
-    expect(team.find((task) => task.id === ids.signal)?.canEdit).toBe(false);
+    // Changed 27/11/2026: only the GA director sees everyone's tasks
+    await um.get(`${API}/tasks`).query({ team: '1' }).expect(403);
+    const team = await tasksOf(head, { team: '1' });
+    expect(team.some((task) => task.id === ids.signal)).toBe(true);
   });
 
   it('TASK-2: done, reopened, moved and cancelled through one route, with the rights of each kind', async () => {
@@ -179,13 +181,13 @@ describe('Tasks, Today and calendar (e2e)', () => {
         await um
           .patch(`${API}/tasks/${leadTask.id}`)
           .send({ done: true })
-          .expect(403)
+          .expect(404)
       ).body.error,
-    ).toBe('lead_not_yours');
+    ).toBe('not_found');
     await um
       .patch(`${API}/tasks/${ids.signal}`)
       .send({ done: true })
-      .expect(403);
+      .expect(404);
     ids.cancel = (
       await fc
         .post(`${API}/tasks`)

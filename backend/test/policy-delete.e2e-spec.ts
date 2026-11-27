@@ -42,7 +42,7 @@ describe('Deleting a hand-entered policy (e2e)', () => {
   beforeAll(async () => {
     app = await startApp();
     await seedDemoData(app, PASSWORD);
-    [head, fc, um, head2] = await Promise.all([as('head'), as('fc'), as('um'), as('head', 2)]);
+    [head, fc, um, head2] = await Promise.all([as('head'), as('fc'), as('admin'), as('head', 2)]);
     // Added on a policy known only by its number; the policies under test are added to them
     CLIENT = (
       await fc

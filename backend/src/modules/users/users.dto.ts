@@ -60,6 +60,16 @@ export class InviteUserDto {
   @IsOptional()
   @Matches(/^\d{1,20}$/)
   agentCode?: string;
+
+  /** Decided 26/11/2026: the direct manager when the agent code is not on the tree yet. */
+  @ApiPropertyOptional({
+    example: '00100003',
+    description:
+      'Mã đại lý của quản lý trực tiếp. Chỉ dùng khi mã đại lý chưa có trong cây: tài khoản được thêm vào cây dưới người này.',
+  })
+  @IsOptional()
+  @Matches(/^\d{1,20}$/)
+  managerCode?: string;
 }
 
 export class UpdateUserDto {
@@ -90,6 +100,12 @@ export class UpdateUserDto {
   @ValidateIf((_, value) => value !== null && value !== undefined)
   @Matches(/^\d{1,20}$/)
   agentCode?: string | null;
+
+  /** Decided 26/11/2026: as on invite; ignored once the code is on the tree. */
+  @ApiPropertyOptional({ type: String, nullable: true, example: '00100003' })
+  @ValidateIf((_, value) => value !== null && value !== undefined)
+  @Matches(/^\d{1,20}$/)
+  managerCode?: string | null;
 }
 
 /** USER-9: why the user left, kept on the user record only. */
@@ -194,6 +210,16 @@ export class InvitedUserDto {
 
   @ApiProperty({ example: 'http://localhost:5173/invite/abc' })
   inviteUrl: string;
+
+  /** Decided 26/11/2026: whether the account was added to the agent tree. */
+  @ApiProperty()
+  addedToTree: boolean;
+}
+
+export class UpdatedUserDto extends UserDto {
+  /** Decided 26/11/2026: whether the account was added to the agent tree. */
+  @ApiProperty()
+  addedToTree: boolean;
 }
 
 export class ResetUrlDto {

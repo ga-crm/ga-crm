@@ -10,6 +10,7 @@ import {
 } from '../../common/errors.js';
 import { normalizeName } from '../../common/normalize.js';
 import { escapeLike } from '../../common/pagination.js';
+import { Role } from '../../common/rbac.js';
 import type { Actor, Scope } from '../../common/rbac.js';
 import { and, or, sql } from '../../core/persistence/fragment.js';
 import type { Sql } from '../../core/persistence/fragment.js';
@@ -84,7 +85,7 @@ export class LeadLinkService implements OnModuleInit {
     const scope = this.scopeOf(actor);
     return this.tenantDb.run(scope, async (db) => {
       const lead = await this.leads.workable(actor, id, db);
-      // CUS-5: Marketing and Admin have no client book
+      // CUS-5: whose clients this person sees
       const reach = await this.reader.reach(actor, db);
       const search = q?.trim();
       let match: Sql;
@@ -99,7 +100,12 @@ export class LeadLinkService implements OnModuleInit {
                 sql`EXISTS (SELECT 1 FROM policies p
                              WHERE p.tenant_id = c.tenant_id AND p.client_ids @> ARRAY[c.id]
                                AND p.policy_no LIKE ${`${digits}%`})`,
-                sql`c.phone LIKE ${`%${digits}%`}`,
+                // A number finds only clients whose phone the person sees (decided 27/11/2026)
+                actor.roles.includes(Role.GAD)
+                  ? sql`c.phone LIKE ${`%${digits}%`}`
+                  : actor.agentCode
+                    ? sql`(c.phone LIKE ${`%${digits}%`} AND c.owner_agent_codes && ${[actor.agentCode]}::text[])`
+                    : null,
               )
             : name;
       } else
@@ -145,7 +151,6 @@ export class LeadLinkService implements OnModuleInit {
             clientId: client.id,
             name: client.name,
             gender: client.gender,
-            ageBand: client.ageBand,
             score,
             reasons,
             policies: policies

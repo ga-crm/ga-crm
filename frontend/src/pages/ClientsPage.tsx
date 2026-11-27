@@ -1,15 +1,17 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { FileUp, Plus } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ClientAssignDialog } from '../components/ClientAssignDialog'
 import { CreateClientForm } from '../components/ClientForms'
 import { hasPermission, hasRole } from '../auth/access'
 import { useMe } from '../auth/useMe'
+import { buttonClass } from '../components/buttonStyles'
 import { TierBadge } from '../components/TierBadge'
 import { Alert, Badge, Button, Card, Container, Dialog, ClearFilters, EmptyState, FilterBand, FilterField, PageHeader, Pagination, SearchInput, Select, Spinner, TableScroll, TabBar, Checkbox } from '../components/ui'
 import { t, tDynamic } from '../i18n'
 import { errorMessage } from '../lib/api'
+import { canImport } from '../lib/nav'
 import { policyRolesLabel } from '../lib/clientLabels'
 import { showDate } from '../lib/leadLabels'
 import { queries } from '../lib/queries'
@@ -18,6 +20,7 @@ import type { ClientRow } from '../lib/types'
 import { useListSearch } from '../lib/useListSearch'
 import { usePrefetchNextPage } from '../lib/usePrefetchNextPage'
 import { useLeaveEmptyPage, useUrlState } from '../lib/useUrlState'
+import { pickerLabel, pickerRows } from '../lib/agentTree'
 
 /** CUS-14: name, the policies the client is on with their roles, tier and the phone the GA keeps. */
 function ClientCell({ client }: { client: ClientRow }) {
@@ -72,7 +75,8 @@ export function ClientsPage() {
   const search = useListSearch(url)
   const tier = url.oneOf('tier', CLIENT_TIERS)
   // CUS-14: "Khách hàng của" is hidden from a FC, whose book is only their own
-  const canPickAgents = me?.reach === 'TENANT' || me?.reach === 'DOWNLINE'
+  // Changed 27/11/2026: only who sees every client filters by owner
+  const canPickAgents = hasRole(me, 'GAD') || hasRole(me, 'ADMIN')
   const tree = useQuery({ ...queries.agentTree(), enabled: canPickAgents })
   const agents = canPickAgents ? url.get('agents') : ''
 
@@ -85,8 +89,8 @@ export function ClientsPage() {
   useLeaveEmptyPage(url, clients.data?.items.length)
 
   const items = clients.data?.items ?? []
-  // ASG-1: GA_HEAD or clients.assign; the API checks it again (PERM-4)
-  const canAssign = hasRole(me, 'GA_HEAD') || hasPermission(me, 'clients.assign')
+  // ASG-1: GAD or clients.assign; the API checks it again (PERM-4)
+  const canAssign = hasRole(me, 'GAD') || hasPermission(me, 'clients.assign')
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [assigning, setAssigning] = useState(false)
   const allOnPage = items.length > 0 && items.every((item) => selected.has(item.id))
@@ -115,11 +119,20 @@ export function ClientsPage() {
       <PageHeader
         title={t('clients.title')}
         action={
-          // MAN-1: anyone with a client book may add a client
-          <Button onClick={() => url.set({ create: 1 }, { push: true })}>
-            <Plus size={16} aria-hidden />
-            {t('clients.add')}
-          </Button>
+          <span className="flex flex-wrap gap-2">
+            {/* Decided 27/11/2026: clients and their policies also come in from an Excel file */}
+            {canImport(me!) && (
+              <Link to="/clients/import" className={buttonClass('secondary')}>
+                <FileUp size={16} aria-hidden />
+                {t('clients.import')}
+              </Link>
+            )}
+            {/* MAN-1: anyone with a client book may add a client */}
+            <Button onClick={() => url.set({ create: 1 }, { push: true })}>
+              <Plus size={16} aria-hidden />
+              {t('clients.add')}
+            </Button>
+          </span>
         }
       />
       <Container className="flex-none">
@@ -146,12 +159,11 @@ export function ClientsPage() {
             <Select value={agents} onChange={(event) => url.set({ agents: event.target.value, page: null })}>
               <option value="">{me?.user.agentCode ? t('clients.ownedByMe') : t('clients.ownedByAll')}</option>
               {me?.user.agentCode && <option value="ALL">{t('clients.ownedByAll')}</option>}
-              {(tree.data?.items ?? [])
-                .filter((agent) => agent.agentCode !== me?.user.agentCode)
-                .map((agent) => (
-                  <option key={agent.agentCode} value={agent.agentCode}>
-                    {/* AGT-9: indented by level; plain spaces would collapse */}
-                    {`${'\u00a0\u00a0'.repeat(agent.depth)}${agent.name} (${agent.agentCode})`}
+              {pickerRows(tree.data?.items ?? [])
+                .filter((row) => row.agent.agentCode !== me?.user.agentCode)
+                .map((row) => (
+                  <option key={row.agent.agentCode} value={row.agent.agentCode}>
+                    {pickerLabel(row)}
                   </option>
                 ))}
             </Select>
@@ -215,7 +227,7 @@ export function ClientsPage() {
                         <td>
                           <ClientCell client={client} />
                         </td>
-                        <td className="text-ink-meta">{[client.ageBand, client.gender].filter(Boolean).join(' · ') || '-'}</td>
+                        <td className="text-ink-meta">{client.gender || '-'}</td>
                         <td className="text-right tabular-nums">{client.activePolicies}</td>
                         <td className="whitespace-nowrap">{showDate(client.nextDue) ?? '-'}</td>
                         <td title={names} className="truncate">

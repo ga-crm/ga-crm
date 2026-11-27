@@ -63,7 +63,7 @@ describe('Public lead form (e2e)', () => {
     [head, fc, marketing, head2] = await Promise.all([
       as('head'),
       as('fc'),
-      as('marketing'),
+      as('admin'),
       as('head', 2),
     ]);
     anonymous = request(app.getHttpServer());

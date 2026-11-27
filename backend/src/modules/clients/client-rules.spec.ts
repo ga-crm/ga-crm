@@ -1,5 +1,4 @@
 import {
-  ageBandOf,
   birthDayMonthOf,
   buildProductLines, policyDeletable } from './client-rules.js';
 
@@ -21,12 +20,7 @@ const products = new Map([
 const main = { clientId: 'client-1', name: 'Nguyễn Văn Khách' };
 
 describe('client rules', () => {
-  it('MAN-2: the age band and birthday follow the birth date', () => {
-    expect(ageBandOf('2010-11-11', '2026-11-10')).toBe('<18');
-    expect(ageBandOf('2008-11-10', '2026-11-10')).toBe('18-29');
-    expect(ageBandOf('1986-11-11', '2026-11-10')).toBe('30-39');
-    expect(ageBandOf('1986-11-10', '2026-11-10')).toBe('40-49');
-    expect(ageBandOf('1960-01-01', '2026-11-10')).toBe('60+');
+  it('MAN-2: the birthday follows the birth date (no age band since 27/11/2026)', () => {
     expect(birthDayMonthOf('1985-05-12')).toBe('12/05');
   });
 

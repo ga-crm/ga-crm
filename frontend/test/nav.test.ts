@@ -12,15 +12,15 @@ const person = (roles: string[], permissions: string[], extra: Partial<Me> = {})
   ({ user: { id: 'u1', agentCode: null }, tenant: { id: 't1', name: 'GA', gaCode: 'GA-1' }, roles, permissions, reach: 'TENANT', ...extra }) as unknown as Me
 
 describe('sidebar groups (decided 25/11/2026: one group per kind of work)', () => {
-  it('a GA head sees every group, in the order of the working day', () => {
-    const head = person(['GA_HEAD'], ['users.manage', 'imports.upload', 'imports.view_all', 'leads.manage', 'leads.import', 'audit.view', 'ai.manage', 'reports.view_all'])
+  it('the GA director sees every group, in the order of the working day', () => {
+    const head = person(['GAD'], ['users.manage', 'imports.upload', 'imports.view_all', 'leads.manage', 'leads.import', 'audit.view', 'ai.manage', 'reports.view_all'])
     expect(sidebar(head)).toEqual([
       [null, ['/', '/reports']],
       ['nav.groupWork', ['/tasks', '/calendar']],
       ['nav.groupSales', ['/leads', '/campaigns', '/clients', '/products']],
       ['nav.groupComms', ['/chat', '/notifications']],
-      ['nav.groupTeam', ['/agents', '/users', '/users/activity', '/permissions']],
-      ['nav.groupData', ['/leads/import', '/imports']],
+      ['nav.groupTeam', ['/agents', '/users', '/users/activity', '/assignment-requests', '/permissions']],
+      ['nav.groupData', ['/leads/import', '/clients/import', '/agents/import', '/imports']],
       ['nav.groupOversight', ['/audit', '/chat/review']],
       ['nav.groupSetup', ['/catalog', '/ai', '/ga-settings']],
     ])

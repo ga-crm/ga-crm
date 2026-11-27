@@ -1246,6 +1246,67 @@ Chủ dự án yêu cầu ngày 26/11/2026: bỏ ô "Khu vực" (ví dụ "Miề
 | Giao diện | Bỏ ô Khu vực ở modal thêm lead, form sửa lead và phần thông tin trang lead; Danh mục không còn danh sách "Khu vực" | |
 | Chưa làm | LEAD-27 (tự phân công theo khu vực) khi làm sẽ dựa vào tỉnh thay cho khu vực | Ngoài yêu cầu |
 
+## 2026-11-26: Tài khoản đại lý tạo tay được thêm vào Cây đại lý (khác AGT-2, USER-7)
+
+Chủ dự án báo ngày 26/11/2026: tạo tài khoản tư vấn viên bằng tay xong, ô "Khách hàng sẽ thuộc tư vấn viên" không có người đó; chỉ đại lý nhập từ Excel mới hiện. Nguyên nhân: mọi ô chọn đại lý (AGT-9), quyền sở hữu khách / lead và nhánh của quản lý (SCOPE-1) đều đọc **Cây đại lý** (bảng `agents`), còn tạo tài khoản chỉ ghi mã đại lý vào tài khoản. Đặc tả coi cây là dữ liệu từ file 01_Agents và chỉ yêu cầu cảnh báo khi mã chưa có trong cây (USER-7).
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Khi nào thêm vào cây | Mời hoặc sửa tài khoản có vai trò đại lý (FC, UM, BM, GAD) mà mã đại lý **chưa có trong cây**: thêm đại lý vào cây trong cùng giao dịch với tài khoản, ghi audit `CREATE agent` (`meta.from = 'user'`) | Một lần lưu là người đó chọn được ở mọi ô tư vấn viên, nhận được khách / lead và nằm trong nhánh quản lý |
+| Hạng, tên, trạng thái | Hạng theo vai trò đại lý cao nhất: GAD → SUM, BM → BM, UM → UM, FC → FC. Tên lấy theo tài khoản, trạng thái "Đang hoạt động" | Sau này nhập 01_Agents có mã này thì đại lý được cập nhật như mọi đại lý khác |
+| Quản lý trực tiếp | Form tài khoản có ô "Quản lý trực tiếp" (chọn trong cây, chỉ những người cấp cao hơn vai trò của tài khoản). Mặc định là người đang tạo tài khoản nếu họ có mã đại lý trong cây và cấp cao hơn; chọn tay thì giữ. **Bắt buộc** (chủ dự án yêu cầu 27/11/2026: không có lựa chọn "đứng đầu một nhánh"): API trả `400 manager_required` nếu thiếu, trừ khi trong cây chưa có ai cấp cao hơn. Mã quản lý không có trong GA → `400 manager_not_found`, không lưu gì | |
+| Mã đã có trong cây | Không đổi gì trên cây (tên, hạng, quản lý giữ như cây); ô quản lý bị khóa và hiện tên đại lý trong cây | Đổi quản lý vẫn làm ở trang Cây đại lý (AGT-5) |
+| Quyền | Chỉ thêm vào cây khi người lưu có `agents.edit_tree` (mặc định Chủ GA, Admin). Không có quyền thì như trước: chỉ tạo tài khoản, danh sách người dùng cảnh báo mã chưa có trong cây | Không vượt quyền sửa cây |
+| API | `POST /users/invite` và `PATCH /users/:id` nhận thêm `managerCode`, trả thêm `addedToTree` | |
+| Ô chọn đại lý | Ô chọn đại lý (thêm khách hàng, lọc khách theo người phụ trách, quản lý trực tiếp) xếp **theo thứ tự cây** và thụt lề bằng khoảng trắng không ngắt | Trước đây xếp theo mã: đại lý thêm sau có mã lớn hơn nằm cuối danh sách dưới sai người; thụt lề bằng dấu cách thường bị trình duyệt gộp mất |
+| Tài khoản đã tạo trước đây | Không tự thêm vào cây. Mở tài khoản ở Người dùng, bấm Sửa, chọn quản lý trực tiếp rồi Lưu là người đó vào cây | Tránh đưa vào cây một mã gõ nhầm |
+
+## 2026-11-27: Vai trò là nhân viên kinh doanh; số điện thoại khách chỉ người phụ trách thấy (thay mục 4, SCOPE-1..3, CUS-5, PDP-3, ASG)
+
+Chủ dự án yêu cầu ngày 26-27/11/2026, trả lời các câu hỏi làm rõ cùng ngày. Đang triển khai theo 4 phần; mục "Trạng thái" ghi phần nào đã xong.
+
+| Điểm | Quyết định |
+|---|---|
+| Dữ liệu mẫu | Mỗi GA mẫu có một Giám đốc (`head@gaN`), có mã đại lý `00N00001` hạng SUM đứng đầu cây, thấy mọi khách và có khách riêng; bỏ tài khoản `gad`. Thêm người vào hợp đồng đã có: lấy tư vấn viên đang phục vụ hợp đồng trước, rồi mới đến mã của người thêm |
+| Giám đốc GA chỉ một người | Chủ dự án yêu cầu 27/11/2026: Giám đốc GA do Quản trị viên nền tảng tạo cùng GA (TENANT-2). Form mời / sửa người dùng không còn vai trò Giám đốc GA; API trả `403 director_by_platform` khi mời hoặc cấp vai trò này trong GA. Tài khoản đã là Giám đốc vẫn giữ vai trò khi được sửa |
+| Vai trò | Giám đốc GA → Quản trị viên → Trưởng ban → Trưởng nhóm → Tư vấn viên. **Bỏ Marketing** (Quản trị viên nhận việc của Marketing). **Gộp Chủ GA vào Giám đốc GA** (mã `GAD`): quyền cao nhất. Quản trị viên nền tảng giữ nguyên |
+| Mọi vai trò là nhân viên kinh doanh | Ai cũng có thể có khách riêng (lead, khách có hợp đồng) theo mã đại lý của mình, kể cả Quản trị viên |
+| Thấy khách | Giám đốc: tất cả. Quản trị viên: tất cả nhưng chỉ phần mô tả. Trưởng ban, Trưởng nhóm, Tư vấn viên: **chỉ khách của mình**; quản lý tuyến xem số liệu báo cáo của tuyến, không xem khách của tuyến dưới |
+| Số điện thoại khách | Chỉ **người phụ trách khách** và **Giám đốc** thấy; mọi người khác (kể cả Quản trị viên, người hỗ trợ) nhận số đã che từ API |
+| Bỏ khách | Lead 30 ngày không được chăm sóc (Giám đốc đổi số ngày trong Cài đặt GA), hoặc được đánh dấu Chốt xịt / Không quan tâm, rời người phụ trách về **kho chờ phân công**. Giám đốc và Quản trị viên thấy kho |
+| Phân công | Giám đốc phân công có hiệu lực ngay. Quản trị viên, Trưởng ban, Trưởng nhóm phân công thành **yêu cầu chờ Giám đốc duyệt**; trong lúc chờ, khách vẫn ở chỗ cũ. Người nhận khách thấy số điện thoại từ khi phân công có hiệu lực |
+| Quản trị viên bị hạn chế | Không sửa Cài đặt GA, Ma trận phân quyền, Cài đặt trợ lý AI; không xem Nhật ký, Tra cứu trò chuyện; không duyệt phân công |
+| Phần 1 (xong 27/11/2026) | Migration `DropMarketingRole`: tài khoản Marketing thành Quản trị viên, quyền của Marketing trong ma trận gộp vào Quản trị viên. Migration `GaDirector`: tài khoản Chủ GA (`GA_HEAD`) thành Giám đốc GA (`GAD`); Giám đốc GA luôn có mọi quyền, thấy toàn GA, không còn trong ma trận; mã đại lý **không bắt buộc** với Giám đốc GA (Chủ GA cũ chưa có mã; có mã thì nằm trong cây hạng SUM). Mã lỗi `last_ga_head` giữ tên, nghĩa là "GA phải còn ít nhất một Giám đốc GA đang hoạt động". Tài khoản Marketing cũ giờ là Quản trị viên nên phải cài xác thực hai lớp (USER-16) |
+| Phần 2 (xong 27/11/2026) | Lead: Giám đốc và người có `leads.manage` (Quản trị viên) thấy mọi lead; người khác chỉ lead của mình (`AccessService.leadAgentCodes`). Khách hàng: Giám đốc và Quản trị viên thấy mọi khách; người khác chỉ khách mình phụ trách (`ClientsService.reach`). Số điện thoại lead và khách, lịch sử đổi số, và địa chỉ liên hệ của hợp đồng chỉ trả cho người phụ trách và Giám đốc (`seesPhoneOf`); tìm theo số chỉ ra khách mà người tìm thấy được số. Danh sách việc "của đội" chỉ còn cho Giám đốc. Chỉ Giám đốc thêm khách cho đại lý khác; người khác thêm cho chính mình. Báo cáo của quản lý tuyến vẫn tính cả tuyến (số liệu, không có khách) |
+| Phần 3 (xong 27/11/2026) | Lead được đánh dấu Chốt xịt (`careStatus` DROPPED), Không quan tâm (`careStatus` hoặc `interest` NOT_INTERESTED), hoặc quá số ngày không liên hệ (`leadRules.abandonDays`, mặc định 30, tính từ lần liên hệ gần nhất hoặc lúc được giao; Giám đốc đổi trong Cài đặt GA) thì về **kho chờ phân công**: bỏ người phụ trách, ghi `released_at`, `released_from`, `release_reason` (migration `LeadRelease`), hủy mọi việc đang mở của lead, ghi lịch sử ("Về kho chờ phân công", người thay đổi để trống = "Hệ thống" khi do vòng quét hằng ngày) và audit `ASSIGN`. Vòng quét chạy cùng vòng thông báo buổi sáng (`RemindersService.morning`). Danh sách lead có tab "Khách bị bỏ" cho Giám đốc và Quản trị viên; trang lead ghi ngày, người phụ trách cũ và lý do. Giao lại thì xóa dấu "bị bỏ" và người mới thấy số điện thoại |
+| Ngoại lệ phần 3 | Lead tự khai thác của tư vấn viên còn làm việc không về kho, kể cả khi bị đánh dấu Chốt xịt hay quá hạn chăm sóc (LEAD-9) | Chủ dự án xác nhận ngày 27/11/2026 |
+| Chưa làm (phần 3) | Dòng của file 13_Leads đặt Chốt xịt / Không quan tâm chưa đưa lead về kho (chỉ thao tác trên ứng dụng và vòng quét); chưa có thông báo khi lead về kho | |
+| Phần 4 (xong 27/11/2026) | Bảng `assignment_requests` (migration `AssignmentRequests`). Giám đốc phân công lead (`POST /leads/assign`) hay khách (`POST /clients/assign`) thì có hiệu lực ngay. Người khác có quyền phân công (Quản trị viên với `leads.manage`, quản lý tuyến với `leads.assign_line`, ai được cấp `clients.assign`) thì API tạo **yêu cầu chờ duyệt** (trả `{ assigned: 0, requested, requestId }`), khách ở nguyên chỗ cũ, Giám đốc nhận thông báo `ASSIGN_REQUESTED`. Không ai yêu cầu chuyển khách mình không thấy (quản lý tuyến chỉ chuyển được lead của chính mình). Trang "Duyệt phân công" (`/assignment-requests`): Giám đốc thấy mọi yêu cầu, Duyệt (áp dụng như Giám đốc tự giao: lịch sử, audit, thông báo người nhận) hoặc Từ chối kèm ghi chú; người gửi thấy yêu cầu của mình, rút được yêu cầu còn chờ, nhận thông báo `ASSIGN_DECIDED`. Trang không trả số điện thoại khách. Audit `assignment_request` khi gửi và khi xử lý |
+| Ngoại lệ phần 4 | Tạo lead có chọn người phụ trách và file 13_Leads có cột TÊN TVV vẫn giao ngay, không qua duyệt: đây là việc chia lead mới hằng ngày của Quản trị viên. Chỉ việc chuyển lead hoặc khách đã có người phụ trách sang người khác mới chờ Giám đốc duyệt | Chủ dự án quyết định ngày 27/11/2026 |
+
+## 2026-11-27: Nhóm "Dữ liệu" tách theo loại dữ liệu: Nhập lead, Nhập khách hàng, Nhập đại lý
+
+Chủ dự án yêu cầu ngày 27/11/2026: thêm nhập khách hàng bằng Excel, định nghĩa rõ các chỗ nhập dữ liệu, và có nút nhập Excel ở danh sách khách hàng.
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Thanh bên, nhóm Dữ liệu | **Nhập lead** (`/leads/import`, sheet 13_Leads), **Nhập khách hàng** (`/clients/import`), **Nhập đại lý** (`/agents/import`), **Lịch sử nhập** | Trước đây một màn "Nhập dữ liệu" nhận cả file Success, người dùng không biết đưa khách hàng vào đâu |
+| Nhập khách hàng | Sheet 02_Clients, 03_Policies, 04_Policy_Products, 05_Applications của file Success. File mẫu `templates/CLIENTS.xlsx` chỉ có các sheet này | Cùng bộ máy nhập và kiểm tra như trước (xem trước rồi mới ghi, IMP-3); sheet khác trong file bị bỏ qua, không file nào sai sheet được ghi nhầm |
+| Nhập đại lý | Sheet 01_Agents và 07_Activities (hoạt động của đại lý). File mẫu `templates/AGENTS.xlsx` | Nút "Nhập" ở Cây đại lý mở màn này |
+| Danh sách khách hàng | Nút **"Nhập từ Excel"** cạnh "Thêm khách hàng", cho người có `imports.upload` | |
+| File Success đủ sheet | Màn `/imports/new` vẫn còn, mở từ nút ở Lịch sử nhập | Một file Success đầy đủ vẫn nhập được một lần |
+
+## 2026-11-27: Bỏ "Nhóm tuổi" của khách hàng (khác MAN-2, mục 19.3)
+
+Chủ dự án yêu cầu ngày 27/11/2026: bỏ ô "Nhóm tuổi" ở cả backend và frontend.
+
+| Điểm | Quyết định | Lý do / hệ quả |
+|---|---|---|
+| Dữ liệu | Migration `DropClientAgeBand` xóa cột `clients.age_band` | Không lấy lại được; `down` chỉ tạo lại cột trống. Sao lưu database staging trước khi "Promote to staging" |
+| API và giao diện | Form thêm / sửa khách không còn ô Nhóm tuổi (gửi `ageBand` thì `400 invalid_input`); danh sách, trang khách, gợi ý liên kết lead, ô chọn người trong gia đình không còn hiện nhóm tuổi. Trang khách ghi "Ngày sinh" (ngày sinh đầy đủ, hoặc ngày-tháng khi chỉ có vậy) | Lịch sử thay đổi cũ vẫn hiện nhãn "Nhóm tuổi" |
+| File Success 02_Clients | Bỏ cột `age_band` khỏi file mẫu và khỏi danh mục giá trị; file thật còn cột này thì cột bị bỏ qua | |
+| Gợi ý lead thành khách (LEAD-32) | Điểm "cùng tuổi" (0,1) chỉ còn khi khách có ngày sinh đầy đủ (lệch không quá 3 tuổi); trước đây khách chỉ có nhóm tuổi cũng được tính | Gợi ý cho khách nhập từ Success (thường chỉ có ngày-tháng sinh) bớt một tiêu chí |
+
 ## Not built yet
 
 | Rule | Item | Needed before go-live |

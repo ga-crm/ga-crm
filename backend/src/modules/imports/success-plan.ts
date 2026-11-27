@@ -37,7 +37,6 @@ export interface ParsedClientRow {
   ekycRegistered?: boolean;
   ekycRegisteredAt?: string;
   birthDayMonth?: string;
-  ageBand?: string;
 }
 
 /** Section 19.4 */

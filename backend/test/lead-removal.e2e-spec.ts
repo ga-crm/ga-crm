@@ -90,7 +90,7 @@ describe('Deleting and merging leads (e2e)', () => {
       fullName: 'Lead Tạo Nhầm',
       phone: '0936000001',
       reason: 'Tạo nhầm',
-      deletedBy: 'Chủ GA 1',
+      deletedBy: 'Giám đốc GA 1',
       mergedInto: null,
     });
     await fc.get(`${API}/leads/deleted`).expect(403);
@@ -265,8 +265,8 @@ describe('Deleting and merging leads (e2e)', () => {
           item.field === 'merge' && item.oldValue === '0936000006',
       ),
     ).toBe(true);
-    // PDP-3: a line manager sees the merged number masked, as on the phone field
-    const um = await as('um');
+    // PDP-3: Admin sees the merged number masked, as on the phone field (27/11/2026)
+    const um = await as('admin');
     const forUm = (await um.get(`${API}/leads/${keep}`).expect(200)).body;
     expect(forUm.lead.phone).toBe('0936***005');
     expect(

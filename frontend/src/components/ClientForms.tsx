@@ -4,16 +4,18 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Controller, useFieldArray, useForm } from 'react-hook-form'
 import type { Control, FieldErrors, UseFormRegister } from 'react-hook-form'
 import { z } from 'zod'
+import { hasRole } from '../auth/access'
 import { useMe } from '../auth/useMe'
 import { t } from '../i18n'
 import { api, ApiError, errorMessage } from '../lib/api'
 import { keys, queries } from '../lib/queries'
 import { toast } from '../lib/toast'
-import { AGE_BANDS, CLIENT_TIERS, GENDERS, MARITAL_STATUSES, PREMIUM_FREQUENCIES, PRODUCT_ROLES } from '../lib/types'
+import { CLIENT_TIERS, GENDERS, MARITAL_STATUSES, PREMIUM_FREQUENCIES, PRODUCT_ROLES } from '../lib/types'
 import type { ClientDetail, ClientPolicy, PolicyRole } from '../lib/types'
 import { optionalBirthDate, optionalDate, optionalText, requiredText } from '../lib/validation'
 import { ProductPicker } from './ProductPicker'
 import { Button, Field, FormError, IconButton, Input, MODAL_FOOTER, Select, WIDE_FORM_GRID } from './ui'
+import { pickerLabel, pickerRows } from '../lib/agentTree'
 
 const money = z.string().trim().regex(/^\d*$/, t('validation.money'))
 // POL-2: exactly 9 digits, kept as a string so leading zeros stay
@@ -65,7 +67,6 @@ const clientSchema = z.object({
   phone: optionalText(30),
   tier: z.string(),
   dob: optionalBirthDate,
-  ageBand: z.string(),
   gender: z.string(),
   maritalStatus: z.string(),
   loyaltyPoints: money,
@@ -122,7 +123,6 @@ const emptyClient = (): ClientValues => ({
   phone: '',
   tier: '',
   dob: '',
-  ageBand: '',
   gender: '',
   maritalStatus: '',
   loyaltyPoints: '',
@@ -204,14 +204,6 @@ function ClientFields({ register, errors, prefix = 'client' }: { register: UseFo
       </Field>
       <Field label={t('clients.dob')} htmlFor={`${prefix}-dob`} error={errors.dob?.message}>
         <Input id={`${prefix}-dob`} type="date" aria-invalid={!!errors.dob} {...register('dob')} />
-      </Field>
-      <Field label={t('clients.ageBand')} htmlFor={`${prefix}-age`} hint={t('clients.ageBandHint')}>
-        <Select id={`${prefix}-age`} {...register('ageBand')}>
-          <option value="">{t('clients.ageBandAuto')}</option>
-          {AGE_BANDS.map((value) => (
-            <option key={value}>{value}</option>
-          ))}
-        </Select>
       </Field>
       <Field label={t('clients.gender')} htmlFor={`${prefix}-gender`}>
         <Select id={`${prefix}-gender`} {...register('gender')}>
@@ -445,8 +437,9 @@ const CLIENT_ERRORS = {
 export function CreateClientForm({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const { data: me } = useMe()
   const queryClient = useQueryClient()
-  // MAN-3: managers and GA_HEAD pick the agent from the tree (AGT-9); a FC's client is theirs
-  const picksAgent = me?.reach === 'TENANT' || me?.reach === 'DOWNLINE'
+  // MAN-3: managers and GAD pick the agent from the tree (AGT-9); a FC's client is theirs
+  // Changed 27/11/2026: only the GA director gives a new client to another agent
+  const picksAgent = hasRole(me, 'GAD')
   const tree = useQuery({ ...queries.agentTree(), enabled: picksAgent })
   const form = useForm<CreateValues>({
     resolver: zodResolver(createSchema),
@@ -492,9 +485,9 @@ export function CreateClientForm({ onClose, onCreated }: { onClose: () => void; 
           <Field label={t('clients.belongsTo')} htmlFor="client-agent" required={!me?.user.agentCode} error={errors.agentCode?.message}>
             <Select id="client-agent" aria-invalid={!!errors.agentCode} {...form.register('agentCode')}>
               <option value="">{me?.user.agentCode ? t('clients.belongsToMe') : t('clients.chooseAgent')}</option>
-              {(tree.data?.items ?? []).map((agent) => (
-                <option key={agent.agentCode} value={agent.agentCode}>
-                  {`${'  '.repeat(agent.depth)}${agent.name} (${agent.agentCode})`}
+              {pickerRows(tree.data?.items ?? []).map((row) => (
+                <option key={row.agent.agentCode} value={row.agent.agentCode}>
+                  {pickerLabel(row)}
                 </option>
               ))}
             </Select>
@@ -530,8 +523,6 @@ function clientBody(values: ClientValues, editing: boolean) {
     phone: clear(text(values.phone)),
     tier: clear(text(values.tier)),
     dob: clear(text(values.dob)),
-    // MAN-2: blank lets the server work it out from the birth date
-    ageBand: editing ? (text(values.ageBand) ?? (values.dob ? undefined : null)) : text(values.ageBand),
     gender: clear(text(values.gender)),
     maritalStatus: clear(text(values.maritalStatus)),
     ekycRegistered: clear(bool(values.ekycRegistered)),
@@ -556,7 +547,6 @@ export function EditClientForm({ detail, onClose }: { detail: ClientDetail; onCl
       phone: client.phone ?? '',
       tier: client.tier ?? '',
       dob: client.dob ?? '',
-      ageBand: client.ageBand ?? '',
       gender: client.gender ?? '',
       maritalStatus: client.maritalStatus ?? '',
       loyaltyPoints: client.loyaltyPoints === null ? '' : String(client.loyaltyPoints),

@@ -48,7 +48,8 @@ describe('Lead board, note editing and saved filters (e2e)', () => {
     [head, fc, um, head2] = await Promise.all([
       as('head'),
       as('fc'),
-      as('um'),
+      // Decided 27/11/2026: Admin now plays the one who sees but does not own
+      as('admin'),
       as('head', 2),
     ]);
     for (const [index, name] of ['Lead Bảng 1', 'Lead Bảng 2'].entries()) {
@@ -91,9 +92,9 @@ describe('Lead board, note editing and saved filters (e2e)', () => {
     // The same filters as the list
     const mine = await board(fc, { q: 'Lead Bảng' });
     expect(mine[0].items.map((item) => item.canWork)).toEqual([true, true]);
-    // A line manager sees the cards but cannot move them, and sees phones masked (PDP-3)
-    const managed = (await board(um, { q: 'Lead Bảng' }))[0].items;
-    expect(managed.every((item) => !item.canWork)).toBe(true);
+    // Admin (leads.manage) moves the cards but sees phones masked (PDP-3, changed 27/11/2026)
+    const managed = (await board(um, { q: "Lead Bảng" }))[0].items;
+    expect(managed.every((item) => item.canWork)).toBe(true);
     expect(managed[0].phone).toContain('***');
     expect(
       (await board(head2)).reduce((sum, column) => sum + column.total, 0),

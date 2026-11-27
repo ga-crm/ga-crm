@@ -242,12 +242,12 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const admin = await signIn(demoEmail(1, 'admin'));
       await admin
         .post(`${API}/users/invite`)
-        .send({ email: 'head2@test.local', name: 'H', roles: ['GA_HEAD'] })
+        .send({ email: 'head2@test.local', name: 'H', roles: ['GAD'] })
         .expect(403);
 
       const { body } = await admin
         .get(`${API}/users`)
-        .query({ role: 'GA_HEAD' })
+        .query({ role: 'GAD' })
         .expect(200);
       await admin
         .patch(`${API}/users/${body.items[0].id}`)
@@ -289,6 +289,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
           name: 'C',
           roles: ['FC'],
           agentCode: '00900099',
+          managerCode: '00100001',
         })
         .expect(201);
       expect(invited.body.user.agentCode).toBe('00900099');
@@ -302,6 +303,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
           name: 'D',
           roles: ['FC'],
           agentCode: '00900099',
+          managerCode: '00200001',
         })
         .expect(201);
     });
@@ -330,6 +332,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
         expect(self.body.error).toBe('cannot_disable_self');
       }
 
+      // The GA's one director (decided 27/11/2026) cannot step down
       const demote = await head
         .patch(`${API}/users/${me.id}`)
         .send({ roles: ['ADMIN'] })
@@ -403,9 +406,11 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       ga = 1,
     ) => {
       const head = await signIn(demoEmail(ga, 'head'));
+      // Decided 27/11/2026: a new agent hangs under someone above them, here the GA's top agent
+      const manager = body.agentCode ? { managerCode: `00${ga}00001` } : {};
       const invited = await head
         .post(`${API}/users/invite`)
-        .send({ email, name: 'Vòng đời', roles: ['MARKETING'], ...body })
+        .send({ email, name: 'Vòng đời', roles: ['ADMIN'], ...manager, ...body })
         .expect(201);
       const device = request.agent(app.getHttpServer());
       await device
@@ -640,12 +645,17 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
         await admin.post(`${API}/users/${me.id}/${action}`).expect(403);
       }
 
-      // A GA_HEAD may archive another GA_HEAD while one active GA_HEAD remains
-      const second = await activated(
-        'second.head@test.local',
-        { roles: ['GA_HEAD'] },
-        2,
-      );
+      // Decided 27/11/2026: nobody in the GA makes a director (the platform creates the one)
+      const refused = await ownHead
+        .post(`${API}/users/invite`)
+        .send({ email: 'second.head@test.local', name: 'H', roles: ['GAD'] })
+        .expect(403);
+      expect(refused.body.error).toBe('director_by_platform');
+      // A director may archive another director while one active director remains
+      const second = await activated('second.head@test.local', {}, 2);
+      await ownerDb().query(`UPDATE users SET roles = '{GAD}' WHERE id = $1`, [
+        second.id,
+      ]);
       await ownHead
         .post(`${API}/users/${second.id}/archive`)
         .send({})
@@ -653,9 +663,10 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       expect(
         await connection.collection('users').countDocuments({
           tenantId: (await storedUser(me.id))!.tenantId,
-          roles: 'GA_HEAD',
+          roles: 'GAD',
           status: 'ACTIVE',
         }),
+        // The GA's one director again
       ).toBe(1);
     });
 
@@ -665,7 +676,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const target = (
         await head2
           .get(`${API}/users`)
-          .query({ q: demoEmail(2, 'marketing') })
+          .query({ q: demoEmail(2, 'admin') })
           .expect(200)
       ).body.items[0];
       for (const action of ['disable', 'archive', 'reactivate']) {
@@ -684,7 +695,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const head = await signIn(demoEmail(1, 'head'));
       const invited = await head
         .post(`${API}/users/invite`)
-        .send({ email: 'new.user@test.local', name: 'N', roles: ['MARKETING'] })
+        .send({ email: 'new.user@test.local', name: 'N', roles: ['ADMIN'] })
         .expect(201);
       const first = inviteToken(invited.body.inviteUrl);
 
@@ -751,9 +762,9 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
   describe('permission matrix', () => {
     it('section 23.2 #11: edits apply on the next request, are audited, and stay per tenant', async () => {
       const head1 = await signIn(demoEmail(1, 'head'));
-      const marketing1 = await signIn(demoEmail(1, 'marketing'));
-      const marketing2 = await signIn(demoEmail(2, 'marketing'));
-      await marketing1.get(`${API}/users`).expect(403);
+      const um1 = await signIn(demoEmail(1, 'um'));
+      const um2 = await signIn(demoEmail(2, 'um'));
+      await um1.get(`${API}/users`).expect(403);
 
       const { grants } = (await head1.get(`${API}/permissions`).expect(200))
         .body;
@@ -762,24 +773,24 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
         .send({
           grants: {
             ...grants,
-            MARKETING: [...grants.MARKETING, 'users.manage'],
+            UM: [...grants.UM, 'users.manage'],
           },
         })
         .expect(204);
 
-      await marketing1.get(`${API}/users`).expect(200);
-      await marketing2.get(`${API}/users`).expect(403);
+      await um1.get(`${API}/users`).expect(200);
+      await um2.get(`${API}/users`).expect(403);
 
       const audit = await head1
         .get(`${API}/audit`)
         .query({ action: 'PERMISSION_CHANGE' })
         .expect(200);
-      expect(audit.body.items[0].meta.after.MARKETING).toContain(
+      expect(audit.body.items[0].meta.after.UM).toContain(
         'users.manage',
       );
 
       await head1.put(`${API}/permissions`).send({ grants }).expect(204);
-      await marketing1.get(`${API}/users`).expect(403);
+      await um1.get(`${API}/users`).expect(403);
     });
 
     it('rejects unknown permissions', async () => {
@@ -812,7 +823,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
         .expect(201);
       expect(body.tenant.gaCode).toBe('GA-NEW-1');
       expect(body.head.status).toBe('INVITED');
-      expect(body.head.roles).toEqual(['GA_HEAD']);
+      expect(body.head.roles).toEqual(['GAD']);
 
       const again = await admin
         .post(`${API}/platform/tenants`)
@@ -999,7 +1010,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const head = await signIn(demoEmail(1, 'head'));
       const { body } = await head
         .post(`${API}/users/invite`)
-        .send({ email, name: 'Managed', roles: ['MARKETING'] })
+        .send({ email, name: 'Managed', roles: ['ADMIN'] })
         .expect(201);
       const device = request.agent(app.getHttpServer());
       await device
@@ -1040,7 +1051,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const admin = await signIn(demoEmail(1, 'admin'));
       const heads = await admin
         .get(`${API}/users`)
-        .query({ role: 'GA_HEAD' })
+        .query({ role: 'GAD' })
         .expect(200);
       const headId = heads.body.items[0].id;
       await admin
@@ -1200,7 +1211,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
     });
 
     it('section 22.4: repeated failures lock an account, and unknown accounts look the same', async () => {
-      const known = demoEmail(1, 'gad');
+      const known = demoEmail(1, 'um');
       const unknown = 'nobody.lock@test.local';
       for (const email of [known, unknown]) {
         for (let i = 0; i < 10; i++) {
@@ -1263,7 +1274,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const express = app.getHttpAdapter().getInstance() as {
         set(name: string, value: unknown): void;
       };
-      const email = demoEmail(2, 'gad');
+      const email = demoEmail(2, 'um');
       const from = (ip: string, password: string) =>
         attempt(email, password).set('X-Forwarded-For', ip);
       express.set('trust proxy', 1);
@@ -1296,7 +1307,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
 
       await head
         .patch(`${API}/users/${id}`)
-        .send({ roles: ['GA_HEAD'] })
+        .send({ roles: ['FC'], agentCode: '00200098', managerCode: '00200001' })
         .expect(200);
       await http()
         .post(`${API}/invites/accept`)
@@ -1331,7 +1342,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const me = (await admin.get(`${API}/me`).expect(200)).body.user;
       const refused = await admin
         .patch(`${API}/users/${me.id}`)
-        .send({ roles: ['ADMIN', 'MARKETING'] })
+        .send({ roles: ['ADMIN', 'FC'], agentCode: '00200099' })
         .expect(403);
       expect(refused.body).toEqual({ error: 'forbidden' });
       await admin
@@ -1410,7 +1421,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
     });
 
     it('sessions: renewal cannot pass the absolute limit', async () => {
-      const email = demoEmail(1, 'marketing');
+      const email = demoEmail(1, 'admin');
       const agent = await signIn(email);
       const user = await connection.collection('users').findOne({ email });
       const absolute = new Date(Date.now() + 2 * 86_400_000);
@@ -1565,12 +1576,13 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
         0,
       );
 
-      const byRole = await list({ role: 'GA_HEAD', pageSize: 50 });
+      const byRole = await list({ role: 'GAD', pageSize: 50 });
       expect(byRole.total).toBeGreaterThan(0);
+      // The demo GA's two directors
       for (const event of byRole.items) {
         expect(event.actor.email).toBe(demoEmail(1, 'head'));
       }
-      const both = await list({ role: 'GA_HEAD', action: 'LOGIN', ip: part });
+      const both = await list({ role: 'GAD', action: 'LOGIN', ip: part });
       expect(both.total).toBeGreaterThan(0);
       expect((await list({ role: 'PLATFORM_ADMIN' })).total).toBe(0);
       await head.get(`${API}/audit`).query({ role: 'BOSS' }).expect(400);
@@ -1705,7 +1717,7 @@ describe('Auth, RBAC and tenancy (e2e)', () => {
       const created = (await list({ action: 'CREATE', entity: 'user' }))[0];
       expect(created.actor).toEqual({
         kind: 'user',
-        name: 'Chủ GA 1',
+        name: 'Giám đốc GA 1',
         email: demoEmail(1, 'head'),
       });
       expect(created.target).toEqual({

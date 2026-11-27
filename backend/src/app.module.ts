@@ -23,6 +23,7 @@ import { WorkModule } from './modules/work/work.module.js';
 import { ReportsModule } from './modules/reports/reports.module.js';
 import { AiModule } from './modules/ai/ai.module.js';
 import { ChatModule } from './modules/chat/chat.module.js';
+import { AssignmentsModule } from './modules/assignments/assignments.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { ImportsModule } from './modules/imports/imports.module.js';
 import { LeadsModule } from './modules/leads/leads.module.js';
@@ -71,6 +72,7 @@ import { UsersModule } from './modules/users/users.module.js';
     NotificationsModule,
     LeadsModule,
     ClientsModule,
+    AssignmentsModule,
     ImportsModule,
     CampaignsModule,
     WorkModule,
