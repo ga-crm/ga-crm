@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
+import { hasRole } from '../auth/access'
 import { useMe } from '../auth/useMe'
 import { TaskForm, TaskList } from '../components/Tasks'
 import { Alert, Button, Card, Container, Dialog, FilterBand, FilterField, PageHeader, Select, Spinner, TabBar } from '../components/ui'
@@ -16,8 +17,8 @@ export function TasksPage() {
   const { data: me } = useMe()
   const url = useUrlState()
   const status = url.oneOf('status', STATUSES) || 'OPEN'
-  // "quản lý: của đội"
-  const canSeeTeam = me?.reach === 'DOWNLINE' || me?.reach === 'TENANT'
+  // Changed 27/11/2026: only the GA director sees everyone's tasks; a line manager sees their own
+  const canSeeTeam = hasRole(me, 'GAD')
   const team = canSeeTeam && url.get('team') === '1'
   const adding = url.get('create') === '1'
   const tasks = useQuery(queries.tasks({ status, ...(team ? { team: '1' } : {}) }))

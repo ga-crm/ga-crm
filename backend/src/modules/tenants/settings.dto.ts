@@ -52,6 +52,14 @@ export class LeadRulesDto {
   @Max(720)
   contactedInTimeHours?: number;
 
+  /** Decided 27/11/2026: days without care before a lead goes back to the pool. */
+  @ApiPropertyOptional({ example: 30, minimum: 1, maximum: 365 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  abandonDays?: number;
+
   @ApiPropertyOptional({ description: 'OPEN: lưu lại, chưa có hiệu lực' })
   @IsOptional()
   @IsBoolean()

@@ -10,7 +10,7 @@ import { MfaSetup } from '../components/MfaSetup'
 import { t } from '../i18n'
 import { keys } from '../lib/queries'
 
-/** USER-16: GA_HEAD, ADMIN, PLATFORM_ADMIN (or everyone, if the GA says so) set MFA up before anything else. */
+/** USER-16: GAD, ADMIN, PLATFORM_ADMIN (or everyone, if the GA says so) set MFA up before anything else. */
 export function MfaSetupPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()

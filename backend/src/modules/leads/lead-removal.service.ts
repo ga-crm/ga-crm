@@ -352,7 +352,6 @@ export class LeadRemovalService {
             'email',
             'dob',
             'age',
-            'region',
             'province',
             'extraInfo',
             'productInterest',

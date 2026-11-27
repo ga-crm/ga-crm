@@ -16,6 +16,7 @@ import type { Actor, Scope } from '../../common/rbac.js';
 import type { Env } from '../../config/env.validation.js';
 import { PlatformDb } from '../../core/tenancy/platform-db.js';
 import { TenantDb } from '../../core/tenancy/tenant-db.js';
+import { AgentsService } from '../agents/agents.service.js';
 import { AuditAction, AuditService } from '../audit/audit.service.js';
 import {
   Invitation,
@@ -50,13 +51,25 @@ function assertAgentCode(
   }
 }
 
+/**
+ * Decided 27/11/2026: a GA has one director, created by the Platform Admin with the GA (TENANT-2).
+ * Nobody inside the GA invites a director or makes someone one.
+ */
+function assertNoNewDirector(
+  roles: readonly string[] | undefined,
+  before: readonly string[] = [],
+): void {
+  if (roles?.includes(Role.GAD) && !before.includes(Role.GAD))
+    throw new ApiException(HttpStatus.FORBIDDEN, ErrorCode.DirectorByPlatform);
+}
+
 /** ROLE-4: only a GA_HEAD may touch a GA_HEAD account or grant that role. */
 function assertCanManageHead(
   actor: Actor,
   ...roleSets: readonly (readonly string[] | undefined)[]
 ): void {
-  const touchesHead = roleSets.some((roles) => roles?.includes(Role.GaHead));
-  if (touchesHead && !actor.roles.includes(Role.GaHead)) throw forbidden();
+  const touchesHead = roleSets.some((roles) => roles?.includes(Role.GAD));
+  if (touchesHead && !actor.roles.includes(Role.GAD)) throw forbidden();
 }
 
 /** USER-9, USER-10: the two ways to take an account out of use. */
@@ -82,6 +95,7 @@ export class UsersService {
     private readonly config: ConfigService<Env, true>,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
+    private readonly agents: AgentsService,
   ) {}
 
   /** TEN-3: a record of another tenant behaves exactly like a missing one (row-level security). */
@@ -165,14 +179,22 @@ export class UsersService {
     scope: Scope,
     actor: Actor,
     dto: InviteUserDto,
-  ): Promise<{ user: User; inviteUrl: string }> {
+  ): Promise<{ user: User; inviteUrl: string; addedToTree: boolean }> {
     assertCanManageHead(actor, dto.roles);
+    assertNoNewDirector(dto.roles);
     assertAgentCode(dto.roles, dto.agentCode);
     try {
       return await this.tenantDb.run(scope, async (db) => {
         // Section 5.2: the plan's number of users
         await this.tenants.assertSeat(scope, db);
         const created = await this.createInvited(scope, actor.id, dto, db);
+        // Decided 26/11/2026: a staff member added by hand joins the agent tree too
+        const addedToTree = await this.agents.addForUser(
+          scope,
+          actor,
+          { ...dto, agentCode: dto.agentCode ?? null },
+          db,
+        );
         await this.audit.record(
           {
             tenantId: scope.tenantId,
@@ -184,7 +206,7 @@ export class UsersService {
           },
           db,
         );
-        return created;
+        return { ...created, addedToTree };
       });
     } catch (error) {
       return mapDuplicateKey(error);
@@ -245,13 +267,14 @@ export class UsersService {
     actor: Actor,
     id: string,
     dto: UpdateUserDto,
-  ): Promise<User> {
+  ): Promise<{ user: User; addedToTree: boolean }> {
     try {
       return await this.tenantDb.run(scope, async (db) => {
         // ROLE-5: serialises concurrent changes that could remove the last GA_HEAD
         await this.tenants.lockHeads(scope, db);
         const user = await this.getById(scope, id, db);
         assertCanManageHead(actor, user.roles, dto.roles);
+        assertNoNewDirector(dto.roles, user.roles);
 
         const roles = dto.roles ?? (user.roles as Role[]);
         const agentCode =
@@ -268,13 +291,13 @@ export class UsersService {
         if (
           user.id === actor.id &&
           accessChanged &&
-          !actor.roles.includes(Role.GaHead)
+          !actor.roles.includes(Role.GAD)
         )
           throw forbidden();
 
         const wasActiveHead =
-          user.status === UserStatus.Active && user.roles.includes(Role.GaHead);
-        if (wasActiveHead && !roles.includes(Role.GaHead))
+          user.status === UserStatus.Active && user.roles.includes(Role.GAD);
+        if (wasActiveHead && !roles.includes(Role.GAD))
           await this.assertAnotherActiveHead(scope, user, db);
 
         const before = {
@@ -329,7 +352,19 @@ export class UsersService {
           },
           db,
         );
-        return user;
+        // Decided 26/11/2026: an account whose code is not on the tree yet joins it on save
+        const addedToTree = await this.agents.addForUser(
+          scope,
+          actor,
+          {
+            agentCode: user.agentCode,
+            name: user.name,
+            roles,
+            managerCode: dto.managerCode,
+          },
+          db,
+        );
+        return { user, addedToTree };
       });
     } catch (error) {
       return mapDuplicateKey(error);
@@ -419,7 +454,7 @@ export class UsersService {
           throw new ApiException(HttpStatus.CONFLICT, ErrorCode.InvitePending);
         if (
           user.status === UserStatus.Active &&
-          user.roles.includes(Role.GaHead)
+          user.roles.includes(Role.GAD)
         )
           await this.assertAnotherActiveHead(scope, user, db);
 
@@ -543,7 +578,7 @@ export class UsersService {
     // Whoever did it sees it on screen; the other heads hear about it
     const heads = await rowsOf<{ id: string }>(
       db,
-      `SELECT id FROM users WHERE tenant_id = $1 AND status = 'ACTIVE' AND 'GA_HEAD' = ANY(roles) AND id <> $2`,
+      `SELECT id FROM users WHERE tenant_id = $1 AND status = 'ACTIVE' AND 'GAD' = ANY(roles) AND id <> $2`,
       [scope.tenantId, actor.id],
     );
     await this.notifications.notify(
@@ -713,7 +748,7 @@ export class UsersService {
     const [row] = (await db.query(
       `SELECT count(*)::int AS others FROM users
         WHERE tenant_id = $1 AND id <> $2 AND $3 = ANY(roles) AND status = $4`,
-      [scope.tenantId, user.id, Role.GaHead, UserStatus.Active],
+      [scope.tenantId, user.id, Role.GAD, UserStatus.Active],
     )) as { others: number }[];
     if (row.others === 0)
       throw new ApiException(HttpStatus.CONFLICT, ErrorCode.LastGaHead);

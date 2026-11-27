@@ -22,7 +22,6 @@ import {
 import { PageQueryDto } from '../../common/pagination.js';
 import { IsBirthDate, IsCalendarDate } from '../../common/validators.js';
 import {
-  AGE_BANDS,
   APPLICATION_KEY,
   CLIENT_TIERS,
   GENDERS,
@@ -316,10 +315,6 @@ export class ClientFieldsDto {
   dob?: string | null;
 
   /** MAN-2: blank is worked out from the birth date. */
-  @ApiPropertyOptional({ enum: AGE_BANDS, nullable: true })
-  @ValidateIf(given)
-  @IsIn(AGE_BANDS)
-  ageBand?: string | null;
 
   @ApiPropertyOptional({ enum: GENDERS, nullable: true })
   @ValidateIf(given)

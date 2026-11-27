@@ -36,13 +36,28 @@ import {
 } from './imports.dto.js';
 import type { ImportKind } from './infrastructure/import.entities.js';
 import { ImportsService } from './imports.service.js';
+import { SUCCESS_SCOPES } from './templates.js';
 
 const XLSX =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-const TEMPLATE_FILES: Record<string, ImportKind | undefined> = {
-  'SUCCESS.xlsx': 'SUCCESS',
-  'LEADS.xlsx': 'LEADS',
+/** IMP-11, and since 27/11/2026 one template per "Dữ liệu" screen. */
+const TEMPLATE_FILES: Record<
+  string,
+  { kind: ImportKind; only?: readonly string[]; name: string } | undefined
+> = {
+  'SUCCESS.xlsx': { kind: 'SUCCESS', name: 'GA_CRM_Mau_Nhap_Du_Lieu.xlsx' },
+  'CLIENTS.xlsx': {
+    kind: 'SUCCESS',
+    only: SUCCESS_SCOPES.clients,
+    name: 'GA_CRM_Mau_Nhap_Khach_Hang.xlsx',
+  },
+  'AGENTS.xlsx': {
+    kind: 'SUCCESS',
+    only: SUCCESS_SCOPES.agents,
+    name: 'GA_CRM_Mau_Nhap_Dai_Ly.xlsx',
+  },
+  'LEADS.xlsx': { kind: 'LEADS', name: 'GA_CRM_Mau_Nhap_Lead.xlsx' },
 };
 
 function sendWorkbook(res: Response, fileName: string, content: Buffer): void {
@@ -73,7 +88,8 @@ export class ImportsController {
   @RequireAnyPermission(Permission.ImportsUpload, Permission.LeadsImport)
   @ApiOperation({
     summary: 'Tải file mẫu (IMP-11)',
-    description: '`templates/SUCCESS.xlsx` hoặc `templates/LEADS.xlsx`.',
+    description:
+      '`templates/CLIENTS.xlsx` (khách hàng, hợp đồng), `templates/AGENTS.xlsx` (đại lý, hoạt động), `templates/LEADS.xlsx`, hoặc `templates/SUCCESS.xlsx` (đủ sheet).',
   })
   @ApiProduces(XLSX)
   async template(
@@ -81,14 +97,12 @@ export class ImportsController {
     @Param('file') file: string,
     @Res() res: Response,
   ): Promise<void> {
-    const kind = TEMPLATE_FILES[file];
-    if (!kind) throw notFound();
+    const template = TEMPLATE_FILES[file];
+    if (!template) throw notFound();
     sendWorkbook(
       res,
-      kind === 'LEADS'
-        ? 'GA_CRM_Mau_Nhap_Lead.xlsx'
-        : 'GA_CRM_Mau_Nhap_Du_Lieu.xlsx',
-      await this.imports.template(actor, kind),
+      template.name,
+      await this.imports.template(actor, template.kind, template.only),
     );
   }
 

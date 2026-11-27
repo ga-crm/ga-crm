@@ -6,7 +6,7 @@ import { AppRoot } from './components/AppRoot'
 import { AppShell } from './components/AppShell'
 import { RouteError } from './components/RouteError'
 import { Spinner } from './components/ui'
-import { canImport, canImportLeads, canManageProducts, canReadImports, canSeeCatalog, canSeeReports, canUseClients, canUseLeads, inTenant } from './lib/nav'
+import { canSeeAssignments, canImport, canImportLeads, canManageProducts, canReadImports, canSeeCatalog, canSeeReports, canUseClients, canUseLeads, inTenant } from './lib/nav'
 import { pages } from './lib/pages'
 import type { Me } from './lib/types'
 import { NotFoundPage } from './pages/ForbiddenPage'
@@ -71,18 +71,23 @@ export const router = createBrowserRouter([
                   { path: 'agents', lazy: screen(pages.agents, inTenant) },
                   { path: 'imports', lazy: screen(pages.imports, canReadImports) },
                   { path: 'imports/new', lazy: screen(pages.importNew, canImport) },
+                  // Decided 27/11/2026: one screen per kind of data
+                  { path: 'clients/import', lazy: screen(pages.clientImport, canImport) },
+                  { path: 'agents/import', lazy: screen(pages.agentImport, canImport) },
                   { path: 'imports/:id', lazy: screen(pages.importDetail, canReadImports) },
                   { path: 'users', lazy: screen(pages.users, (me) => hasPermission(me, 'users.manage')) },
                   { path: 'chat', lazy: screen(pages.chat, (me) => !!me.tenant) },
-                  { path: 'chat/review', lazy: screen(pages.chatReview, (me) => hasRole(me, 'GA_HEAD')) },
+                  { path: 'chat/review', lazy: screen(pages.chatReview, (me) => hasRole(me, 'GAD')) },
+                  // Decided 27/11/2026: the director decides; whoever may ask follows their requests
+                  { path: 'assignment-requests', lazy: screen(pages.assignmentRequests, canSeeAssignments) },
                   { path: 'users/activity', lazy: screen(pages.userActivity, (me) => !!me.tenant && hasPermission(me, 'users.manage')) },
-                  { path: 'permissions', lazy: screen(pages.permissions, (me) => hasRole(me, 'GA_HEAD')) },
-                  // Section 16.8: GA_HEAD edits, Admin reads (section 4.3)
+                  { path: 'permissions', lazy: screen(pages.permissions, (me) => hasRole(me, 'GAD')) },
+                  // Section 16.8: GAD edits, Admin reads (section 4.3)
                   { path: 'catalog', lazy: screen(pages.catalog, canSeeCatalog) },
-                  // Section 5.2: GA_HEAD only
+                  // Section 5.2: GAD only
                   // Section 14.10: AI settings of the GA (ai.manage)
                   { path: 'ai', lazy: screen(pages.aiAdmin, (me) => !!me.tenant && hasPermission(me, 'ai.manage')) },
-                  { path: 'ga-settings', lazy: screen(pages.gaSettings, (me) => hasRole(me, 'GA_HEAD')) },
+                  { path: 'ga-settings', lazy: screen(pages.gaSettings, (me) => hasRole(me, 'GAD')) },
                   { path: 'audit', lazy: screen(pages.audit, (me) => hasPermission(me, 'audit.view')) },
                   { path: 'platform/tenants', lazy: screen(pages.tenants, (me) => hasRole(me, 'PLATFORM_ADMIN')) },
                   // TENANT-5: the Platform Admin keeps the product catalogue

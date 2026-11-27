@@ -1,22 +1,6 @@
 import { normalizeName } from '../../common/normalize.js';
 import type { PolicyProduct } from './infrastructure/client.entities.js';
 
-/** CUS-2: the age bands Success uses. */
-export function ageBandOf(dob: string, today: string): string {
-  const [year, month, day] = dob.split('-').map(Number);
-  const [nowYear, nowMonth, nowDay] = today.split('-').map(Number);
-  const age =
-    nowYear -
-    year -
-    (nowMonth < month || (nowMonth === month && nowDay < day) ? 1 : 0);
-  if (age < 18) return '<18';
-  if (age < 30) return '18-29';
-  if (age < 40) return '30-39';
-  if (age < 50) return '40-49';
-  if (age < 60) return '50-59';
-  return '60+';
-}
-
 /** MAN-2: `dd/mm` from `YYYY-MM-DD`. */
 export const birthDayMonthOf = (dob: string): string =>
   `${dob.slice(8, 10)}/${dob.slice(5, 7)}`;

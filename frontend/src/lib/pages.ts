@@ -10,6 +10,7 @@ export const pages = {
   users: () => import('../pages/UsersPage').then((module) => module.UsersPage),
   chat: () => import('../pages/ChatPage').then((module) => module.ChatPage),
   chatReview: () => import('../pages/ChatReviewPage').then((module) => module.ChatReviewPage),
+  assignmentRequests: () => import('../pages/AssignmentRequestsPage').then((module) => module.AssignmentRequestsPage),
   userActivity: () => import('../pages/UserActivityPage').then((module) => module.UserActivityPage),
   permissions: () => import('../pages/PermissionsPage').then((module) => module.PermissionsPage),
   clients: () => import('../pages/ClientsPage').then((module) => module.ClientsPage),
@@ -42,6 +43,8 @@ export const pages = {
   leadImport: () => import('../pages/LeadImportPage').then((module) => module.LeadImportPage),
   agents: () => import('../pages/AgentsPage').then((module) => module.AgentsPage),
   importNew: () => import('../pages/ImportNewPage').then((module) => module.ImportNewPage),
+  clientImport: () => import('../pages/ImportNewPage').then((module) => module.ClientImportPage),
+  agentImport: () => import('../pages/ImportNewPage').then((module) => module.AgentImportPage),
   imports: () => import('../pages/ImportsPage').then((module) => module.ImportsPage),
   importDetail: () => import('../pages/ImportDetailPage').then((module) => module.ImportDetailPage),
 }

@@ -65,6 +65,8 @@ export function historyValue(field: string, value: string | null, agentNames: Re
       return agentNames[value] ? `${agentNames[value]} (${value})` : value
     case 'consent':
       return t(value === 'true' ? 'leads.consentYes' : 'leads.consentNo')
+    case 'released':
+      return tDynamic(`leads.releaseReason.${value}`, value)
     case 'dob':
       return showDate(value) ?? '-'
     case 'nextAction':

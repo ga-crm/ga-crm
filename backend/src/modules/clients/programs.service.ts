@@ -47,7 +47,7 @@ export class ProgramsService {
   /** PRG-3: catalog.manage (Admin by default) and GA_HEAD edit; everyone in the GA reads. */
   assertCanManage(actor: Actor): void {
     if (
-      !actor.roles.includes(Role.GaHead) &&
+      !actor.roles.includes(Role.GAD) &&
       !actor.permissions.includes(Permission.CatalogManage)
     )
       throw forbidden();

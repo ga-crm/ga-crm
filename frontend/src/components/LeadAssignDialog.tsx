@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
-import { useContactDeadlineHours } from '../auth/useMe'
+import { hasRole } from '../auth/access'
+import { useContactDeadlineHours, useMe } from '../auth/useMe'
 import { t } from '../i18n'
 import { normalizeName } from '../lib/agentTree'
 import { api, errorMessage } from '../lib/api'
@@ -29,6 +30,7 @@ export function LeadAssignDialog({
   const deadlineHours = useContactDeadlineHours()
   const [search, setSearch] = useState('')
   const [chosen, setChosen] = useState<string | null>(null)
+  const director = hasRole(useMe().data, 'GAD')
   const assignees = useQuery({ ...queries.leadAssignees(), enabled: open })
 
   const shown = useMemo(() => {
@@ -37,11 +39,13 @@ export function LeadAssignDialog({
   }, [assignees.data, search])
 
   const assign = useMutation({
-    mutationFn: () => api.post<{ assigned: number }>('/leads/assign', { leadIds, agentCode: chosen === NOBODY ? null : chosen }),
-    onSuccess: async ({ assigned }) => {
-      await queryClient.invalidateQueries({ queryKey: keys.leads })
+    mutationFn: () => api.post<{ assigned: number; requested: number }>('/leads/assign', { leadIds, agentCode: chosen === NOBODY ? null : chosen }),
+    onSuccess: async ({ assigned, requested }) => {
+      await Promise.all([queryClient.invalidateQueries({ queryKey: keys.leads }), queryClient.invalidateQueries({ queryKey: keys.assignments })])
       const agent = assignees.data?.items.find((item) => item.agentCode === chosen)
-      if (assigned === 0) toast.warning(t('toast.assignNothing'))
+      // Decided 27/11/2026: anyone but the GA director asks them first
+      if (requested > 0) toast.info(t('toast.assignRequested', { count: requested }), t('toast.assignRequestedDetail'))
+      else if (assigned === 0) toast.warning(t('toast.assignNothing'))
       else if (agent) toast.success(t('toast.assigned', { count: assigned, name: agent.name }), t('toast.assignedDetail', { hours: deadlineHours }))
       else toast.info(t('toast.unassigned', { count: assigned }))
       setChosen(null)
@@ -88,7 +92,7 @@ export function LeadAssignDialog({
           {t('common.cancel')}
         </Button>
         <Button disabled={chosen === null || assign.isPending} onClick={() => assign.mutate()}>
-          {t('leads.assign')}
+          {t(director ? 'leads.assign' : 'assignments.send')}
         </Button>
       </div>
     </Dialog>

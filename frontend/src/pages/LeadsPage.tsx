@@ -31,7 +31,7 @@ import { usePrefetchNextPage } from '../lib/usePrefetchNextPage'
 import { useLeaveEmptyPage, useUrlState } from '../lib/useUrlState'
 import { optionalBirthDate, optionalEmail, optionalText, phoneField, requiredText } from '../lib/validation'
 
-type TabKey = 'mine' | 'isNew' | 'newComment' | 'overdue' | 'all' | 'unassigned'
+type TabKey = 'mine' | 'isNew' | 'newComment' | 'overdue' | 'all' | 'unassigned' | 'released'
 
 /** LEAD-36 */
 const TABS: { key: TabKey; label: Parameters<typeof t>[0]; count: keyof LeadCounts; managerOnly?: boolean; query: Record<string, string> }[] = [
@@ -41,6 +41,8 @@ const TABS: { key: TabKey; label: Parameters<typeof t>[0]; count: keyof LeadCoun
   { key: 'newComment', label: 'leads.tabComment', count: 'newComment', query: { newComment: '1' } },
   { key: 'overdue', label: 'leads.tabOverdue', count: 'overdue', query: { overdue: '1' } },
   { key: 'unassigned', label: 'leads.tabUnassigned', count: 'unassigned', managerOnly: true, query: { assignee: 'NONE' } },
+  // Decided 27/11/2026: leads their agent dropped or left without care, waiting for someone else
+  { key: 'released', label: 'leads.tabReleased', count: 'released', managerOnly: true, query: { released: '1' } },
 ]
 
 /** LEAD-21: one assignment takes at most this many leads. */
@@ -54,7 +56,6 @@ const schema = z.object({
   // LEAD-3, changed 26/11/2026: may stay blank and be answered later
   consent: z.enum(['', 'yes', 'no']),
   email: optionalEmail,
-  region: optionalText(100),
   // Decided 26/11/2026: the province and commune after 1/7/2025, and the street address
   provinceCode: z.string(),
   wardCode: z.string(),
@@ -80,15 +81,14 @@ function CreateLeadForm({ manages, onClose, onCreated }: { manages: boolean; onC
     resolver: zodResolver(schema),
     // Errors appear when leaving a field, then update while it is being corrected
     mode: 'onTouched',
-    defaultValues: { fullName: '', phone: '', source: '', consent: '', email: '', region: '', provinceCode: '', wardCode: '', addressLine: '', gender: '', dob: '', note: '', campaignId: '', assignedAgentCode: '', productCode: '' },
+    defaultValues: { fullName: '', phone: '', source: '', consent: '', email: '', provinceCode: '', wardCode: '', addressLine: '', gender: '', dob: '', note: '', campaignId: '', assignedAgentCode: '', productCode: '' },
   })
   const create = useMutation({
-    mutationFn: ({ consent, email, region, provinceCode, wardCode, addressLine, gender, dob, note, campaignId, assignedAgentCode, productCode, ...required }: FormValues) =>
+    mutationFn: ({ consent, email, provinceCode, wardCode, addressLine, gender, dob, note, campaignId, assignedAgentCode, productCode, ...required }: FormValues) =>
       api.post<{ id: string }>('/leads', {
         ...required,
         ...(consent && { consent: consent === 'yes' }),
         email: email || undefined,
-        region: region || undefined,
         provinceCode: provinceCode || undefined,
         wardCode: wardCode || undefined,
         addressLine: addressLine || undefined,
@@ -144,15 +144,6 @@ function CreateLeadForm({ manages, onClose, onCreated }: { manages: boolean; onC
         </Field>
         <Field label={t('leads.dob')} htmlFor="lead-dob" error={errors.dob?.message}>
           <Input id="lead-dob" type="date" min="1900-01-01" aria-invalid={!!errors.dob} {...form.register('dob')} />
-        </Field>
-        <Field label={t('leads.region')} htmlFor="lead-region" error={errors.region?.message}>
-          <Controller
-            control={form.control}
-            name="region"
-            render={({ field, fieldState }) => (
-              <OptionPicker ref={field.ref} kind="region" id="lead-region" label={t('leads.region')} maxLength={100} emptyLabel={t('leads.noPlace')} placeholder={t('leads.regionPlaceholder')} value={field.value ?? ''} onChange={field.onChange} onBlur={field.onBlur} invalid={fieldState.invalid} />
-            )}
-          />
         </Field>
         <PlaceFields control={form.control} setValue={form.setValue} errors={errors} idPrefix="lead" />
         <Field label={t('agents.gender')} htmlFor="lead-gender" error={errors.gender?.message}>

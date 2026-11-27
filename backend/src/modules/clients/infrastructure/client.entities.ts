@@ -99,7 +99,6 @@ export class Client {
   /** `dd/mm` */
   @text() birthDayMonth: string | null;
   @int() birthMonth: number | null;
-  @text() ageBand: string | null;
   @Column({ type: 'jsonb', default: () => `'[]'` }) agentLinks: AgentLink[];
   @Column({ type: 'text', array: true, default: () => `'{}'` })
   visibleAgentCodes: string[];

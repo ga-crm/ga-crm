@@ -63,7 +63,7 @@ export class LeadOptionsController {
   }
 
   @Post()
-  @RequireRoles(Role.GaHead)
+  @RequireRoles(Role.GAD)
   @ApiOperation({ summary: 'Thêm giá trị', description: 'Chỉ Chủ GA (PERM-3)' })
   @ApiCreatedResponse({ type: LeadOptionDto })
   @ApiConflictResponse({ description: 'option_exists' })
@@ -77,7 +77,7 @@ export class LeadOptionsController {
   }
 
   @Post('bulk')
-  @RequireRoles(Role.GaHead)
+  @RequireRoles(Role.GAD)
   @ApiOperation({
     summary: 'Thêm nhiều giá trị một lần',
     description:
@@ -88,7 +88,7 @@ export class LeadOptionsController {
   }
 
   @Patch(':id')
-  @RequireRoles(Role.GaHead)
+  @RequireRoles(Role.GAD)
   @ApiOperation({
     summary: 'Đổi tên, cờ, hiện / ẩn, thứ tự',
     description: 'Chỉ Chủ GA. Đổi tên không đổi mã mà lead đang mang (OPT-3).',
@@ -106,7 +106,7 @@ export class LeadOptionsController {
   }
 
   @Delete(':id')
-  @RequireRoles(Role.GaHead)
+  @RequireRoles(Role.GAD)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Xóa giá trị GA tự thêm và chưa có lead dùng',

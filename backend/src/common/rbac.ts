@@ -1,39 +1,32 @@
-/** Section 4.1 */
+/** Section 4.1. Marketing was dropped on 26/11/2026: Admin does its work (docs/decisions.md). */
 export enum Role {
   FC = 'FC',
   UM = 'UM',
   BM = 'BM',
+  /** The GA director. Since 27/11/2026 also the former GA head (GA_HEAD): every permission. */
   GAD = 'GAD',
-  GaHead = 'GA_HEAD',
-  Marketing = 'MARKETING',
   Admin = 'ADMIN',
   PlatformAdmin = 'PLATFORM_ADMIN',
 }
 
 /** ROLE-3: PLATFORM_ADMIN can never be granted from inside a GA. */
 export const TENANT_ROLES = [
-  Role.FC,
-  Role.UM,
-  Role.BM,
   Role.GAD,
-  Role.GaHead,
-  Role.Marketing,
   Role.Admin,
+  Role.BM,
+  Role.UM,
+  Role.FC,
 ] as const;
 
-/** ROLE-2: these roles must carry an agent code. */
-export const AGENT_ROLES: readonly Role[] = [
-  Role.FC,
-  Role.UM,
-  Role.BM,
-  Role.GAD,
-];
+/**
+ * ROLE-2: these roles must carry an agent code. Decided 27/11/2026: the GA director may have one
+ * (then they sit on the tree as SUM) but need not, as the former GA heads had none.
+ */
+export const AGENT_ROLES: readonly Role[] = [Role.FC, Role.UM, Role.BM];
 
-/** PERM-1: roles editable in the permission matrix. GA_HEAD is fixed and holds everything. */
+/** PERM-1: roles editable in the permission matrix. The GA director is fixed and holds everything. */
 const CONFIGURABLE_ROLES = [
   Role.Admin,
-  Role.Marketing,
-  Role.GAD,
   Role.BM,
   Role.UM,
   Role.FC,
@@ -72,27 +65,21 @@ export type Grants = Record<ConfigurableRole, Permission[]>;
 
 /** PERM-2: grants of a newly created tenant. */
 export const DEFAULT_GRANTS: Grants = {
+  // Decided 26/11/2026: Admin also holds what Marketing held (leads, campaigns, reports)
   [Role.Admin]: [
     Permission.UsersManage,
     Permission.AgentsViewAll,
     Permission.AgentsEditTree,
     Permission.ImportsUpload,
     Permission.ImportsAgentTree,
-    Permission.ImportsViewAll,
-    Permission.LeadsManage,
-    Permission.LeadsImport,
-    Permission.CatalogManage,
-  ],
-  [Role.Marketing]: [
-    Permission.AgentsViewAll,
-    Permission.ImportsUpload,
     Permission.ImportsTenantWide,
+    Permission.ImportsViewAll,
     Permission.LeadsManage,
     Permission.LeadsImport,
     Permission.CampaignsManage,
     Permission.ReportsViewAll,
+    Permission.CatalogManage,
   ],
-  [Role.GAD]: [Permission.ImportsUpload, Permission.AiUse, Permission.LeadsAssignLine],
   [Role.BM]: [Permission.ImportsUpload, Permission.AiUse, Permission.LeadsAssignLine],
   [Role.UM]: [Permission.ImportsUpload, Permission.AiUse, Permission.LeadsAssignLine],
   [Role.FC]: [Permission.ImportsUpload, Permission.AiUse],
@@ -102,23 +89,31 @@ export type Reach = 'TENANT' | 'DOWNLINE' | 'OWN' | 'NONE';
 
 /** SCOPE-1 + ROLE-1: the widest role wins. */
 export function resolveReach(roles: readonly Role[]): Reach {
-  if (roles.includes(Role.GaHead)) return 'TENANT';
-  if (
-    roles.some(
-      (role) => role === Role.UM || role === Role.BM || role === Role.GAD,
-    )
-  )
+  if (roles.includes(Role.GAD)) return 'TENANT';
+  if (roles.some((role) => role === Role.UM || role === Role.BM))
     return 'DOWNLINE';
   if (roles.includes(Role.FC)) return 'OWN';
   return 'NONE';
 }
 
-/** ROLE-1 + section 4.2: union of all role grants; GA_HEAD always holds every permission. */
+/**
+ * Decided 27/11/2026: a customer's phone (lead or client) is for whoever looks after the customer
+ * and for the GA director, nobody else; everyone else gets it masked from the API.
+ */
+export function seesPhoneOf(
+  actor: Pick<Actor, 'roles' | 'agentCode'>,
+  ownerCodes: readonly (string | null | undefined)[],
+): boolean {
+  if (actor.roles.includes(Role.GAD)) return true;
+  return !!actor.agentCode && ownerCodes.includes(actor.agentCode);
+}
+
+/** ROLE-1 + section 4.2: union of all role grants; the GA director always holds every permission. */
 export function resolvePermissions(
   roles: readonly Role[],
   grants: Grants,
 ): Permission[] {
-  if (roles.includes(Role.GaHead)) return Object.values(Permission);
+  if (roles.includes(Role.GAD)) return Object.values(Permission);
   const permissions = new Set<Permission>();
   for (const role of roles) {
     for (const permission of grants[role as ConfigurableRole] ?? [])

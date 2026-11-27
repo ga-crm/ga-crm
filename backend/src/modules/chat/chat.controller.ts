@@ -274,7 +274,7 @@ export class ChatController {
   }
 
   @Get('review')
-  @RequireRoles(Role.GaHead)
+  @RequireRoles(Role.GAD)
   @ApiOperation({
     summary: 'Chủ GA: mọi cuộc trò chuyện của GA',
     description: 'Chỉ tên nhóm và thành viên. Đọc nội dung qua route bên dưới, có ghi audit.',
@@ -284,7 +284,7 @@ export class ChatController {
   }
 
   @Get('review/:id/messages')
-  @RequireRoles(Role.GaHead)
+  @RequireRoles(Role.GAD)
   @ApiOperation({ summary: 'Chủ GA đọc một cuộc trò chuyện (ghi audit CHAT_READ)' })
   reviewMessages(
     @CurrentActor() actor: Actor,

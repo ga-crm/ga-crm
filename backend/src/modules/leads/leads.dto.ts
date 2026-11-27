@@ -125,6 +125,12 @@ export class ListLeadsQueryDto extends PageQueryDto {
   @IsIn(['1'])
   overdue?: '1';
 
+  /** Decided 27/11/2026: leads back in the pool because their agent dropped them or left them. */
+  @ApiPropertyOptional({ enum: ['1'] })
+  @IsOptional()
+  @IsIn(['1'])
+  released?: '1';
+
   @ApiPropertyOptional({ enum: ['1'] })
   @IsOptional()
   @IsIn(['1'])
@@ -193,13 +199,6 @@ export class CreateLeadDto {
   @IsEmail()
   @MaxLength(254)
   email?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MaxLength(100)
-  region?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -288,13 +287,6 @@ export class UpdateLeadDto {
   @IsOptional()
   @IsBirthDate()
   dob?: string | null;
-
-  @ApiPropertyOptional({ nullable: true })
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MaxLength(100)
-  region?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()

@@ -3,7 +3,6 @@ import {
   AGENT_STATUSES,
 } from '../agents/infrastructure/agent.entity.js';
 import {
-  AGE_BANDS,
   APPLICATION_STATUSES,
   CLIENT_TIERS,
   MARITAL_STATUSES,
@@ -218,14 +217,6 @@ export const LEADS_SHEET: SheetTemplate = {
       note: 'Không bắt buộc.',
     },
     {
-      header: 'KHU VỰC KHÁCH HÀNG',
-      field: 'region',
-      type: 'text',
-      requiredColumn: false,
-      aliases: ['KHU VỰC'],
-      note: 'Không bắt buộc.',
-    },
-    {
       header: 'Nguồn',
       field: 'source',
       type: 'text',
@@ -353,6 +344,8 @@ export const LEADS_SHEET: SheetTemplate = {
       field: 'province',
       type: 'text',
       requiredColumn: false,
+      // Decided 26/11/2026: "Khu vực" is gone; a GA's "Chia Lead" file names the province there
+      aliases: ['KHU VỰC KHÁCH HÀNG', 'KHU VỰC'],
       note: 'Không bắt buộc.',
     },
     {
@@ -452,7 +445,6 @@ export const LEADS_SHEET: SheetTemplate = {
       'Nguyễn Văn Mẫu',
       '0900000101',
       'Quảng cáo',
-      'Miền Bắc',
       'Facebook',
       'Chưa xác định',
       'Đang chăm sóc',
@@ -485,7 +477,6 @@ export const LEADS_SHEET: SheetTemplate = {
       'Trần Thị Mẫu',
       '0900000102',
       'Giới thiệu',
-      'Miền Nam',
       'Giới thiệu',
       '',
       '',
@@ -626,14 +617,6 @@ export const CLIENTS_SHEET: SheetTemplate = {
       requiredColumn: false,
       note: 'Ngày-tháng sinh dạng dd/mm. Không bắt buộc.',
     },
-    {
-      header: 'age_band',
-      field: 'ageBand',
-      type: 'list',
-      requiredColumn: false,
-      list: AGE_BANDS,
-      note: '<18, 18-29, 30-39, 40-49, 50-59 hoặc 60+. Không bắt buộc.',
-    },
   ],
   examples: [
     [
@@ -652,7 +635,6 @@ export const CLIENTS_SHEET: SheetTemplate = {
       'Có',
       '15/03/2024 10:00',
       '12/05',
-      '40-49',
     ],
   ],
 };
@@ -1274,6 +1256,23 @@ export const ACTIVITIES_SHEET: SheetTemplate = {
   ],
 };
 
+/**
+ * Decided 27/11/2026: the "Dữ liệu" screens say what they take in. "Nhập khách hàng" takes the
+ * clients and their policies, policy lines and applications; "Nhập đại lý" the agent tree and the
+ * agents' activities. Both are cuts of the same Success workbook, so a full file still imports on
+ * either screen, which keeps only its own sheets.
+ */
+export const SUCCESS_SCOPES = {
+  clients: [
+    '02_Clients',
+    '03_Policies',
+    '04_Policy_Products',
+    '05_Applications',
+  ],
+  agents: ['01_Agents', '07_Activities'],
+} as const;
+export type SuccessScope = keyof typeof SUCCESS_SCOPES;
+
 export const TEMPLATES_BY_KIND = {
   SUCCESS: [
     AGENTS_SHEET,
@@ -1308,7 +1307,6 @@ export const LOOKUPS = {
   'Cấp bậc (RANK)': AGENT_RANKS,
   'Nhóm khách hàng': CLIENT_TIERS,
   'Tình trạng hôn nhân': MARITAL_STATUSES,
-  'Nhóm tuổi': AGE_BANDS,
   'Định kỳ đóng phí': PREMIUM_FREQUENCIES,
   'Vai trò sản phẩm': PRODUCT_ROLES,
   'Tình trạng hồ sơ YCBH': APPLICATION_STATUSES,

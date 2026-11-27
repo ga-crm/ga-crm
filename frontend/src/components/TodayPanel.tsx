@@ -130,7 +130,7 @@ export function TodayPanel() {
           )}
         </div>
       </div>
-      {/* Section 16.2: GA_HEAD and Marketing see how fresh each agent's Success data is */}
+      {/* Section 16.2: GAD and Admin see how fresh each agent's Success data is */}
       {data.uploads && data.uploads.length > 0 && (
         <div className="mt-4">
           <Section title={t('today.uploads')}>

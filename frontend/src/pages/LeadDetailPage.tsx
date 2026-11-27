@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
 import { CommentThread } from '../components/CommentThread'
 import { LeadAssignDialog } from '../components/LeadAssignDialog'
@@ -14,6 +14,7 @@ import { NoteComposer, } from '../components/NoteComposer'
 import { OptionPicker } from '../components/OptionPicker'
 import { PlaceFields } from '../components/PlaceFields'
 import { ProductPicker } from '../components/ProductPicker'
+import { hasPermission, hasRole } from '../auth/access'
 import { useMe } from '../auth/useMe'
 import { Alert, Badge, Button, ConfirmDialog, Container, Dialog, EmptyState, RowMenu, Field, FormError, Input, MODAL_FOOTER, Notice, Select, Spinner, WIDE_FORM_GRID, TabBar, Textarea, Checkbox } from '../components/ui'
 import { formatDate, formatDateTime, t, tDynamic } from '../i18n'
@@ -48,7 +49,6 @@ const editSchema = z.object({
   fullName: requiredText(200),
   phone: phoneField,
   dob: optionalBirthDate,
-  region: optionalText(100),
   // Decided 26/11/2026: the province and commune after 1/7/2025, and the street address
   provinceCode: z.string(),
   wardCode: z.string(),
@@ -78,7 +78,6 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
       fullName: lead.fullName,
       phone: lead.phone,
       dob: lead.dob ?? '',
-      region: lead.region ?? '',
       provinceCode: lead.provinceCode ?? '',
       wardCode: lead.wardCode ?? '',
       addressLine: lead.addressLine ?? '',
@@ -93,12 +92,11 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
   const { errors, dirtyFields } = form.formState
   const sourceChanged = !!dirtyFields.source
   const save = useMutation({
-    mutationFn: ({ consent, dob, region, provinceCode, wardCode, addressLine, email, source, campaignId, productCode, ...rest }: EditValues) =>
+    mutationFn: ({ consent, dob, provinceCode, wardCode, addressLine, email, source, campaignId, productCode, ...rest }: EditValues) =>
       api.patch(`/leads/${lead.id}`, {
         ...rest,
         consent: consent === 'yes',
         dob: dob || null,
-        region: region || null,
         // Sent only when changed, so an older typed province stays until a province is chosen
         ...((dirtyFields.provinceCode || dirtyFields.wardCode) && { provinceCode: provinceCode || null, wardCode: wardCode || null }),
         ...(dirtyFields.addressLine && { addressLine: addressLine || null }),
@@ -133,15 +131,6 @@ function EditLeadForm({ detail, onClose }: { detail: LeadDetail; onClose: () => 
         </Field>
         <Field label={t('leads.dob')} htmlFor="edit-dob" error={errors.dob?.message}>
           <Input id="edit-dob" type="date" min="1900-01-01" aria-invalid={!!errors.dob} {...form.register('dob')} />
-        </Field>
-        <Field label={t('leads.region')} htmlFor="edit-region" error={errors.region?.message}>
-          <Controller
-            control={form.control}
-            name="region"
-            render={({ field, fieldState }) => (
-              <OptionPicker ref={field.ref} kind="region" id="edit-region" label={t('leads.region')} maxLength={100} emptyLabel={t('leads.noPlace')} placeholder={t('leads.regionPlaceholder')} value={field.value ?? ''} onChange={field.onChange} onBlur={field.onBlur} invalid={fieldState.invalid} />
-            )}
-          />
         </Field>
         <PlaceFields control={form.control} setValue={form.setValue} errors={errors} idPrefix="edit" />
         <Field label={t('leads.productInterest')} htmlFor="edit-product" error={errors.productCode?.message}>
@@ -217,6 +206,11 @@ function choicesFor(catalogue: ReturnType<typeof useLeadOptions>, kind: LeadOpti
 /** Section 16.4: the status box. It only sends what changed, so an unrelated lock cannot get in the way. */
 function StatusForm({ detail }: { detail: LeadDetail }) {
   const refresh = useRefresh(detail.lead.id)
+  const { data: me } = useMe()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  // Who sees the pool keeps the lead on screen after dropping it
+  const seesPool = hasRole(me, 'GAD') || hasPermission(me, 'leads.manage')
   const catalogue = useLeadOptions()
   const { lead, interestLocked } = detail
   const initial = {
@@ -239,11 +233,19 @@ function StatusForm({ detail }: { detail: LeadDetail }) {
         if (key === 'nextActionAt') body[key] = values[key] ? fromLocalInput(values[key]) : null
         else body[key] = values[key] || null
       }
-      return api.patch(`/leads/${lead.id}`, body)
+      return api.patch<{ released?: boolean }>(`/leads/${lead.id}`, body)
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      // Decided 27/11/2026: a dropped lead goes back to the pool; its agent no longer sees it
+      if (result.released && !seesPool) {
+        toast.info(t('toast.leadReleased', { name: lead.fullName }), t('toast.leadReleasedDetail'))
+        await queryClient.invalidateQueries({ queryKey: keys.leads })
+        void navigate('/leads')
+        return
+      }
       await refresh()
-      if (values.careStatus !== initial.careStatus) toast.success(t('toast.careChanged', { value: catalogue.label('care_status', values.careStatus) }))
+      if (result.released) toast.info(t('toast.leadReleased', { name: lead.fullName }), t('toast.leadReleasedDetail'))
+      else if (values.careStatus !== initial.careStatus) toast.success(t('toast.careChanged', { value: catalogue.label('care_status', values.careStatus) }))
       else if (values.interest !== initial.interest) toast.success(t('toast.interestChanged', { value: catalogue.label('interest', values.interest) }))
       else if (values.stage !== initial.stage) toast.success(t('toast.stageChanged', { value: tDynamic(`stage.${values.stage}`, values.stage) }))
       else if (values.nextActionAt !== initial.nextActionAt) toast.success(t(values.nextActionAt ? 'toast.nextActionSet' : 'toast.nextActionCleared'), values.nextActionAt ? t('toast.nextActionSetDetail') : undefined)
@@ -440,6 +442,18 @@ function InfoTab({ detail, onEdit }: { detail: LeadDetail; onEdit: () => void })
   const { lead, canWork, campaign } = detail
   return (
     <Container className="grid gap-8 pb-8 lg:grid-cols-2">
+      {/* Decided 27/11/2026: a lead back in the pool says when, from whom and why */}
+      {lead.releasedAt && !lead.assignedAgentCode && (
+        <div className="lg:col-span-2">
+          <Notice>
+            {t('leads.released', {
+              at: formatDateTime(lead.releasedAt),
+              agent: lead.releasedFrom ? (detail.agentNames[lead.releasedFrom] ?? lead.releasedFrom) : '-',
+              reason: lead.releaseReason ? tDynamic(`leads.releaseReason.${lead.releaseReason}`, lead.releaseReason) : '-',
+            })}
+          </Notice>
+        </div>
+      )}
       <div>
         <div className="flex items-center justify-between">
           <h2 className="text-subhead text-ink">{t('leads.info')}</h2>
@@ -454,7 +468,6 @@ function InfoTab({ detail, onEdit }: { detail: LeadDetail; onEdit: () => void })
           <Fact label={t('leads.email')} value={lead.email} />
           <Fact label={t('leads.dob')} value={showDate(lead.dob)} />
           <Fact label={t('agents.gender')} value={lead.gender} />
-          <Fact label={t('leads.region')} value={lead.region} />
           {/* Decided 26/11/2026: the place by its current names; an older typed province shows as written */}
           <Fact label={t('leads.address')} value={[lead.addressLine, lead.wardName, lead.provinceName].filter(Boolean).join(', ') || null} />
           {!lead.provinceCode && lead.province && <Fact label={t('leads.provinceOld')} value={lead.province} />}
@@ -700,7 +713,7 @@ function HistoryTab({ detail }: { detail: LeadDetail }) {
                   {row.note && <span className="block truncate text-ink-meta">{row.note}</span>}
                 </td>
                 <td className="truncate">
-                  {detail.userNames[row.changedBy] ?? '-'}
+                  {row.changedBy ? (detail.userNames[row.changedBy] ?? '-') : t('leads.bySystem')}
                   {row.imported && <span className="ml-1 text-ink-meta">{t('leads.viaImport')}</span>}
                 </td>
               </tr>

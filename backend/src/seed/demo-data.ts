@@ -18,10 +18,9 @@ const HIERARCHY: {
   roles: Role[];
   agentSuffix?: string;
 }[] = [
-  { key: 'head', name: 'Chủ GA', roles: [Role.GaHead] },
+  // Decided 27/11/2026: one GA director, who is also the agent at the top of the tree (SUM)
+  { key: 'head', name: 'Giám đốc GA', roles: [Role.GAD], agentSuffix: '01' },
   { key: 'admin', name: 'Quản trị viên', roles: [Role.Admin] },
-  { key: 'marketing', name: 'Marketing', roles: [Role.Marketing] },
-  { key: 'gad', name: 'Giám đốc GA', roles: [Role.GAD], agentSuffix: '01' },
   { key: 'bm', name: 'Trưởng ban', roles: [Role.BM], agentSuffix: '02' },
   {
     key: 'um',
@@ -33,7 +32,7 @@ const HIERARCHY: {
 ];
 
 const AGENT_RANK_BY_KEY: Record<string, AgentRank> = {
-  gad: 'SUM',
+  head: 'SUM',
   bm: 'BM',
   um: 'UM',
   fc: 'FC',

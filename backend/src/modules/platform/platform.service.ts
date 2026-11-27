@@ -77,7 +77,7 @@ export class PlatformService {
         const { user, inviteUrl } = await this.usersService.createInvited(
           scope,
           actor.id,
-          { ...dto.head, roles: [Role.GaHead] },
+          { ...dto.head, roles: [Role.GAD] },
           db,
         );
         await this.audit.record(

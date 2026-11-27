@@ -8,6 +8,9 @@ export const NOTIFICATION_TYPES = [
   'LEAD_ASSIGNED',
   /** Decided 26/11/2026: being asked to support a lead */
   'LEAD_SUPPORT',
+  /** Decided 27/11/2026: an assignment waits for the GA director, and the director's answer */
+  'ASSIGN_REQUESTED',
+  'ASSIGN_DECIDED',
   'CLIENT_ASSIGNED',
   'LEAD_COMMENT',
   'CLIENT_COMMENT',

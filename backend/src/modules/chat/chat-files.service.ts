@@ -145,7 +145,7 @@ export class ChatFilesService {
     const sent = row.message_seq !== null;
     const allowed = sent
       ? (row.joined_seq !== null && Number(row.message_seq) > Number(row.joined_seq)) ||
-        actor.roles.includes(Role.GaHead)
+        actor.roles.includes(Role.GAD)
       : row.uploader_id === actor.id;
     if (!allowed) throw notFound();
     return {

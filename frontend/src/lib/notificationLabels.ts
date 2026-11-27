@@ -5,6 +5,8 @@ import type { NotificationItem } from './types'
 export const NOTIFICATION_TYPES = [
   'LEAD_ASSIGNED',
   'LEAD_SUPPORT',
+  'ASSIGN_REQUESTED',
+  'ASSIGN_DECIDED',
   'LEAD_COMMENT',
   'MENTION',
   'LEAD_DEADLINE_SOON',
@@ -33,6 +35,11 @@ export function notificationText(item: NotificationItem): string {
       return count === 1 ? t('notification.leadAssignedOne', { name }) : t('notification.leadAssignedMany', { count })
     case 'LEAD_SUPPORT':
       return t('notification.leadSupport', { name })
+    // Decided 27/11/2026: assignments waiting for the GA director
+    case 'ASSIGN_REQUESTED':
+      return t(item.data.kind === 'CLIENT' ? 'notification.assignRequestedClients' : 'notification.assignRequestedLeads', { count })
+    case 'ASSIGN_DECIDED':
+      return t(item.data.status === 'APPROVED' ? 'notification.assignApproved' : 'notification.assignRejected', { count })
     case 'CLIENT_ASSIGNED':
       return count === 1 ? t('notification.clientAssignedOne', { name }) : t('notification.clientAssignedMany', { count })
     case 'LEAD_COMMENT':

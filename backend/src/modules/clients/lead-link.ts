@@ -17,23 +17,9 @@ const ageOn = (dob: string, today: string): number => {
   return today.slice(5) < dob.slice(5) ? years - 1 : years;
 };
 
-/** CUS-2: the bands Success uses. */
-const bandOf = (age: number): string =>
-  age < 18
-    ? '<18'
-    : age < 30
-      ? '18-29'
-      : age < 40
-        ? '30-39'
-        : age < 50
-          ? '40-49'
-          : age < 60
-            ? '50-59'
-            : '60+';
-
 /**
  * LEAD-32: how likely a client is the person a lead became. Same name 0.6, same phone 0.4, same
- * gender 0.1, same age band (or at most 3 years apart) 0.1, an application made within 60 days
+ * gender 0.1, at most 3 years apart in age 0.1, an application made within 60 days
  * after the lead 0.2; at most 1.
  */
 export function linkScore(
@@ -50,7 +36,6 @@ export function linkScore(
     phone?: string | null;
     gender?: string | null;
     dob?: string | null;
-    ageBand?: string | null;
   },
   applications: readonly { createdDate: string }[],
   today: string,
@@ -75,11 +60,11 @@ export function linkScore(
   }
   const leadAge = lead.dob ? ageOn(lead.dob, today) : (lead.age ?? null);
   const clientAge = client.dob ? ageOn(client.dob, today) : null;
+  // Decided 27/11/2026: no age band any more, so only a client's date of birth gives their age
   const sameAge =
     leadAge !== null &&
-    (clientAge !== null
-      ? Math.abs(leadAge - clientAge) <= 3
-      : !!client.ageBand && bandOf(leadAge) === client.ageBand);
+    clientAge !== null &&
+    Math.abs(leadAge - clientAge) <= 3;
   if (sameAge) {
     score += 0.1;
     reasons.push('AGE');

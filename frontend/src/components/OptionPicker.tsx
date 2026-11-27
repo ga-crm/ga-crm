@@ -8,8 +8,8 @@ import { PickField } from './ui'
 import type { PickOption } from './ui'
 
 /**
- * OPT-13: one of the GA's shown values (a lead source, region or lost reason), or one typed in the
- * search. A typed source joins the catalogue when saved; a region or reason is only suggested, so a
+ * OPT-13: one of the GA's shown values (a lead source or lost reason), or one typed in the
+ * search. A typed source joins the catalogue when saved; a reason is only suggested, so a
  * typed one is simply kept (`joins` false). Built on the app's own picker rather than a browser `datalist`,
  * whose arrow and pop-up follow the operating system instead of the theme (26/11/2026).
  */

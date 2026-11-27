@@ -53,7 +53,7 @@ export interface SessionResult {
 
 /** USER-16: MFA is mandatory for these roles. */
 const MFA_ROLES: readonly string[] = [
-  Role.GaHead,
+  Role.GAD,
   Role.Admin,
   Role.PlatformAdmin,
 ];

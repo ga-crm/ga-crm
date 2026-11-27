@@ -1,6 +1,8 @@
-export const TENANT_ROLES = ['FC', 'UM', 'BM', 'GAD', 'GA_HEAD', 'MARKETING', 'ADMIN'] as const
-export const AGENT_ROLES: readonly string[] = ['FC', 'UM', 'BM', 'GAD']
-export const CONFIGURABLE_ROLES = ['ADMIN', 'MARKETING', 'GAD', 'BM', 'UM', 'FC'] as const
+// Highest first (decided 26-27/11/2026): Marketing was dropped (Admin does its work) and the GA head
+// became the GA director (GAD), whose agent code is optional
+export const TENANT_ROLES = ['GAD', 'ADMIN', 'BM', 'UM', 'FC'] as const
+export const AGENT_ROLES: readonly string[] = ['FC', 'UM', 'BM']
+export const CONFIGURABLE_ROLES = ['ADMIN', 'BM', 'UM', 'FC'] as const
 
 export type Role = (typeof TENANT_ROLES)[number] | 'PLATFORM_ADMIN'
 export type UserStatus = 'INVITED' | 'ACTIVE' | 'DISABLED' | 'ARCHIVED'
@@ -29,14 +31,14 @@ export interface AgentDetail extends Omit<AgentNode, 'userId'> {
   startDate: string | null
   endDate: string | null
   officeCode: string | null
-  /** AGT-6: absent unless the viewer is GA_HEAD or ADMIN. */
+  /** AGT-6: absent unless the viewer is GAD or ADMIN. */
   dob?: string | null
   phone?: string | null
 }
 
 /** OPT-1: a GA's lead catalogue. Interest and care status codes are no longer a fixed list. */
 /** OPT-1, then the GA's own lists of section 5.2 (open question D: they start empty). */
-export const LEAD_OPTION_KINDS = ['interest', 'care_status', 'source', 'region', 'phone_source', 'lost_reason'] as const
+export const LEAD_OPTION_KINDS = ['interest', 'care_status', 'source', 'phone_source', 'lost_reason'] as const
 export type LeadOptionKind = (typeof LEAD_OPTION_KINDS)[number]
 export interface LeadOption {
   id: string
@@ -54,13 +56,16 @@ export type LeadStage = (typeof LEAD_STAGES)[number]
 /** LEAD-19: where a lead can be moved by hand. */
 export const LEAD_WORK_STAGES: readonly LeadStage[] = ['CONTACTED', 'APPOINTMENT', 'MET', 'PROPOSAL', 'SUBMITTED', 'LOST']
 
+/** Decided 27/11/2026: why a lead went back to the GA's pool. */
+export type LeadReleaseReason = 'IDLE' | 'DROPPED' | 'NOT_INTERESTED'
+
 export interface LeadRow {
   id: string
   fullName: string
   phone: string
+  releaseReason: LeadReleaseReason | null
   source: string
   phoneSource: string | null
-  region: string | null
   leadDate: string
   stage: LeadStage
   interest: string | null
@@ -89,6 +94,8 @@ export interface LeadCounts {
   overdue: number
   isNew: number
   newComment: number
+  /** Decided 27/11/2026: leads back in the pool (director and Admin). */
+  released: number
 }
 
 export interface LeadTask {
@@ -119,6 +126,8 @@ export interface LeadSupporter {
 
 export interface LeadDetail {
   lead: Omit<LeadRow, 'agentName' | 'campaignName' | 'assignedAt'> & {
+    releasedAt: string | null
+    releasedFrom: string | null
     email: string | null
     gender: string | null
     dob: string | null
@@ -151,7 +160,7 @@ export interface LeadDetail {
   interactions: { id: string; type: string; note: string; outcome: string | null; occurredAt: string; initial: boolean; createdBy: string | null; source: string; editedAt: string | null }[]
   comments: ThreadComment[]
   tasks: LeadTask[]
-  history: { id: string; field: string; oldValue: string | null; newValue: string | null; note?: string | null; imported: boolean; changedBy: string; changedAt: string }[]
+  history: { id: string; field: string; oldValue: string | null; newValue: string | null; note?: string | null; imported: boolean; changedBy: string | null; changedAt: string }[]
   userNames: Record<string, string>
   agentNames: Record<string, string>
   /** LEAD-28: oldest first; `to` is null for the current holder. */
@@ -178,7 +187,6 @@ export interface LinkSuggestion {
   clientId: string
   name: string
   gender: string | null
-  ageBand: string | null
   score: number
   reasons: ('NAME' | 'PHONE' | 'GENDER' | 'AGE' | 'APPLICATION')[]
   policies: { policyNo: string; status: string | null }[]
@@ -263,13 +271,13 @@ export interface Me {
   mfa?: { enabled: boolean; required: boolean; setupRequired: boolean }
 }
 
-/** Section 5.2: the GA settings screen (GA_HEAD only). */
+/** Section 5.2: the GA settings screen (GAD only). */
 export interface GaSettings {
   version: number
   gaCode: string
   gaName: string
   profile: { displayName: string; address: string }
-  leadRules: { contactDeadlineHours: number; contactedInTimeHours: number; managersMayReassign: boolean; consentForTelesales: boolean }
+  leadRules: { contactDeadlineHours: number; contactedInTimeHours: number; managersMayReassign: boolean; consentForTelesales: boolean; abandonDays: number }
   notifications: { quietHours: { from: string; to: string } }
   security: { mfaForAll: boolean }
   plan: { name: string; users: number; limits: TenantLimits }
@@ -340,7 +348,6 @@ export type ClientRow = {
   name: string
   phone: string | null
   tier: string | null
-  ageBand: string | null
   gender: string | null
   /** The policies the client is on, with their roles there. */
   policies: { policyNo: string; roles: PolicyRole[] }[]
@@ -532,7 +539,6 @@ export interface ClientDetail {
     ekycRegistered: boolean | null
     ekycRegisteredAt: string | null
     birthDayMonth: string | null
-    ageBand: string | null
     manual: boolean
     agents: { agentCode: string; name: string | null }[]
   }
@@ -590,7 +596,6 @@ export const PRODUCT_ROLES = ['Chính', 'Bổ trợ'] as const
 /** MAN-2 */
 export const GENDERS = ['Nam', 'Nữ'] as const
 export const MARITAL_STATUSES = ['Độc thân', 'Đã kết hôn', 'Ly hôn'] as const
-export const AGE_BANDS = ['<18', '18-29', '30-39', '40-49', '50-59', '60+'] as const
 export const PREMIUM_FREQUENCIES = ['Năm', 'Nửa năm', 'Quý', 'Tháng'] as const
 
 /** TENANT-5: a product of the shared catalogue, as everyone in a GA sees it. */
@@ -650,7 +655,7 @@ export interface ProductPolicy {
   lines: { insuredName: string | null; sumAssuredVnd: number | null; annualPremiumVnd: number | null }[]
 }
 
-/** `policies` is null for Marketing and Admin, who have no client book (CUS-5). */
+/** `policies` is null for Admin, who has no client book (CUS-5). */
 export interface ProductDetail {
   product: ProductView
   policies: ProductPolicy[] | null
@@ -1093,3 +1098,19 @@ export type Dashboard =
       /** Null for a FC alone: nothing to compare. */
       agents: { agentCode: string | null; name: string | null; open: number; contacted: number }[] | null
     }
+
+/** Decided 27/11/2026: an assignment waiting for (or decided by) the GA director. */
+export type AssignmentStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+
+export interface AssignmentRequest {
+  id: string
+  kind: 'LEAD' | 'CLIENT'
+  status: AssignmentStatus
+  createdAt: string
+  decidedAt: string | null
+  note: string | null
+  requestedBy: string | null
+  decidedBy: string | null
+  to: { code: string; name: string | null } | null
+  records: { id: string; name: string | null; from: { code: string; name: string | null } | null }[]
+}
